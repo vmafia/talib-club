@@ -48,3 +48,27 @@ input::placeholder,textarea::placeholder{color:var(--t3)}
 input:focus,select:focus,textarea:focus{border-color:var(--acc-br)}
 .empty{text-align:center;padding:60px 24px;color:var(--t3);font-size:13px;font-weight:300}
 @media(max-width:768px){main{padding:20px 16px 80px}h1{font-size:26px}}
+:root {
+  /* กำหนดตัวแปรสีที่มีอยู่เดิม... */
+}
+
+/* ปรับ Container ให้เป็นแบบ Responsive */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ทำให้รูปภาพและ iframe ไม่ล้นหน้าจอ (สำคัญมากสำหรับหน้าบทความและ Tracking) */
+img, iframe, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ปรับแต่ง Table สำหรับมือถือ */
+.table-responsive {
+  overflow-x: auto;
+  display: block;
+  width: 100%;
+}
