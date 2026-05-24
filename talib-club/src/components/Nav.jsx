@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react"
-import { SITE } from "../data/index.js"
+
+// ปรับปรุงการกำหนดค่าข้อมูลเพื่อป้องกัน Error เรื่อง Path ไฟล์
+const SITE = { name: "Talib Club", tagline: "แหล่งรวมความรู้" };
 
 const NAV_LINKS = [
   { id: "home",     label: "หน้าหลัก",  icon: "ti-home" },
@@ -23,7 +25,6 @@ export default function Nav({ page, go, theme, setTheme }) {
     return () => window.removeEventListener("resize", fn)
   }, [])
 
-  // ปิด menu เมื่อ navigate
   function nav(id) {
     go(id)
     setMenuOpen(false)
@@ -81,7 +82,6 @@ export default function Nav({ page, go, theme, setTheme }) {
 
         {/* Right Controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Theme toggle — ทั้ง desktop และ mobile */}
           <div style={{
             display: "flex", background: "var(--bg2)", borderRadius: 20,
             padding: 3, border: ".5px solid var(--br)", gap: 2,
@@ -101,7 +101,6 @@ export default function Nav({ page, go, theme, setTheme }) {
             ))}
           </div>
 
-          {/* Desktop Login */}
           {!isMobile && (
             <button style={{
               fontFamily: "'Prompt',sans-serif", cursor: "pointer",
@@ -114,7 +113,6 @@ export default function Nav({ page, go, theme, setTheme }) {
             </button>
           )}
 
-          {/* Hamburger — mobile only */}
           {isMobile && (
             <button onClick={() => setMenuOpen(o => !o)} style={{
               background: menuOpen ? "var(--bg3)" : "var(--bg2)",
@@ -130,17 +128,12 @@ export default function Nav({ page, go, theme, setTheme }) {
       </nav>
 
       {/* ─── MOBILE DRAWER ─── */}
-      {isMobile && (
+      {isMobile && menuOpen && (
         <>
-          {/* Overlay */}
-          {menuOpen && (
-            <div onClick={() => setMenuOpen(false)} style={{
-              position: "fixed", inset: 0, background: "rgba(0,0,0,.5)",
-              zIndex: 150, backdropFilter: "blur(2px)",
-            }} />
-          )}
-
-          {/* Drawer */}
+          <div onClick={() => setMenuOpen(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,.5)",
+            zIndex: 150, backdropFilter: "blur(2px)",
+          }} />
           <div style={{
             position: "fixed", top: 0, right: 0, bottom: 0, width: 260,
             background: "var(--bg)", borderLeft: ".5px solid var(--br)",
@@ -150,7 +143,6 @@ export default function Nav({ page, go, theme, setTheme }) {
             display: "flex", flexDirection: "column",
             boxShadow: menuOpen ? "-8px 0 32px rgba(0,0,0,.4)" : "none",
           }}>
-            {/* Logo in drawer */}
             <div style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "0 20px 20px", borderBottom: ".5px solid var(--br2)", marginBottom: 8,
@@ -166,8 +158,6 @@ export default function Nav({ page, go, theme, setTheme }) {
                 <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 300 }}>{SITE.tagline}</div>
               </div>
             </div>
-
-            {/* Nav Links */}
             <div style={{ flex: 1, overflowY: "auto" }}>
               {NAV_LINKS.map(l => (
                 <button key={l.id} onClick={() => nav(l.id)} style={{
@@ -188,8 +178,6 @@ export default function Nav({ page, go, theme, setTheme }) {
                 </button>
               ))}
             </div>
-
-            {/* Bottom: Login */}
             <div style={{ padding: "12px 20px", borderTop: ".5px solid var(--br2)" }}>
               <button style={{
                 width: "100%", fontFamily: "'Prompt',sans-serif", fontSize: 13, fontWeight: 400,
@@ -204,7 +192,7 @@ export default function Nav({ page, go, theme, setTheme }) {
         </>
       )}
 
-      {/* ─── MOBILE BOTTOM BAR (optional shortcut) ─── */}
+      {/* ─── MOBILE BOTTOM BAR ─── */}
       {isMobile && (
         <div style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
