@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { id: "library",  label: "ห้องสมุด",  icon: "ti-books" },
   { id: "media",    label: "มีเดีย",    icon: "ti-player-play" },
   { id: "scholars", label: "อุลามาอ์",  icon: "ti-users" },
-  { id: "tracking", label: "Tracking",  icon: "ti-package" },
+  { id: "tracking", label: "ตรวจสอบพัสดุ",  icon: "ti-package" },
 ]
 
 export default function Nav({ page, go, theme, setTheme }) {
