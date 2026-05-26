@@ -1,52 +1,6 @@
-import { useState, useEffect } from "react"
-
-// --- Mock Data & Hooks เพื่อการแสดงผล ---
-const DEFAULT_TAXONOMY = {
-  mediaTypes: ["youtube", "spotify"]
-}
-
-const MEDIA = [
-  {
-    id: "1",
-    type: "youtube",
-    title: "สิ่งที่ควรเตรียมตัวก่อนรอมฎอนมาถึง! | ชัยคุอับดุสลาม อัช-ชุวัยอิร",
-    channel: "Talib Club",
-    duration: "12:24",
-    embedId: "dQw4w9WgXcQ", 
-    series: "Talib Shorts"
-  },
-  {
-    id: "2",
-    type: "spotify",
-    title: "Talib Podcast - ทำความรู้จักอิสลามเบื้องต้น",
-    channel: "Talib Club",
-    duration: "45:30",
-    spotifyUrl: "https://open.spotify.com/embed/episode/7ouMYZmWJRxT7Fh7I3r04M",
-    series: "Podcast"
-  }
-]
-
-function useContentCollection(collectionName, initialData) {
-  const [items, setItems] = useState(initialData || []);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setItems(initialData || []);
-      setLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [collectionName, initialData]);
-
-  return { items, loading };
-}
-
-function useTaxonomySettings(initialTaxonomy) {
-  const [taxonomy] = useState(initialTaxonomy || {});
-  return { taxonomy };
-}
-// ----------------------------------------
+import { useState } from "react"
+import { DEFAULT_TAXONOMY, MEDIA } from "../data/index.js"
+import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"
 
 export default function Media({ go }) {
   const { items: media, loading } = useContentCollection("media", MEDIA)
