@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react"
 import toast from 'react-hot-toast'
-import { SITE } from "../../data/index.js"
-import { useSiteSettings } from "../../lib/contentStore.js"
 
 // Mock Data และ Mock Hook สำหรับการพรีวิวใน Canvas
 const SITE_MOCK = {
