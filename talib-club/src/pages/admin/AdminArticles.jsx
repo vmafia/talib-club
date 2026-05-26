@@ -1,9 +1,9 @@
 import { useState } from "react"
-import toast from 'react-hot-toast' // นำเข้า Toast
+import toast from 'react-hot-toast'
 
 // ==========================================
 // หมายเหตุ: โค้ดส่วนนี้ถูกปรับแก้เพื่อให้ระบบ Canvas/Preview ทำงานได้
-// สำหรับการใช้งานบน GitHub ของคุณ กรุณาใช้คำสั่ง import เหล่านี้แทน:
+// สำหรับการใช้งานบน GitHub ของคุณ กรุณาลบส่วนนี้ทิ้งและนำคำสั่ง import ด้านล่างนี้กลับมาใช้:
 // import { ARTICLES, DEFAULT_TAXONOMY } from "../../data/index.js"
 // import { useContentCollection, useTaxonomySettings } from "../../lib/contentStore.js"
 // ==========================================
@@ -11,12 +11,12 @@ const DEFAULT_TAXONOMY = {
   articleTypes: [{id: "general", label: "ทั่วไป"}, {id: "series", label: "ซีรีส์"}, {id: "specific", label: "เฉพาะหัวข้อ"}],
   articleCategories: [{id: "aqeedah", label: "อากีดะฮ์"}, {id: "fiqh", label: "ฟิกฮ์"}],
   articleSeries: [{id: "s1", name: "ซีรีส์ที่ 1"}]
-}
-const ARTICLES = []
+};
+const ARTICLES = [];
 
 function useContentCollection(collectionName, initialItems) {
   return {
-    items: initialItems,
+    items: initialItems || [],
     loading: false,
     error: null,
     saveItem: async (item) => console.log('Saved', item),
@@ -24,6 +24,7 @@ function useContentCollection(collectionName, initialItems) {
     isUsingFallback: true
   }
 }
+
 function useTaxonomySettings(initialTaxonomy) {
   return { taxonomy: initialTaxonomy || {} };
 }
@@ -128,7 +129,7 @@ export default function AdminArticles() {
 function ArticleForm({ item, setItem, onSave, onCancel, taxonomy }) {
   const set = (k, v) => setItem(prev => ({ ...prev, [k]: v }))
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}> {/* เพิ่ม margin 0 auto เพื่อให้อยู่ตรงกลาง */}
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
       <BackBtn onClick={onCancel} />
       <h2 style={{ marginBottom: 20 }}>{item.id === item.id && !ARTICLES.find(a=>a.id===item.id) ? "เพิ่มบทความใหม่" : "แก้ไขบทความ"}</h2>
 
