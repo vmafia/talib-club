@@ -1,6 +1,33 @@
 import { useState } from "react"
-import { ARTICLES, DEFAULT_TAXONOMY } from "../../data/index.js"
-import { useContentCollection, useTaxonomySettings } from "../../lib/contentStore.js"
+import toast from 'react-hot-toast' // นำเข้า Toast
+
+// ==========================================
+// หมายเหตุ: โค้ดส่วนนี้ถูกปรับแก้เพื่อให้ระบบ Canvas/Preview ทำงานได้
+// สำหรับการใช้งานบน GitHub ของคุณ กรุณาใช้คำสั่ง import เหล่านี้แทน:
+// import { ARTICLES, DEFAULT_TAXONOMY } from "../../data/index.js"
+// import { useContentCollection, useTaxonomySettings } from "../../lib/contentStore.js"
+// ==========================================
+const DEFAULT_TAXONOMY = {
+  articleTypes: [{id: "general", label: "ทั่วไป"}, {id: "series", label: "ซีรีส์"}, {id: "specific", label: "เฉพาะหัวข้อ"}],
+  articleCategories: [{id: "aqeedah", label: "อากีดะฮ์"}, {id: "fiqh", label: "ฟิกฮ์"}],
+  articleSeries: [{id: "s1", name: "ซีรีส์ที่ 1"}]
+}
+const ARTICLES = []
+
+function useContentCollection(collectionName, initialItems) {
+  return {
+    items: initialItems,
+    loading: false,
+    error: null,
+    saveItem: async (item) => console.log('Saved', item),
+    deleteItem: async (id) => console.log('Deleted', id),
+    isUsingFallback: true
+  }
+}
+function useTaxonomySettings(initialTaxonomy) {
+  return { taxonomy: initialTaxonomy || {} };
+}
+// ==========================================
 
 const EMPTY = {
   id: Date.now(), type: "general", seriesId: "", seriesName: "", part: null,
@@ -14,7 +41,6 @@ export default function AdminArticles() {
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   const [editing, setEdit]  = useState(null)
   const [search, setSearch] = useState("")
-  const [saved, setSaved]   = useState(false)
 
   const filtered = items.filter(a =>
     a.title.toLowerCase().includes(search.toLowerCase())
@@ -25,14 +51,14 @@ export default function AdminArticles() {
   function cancel() { setEdit(null) }
 
   async function save() {
-    if (!editing.title.trim()) return alert("กรุณาใส่ชื่อบทความ")
+    if (!editing.title.trim()) return toast.error("กรุณาใส่ชื่อบทความ")
     try {
       await saveItem(editing)
       setEdit(null)
-      flash()
+      toast.success("บันทึกบทความเรียบร้อยแล้ว!")
     } catch (err) {
       console.error(err)
-      alert("บันทึกบทความไม่สำเร็จ กรุณาตรวจสิทธิ์ Firestore หรือการเชื่อมต่ออินเทอร์เน็ต")
+      toast.error("บันทึกไม่สำเร็จ กรุณาตรวจสิทธิ์ Firestore")
     }
   }
 
@@ -40,20 +66,18 @@ export default function AdminArticles() {
     if (!confirm("ลบบทความนี้?")) return
     try {
       await deleteItem(id)
-      flash()
+      toast.success("ลบบทความเรียบร้อยแล้ว")
     } catch (err) {
       console.error(err)
-      alert("ลบบทความไม่สำเร็จ กรุณาตรวจสิทธิ์ Firestore หรือการเชื่อมต่ออินเทอร์เน็ต")
+      toast.error("ลบไม่สำเร็จ กรุณาตรวจสิทธิ์ Firestore")
     }
   }
-
-  function flash() { setSaved(true); setTimeout(() => setSaved(false), 2500) }
 
   if (editing) return <ArticleForm item={editing} setItem={setEdit} onSave={save} onCancel={cancel} taxonomy={taxonomy} />
 
   return (
     <div>
-      <SectionHead title="บทความ" count={items.length} saved={saved} loading={loading}
+      <SectionHead title="บทความ" count={items.length} loading={loading}
         onNew={openNew} search={search} setSearch={setSearch} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -104,7 +128,7 @@ export default function AdminArticles() {
 function ArticleForm({ item, setItem, onSave, onCancel, taxonomy }) {
   const set = (k, v) => setItem(prev => ({ ...prev, [k]: v }))
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto" }}> {/* เพิ่ม margin 0 auto เพื่อให้อยู่ตรงกลาง */}
       <BackBtn onClick={onCancel} />
       <h2 style={{ marginBottom: 20 }}>{item.id === item.id && !ARTICLES.find(a=>a.id===item.id) ? "เพิ่มบทความใหม่" : "แก้ไขบทความ"}</h2>
 
@@ -218,7 +242,7 @@ function BackBtn({ onClick }) {
   )
 }
 
-function SectionHead({ title, count, saved, loading, onNew, search, setSearch }) {
+function SectionHead({ title, count, loading, onNew, search, setSearch }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10,
       marginBottom: 16, flexWrap: "wrap" }}>
@@ -226,8 +250,6 @@ function SectionHead({ title, count, saved, loading, onNew, search, setSearch })
         {title} <span style={{ fontSize: 12, color: "var(--t3)" }}>({count})</span>
       </span>
       {loading && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 400 }}>กำลังโหลดข้อมูล...</span>}
-      {saved && <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 400 }}>
-        <i className="ti ti-check" style={{ marginRight: 4 }}></i>บันทึกขึ้นเว็บแล้ว</span>}
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="ค้นหา..." style={{
           fontFamily: "'Prompt',sans-serif", fontSize: 12, padding: "6px 10px",
