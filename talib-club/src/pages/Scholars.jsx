@@ -106,10 +106,23 @@ export default function Scholars() {
 
       <div style={{marginTop:32,padding:"16px 20px",background:"var(--acc2)",
         border:".5px solid var(--acc-br)",borderRadius:12,textAlign:"center"}}>
-        <div style={{fontSize:13,color:"var(--t2)",fontWeight:300}}>
-          <i className="ti ti-info-circle" style={{marginRight:6,color:"var(--teal)"}}></i>
-          ต้องการเพิ่มรายชื่ออุลามาอ์? ติดต่อทีม Talib Club
+       {/* CONTACT */}
+      <div style={{marginTop:32,padding:"20px 24px",background:"var(--acc2)",
+        border:".5px solid var(--acc-br)",borderRadius:14,textAlign:"center"}}>
+        <div style={{fontSize:14,fontWeight:500,color:"var(--text)",marginBottom:6}}>
+          ต้องการเพิ่มรายชื่ออุลามาอ์?
         </div>
+        <p style={{fontSize:12,marginBottom:14}}>ติดต่อทีม Talib Club เพื่อเสนอรายชื่อนักวิชาการเพิ่มเติม</p>
+        <a 
+          href="https://www.facebook.com/TalibClub" 
+          target="_blank" 
+          rel="noreferrer" 
+          className="btn btn-main" 
+          style={{fontSize:12, textDecoration:"none", display:"inline-block"}}
+        >
+          ติดต่อเรา
+        </a>
+      </div>
       </div>
     </div>
   )

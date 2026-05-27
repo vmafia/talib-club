@@ -103,8 +103,13 @@ export default function Library() {
           ต้องการบริจาคหนังสือหรือวารสาร?
         </div>
         <p style={{fontSize:12,marginBottom:14}}>ติดต่อทีม Talib Club เพื่อนำเนื้อหาของท่านมาเผยแพร่</p>
-        <button className="btn btn-main" style={{fontSize:12}}>ติดต่อเรา</button>
+        <a 
+          href="https://www.facebook.com/TalibPublisher" 
+          target="_blank" 
+          rel="noreferrer" 
+          className="btn btn-main" 
+          style={{fontSize:12, textDecoration:"none", display:"inline-block"}}
+        >
+          ติดต่อเรา
+        </a>
       </div>
-    </div>
-  )
-}
