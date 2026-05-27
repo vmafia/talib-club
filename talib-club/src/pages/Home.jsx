@@ -34,7 +34,6 @@ export default function Home({ go }) {
             <i className="ti ti-player-play" style={{ marginRight:6, fontSize:13 }}></i>ฟังธรรม
           </button>
         </div>
-        <SocialLinks site={site} />
       </div>
 
       {/* AYAH */}
@@ -175,51 +174,75 @@ export default function Home({ go }) {
         </div>
         <button className="btn btn-teal">บริจาคสนับสนุน</button>
       </div>
+
+      {/* FOOTER */}
+      <Footer site={site} />
     </div>
   )
 }
 
-function SocialLinks({ site }) {
-  // กำหนดสีประจำแบรนด์ของแต่ละแพลตฟอร์มให้ดูพรีเมียมขึ้น
+function Footer({ site }) {
   const links = [
-    { key: "facebook", label: "Facebook", icon: "ti-brand-facebook", color: "#1877F2" },
-    { key: "youtube", label: "YouTube", icon: "ti-brand-youtube", color: "#FF0000" },
-    { key: "spotify", label: "Spotify", icon: "ti-brand-spotify", color: "#1DB954" },
-    { key: "instagram", label: "Instagram", icon: "ti-brand-instagram", color: "#E4405F" },
-  ].map(item => ({ ...item, url: site.social?.[item.key] })).filter(item => item.url)
-
-  if (!links.length) return null
+    { key: "facebook", icon: "ti-brand-facebook" },
+    { key: "youtube", icon: "ti-brand-youtube" },
+    { key: "spotify", icon: "ti-brand-spotify" },
+    { key: "instagram", icon: "ti-brand-instagram" },
+  ].map(item => ({ ...item, url: site?.social?.[item.key] })).filter(item => item.url)
 
   return (
-    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "20px" }}>
-      {links.map(item => (
-        <a
-          key={item.key}
-          href={item.url}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 16px",
-            background: "var(--card, #ffffff)",
-            border: "1px solid var(--br, #eaeaea)",
-            borderRadius: "30px", // ทำขอบมนแบบแคปซูล
-            textDecoration: "none", // เอาขีดเส้นใต้ออก
-            color: "var(--t2, #555)",
-            fontSize: "13px",
-            fontWeight: "500",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.02)", // เพิ่มมิติเงาบางๆ
-            transition: "all 0.2s ease"
+    <footer style={{
+      backgroundColor: "#111a22",
+      color: "#fff",
+      padding: "40px 20px",
+      textAlign: "center",
+      position: "relative",
+      marginTop: "60px",
+      width: "100vw",
+      marginLeft: "calc(-50vw + 50%)",
+      boxSizing: "border-box",
+      borderTop: "1px solid #1f2937"
+    }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>เกี่ยวกับเว็บไซต์</a>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>ผู้ดูแลระบบ</a>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>นโยบายความเป็นส่วนตัว</a>
+      </div>
+
+      <div style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "24px" }}>
+        All Rights Reserved for Talib Club {new Date().getFullYear()} ©
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
+        {links.map(item => (
+          <a key={item.key} href={item.url} target="_blank" rel="noreferrer" style={{
+            width: "42px", height: "42px",
+            backgroundColor: "#080c11",
+            borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", textDecoration: "none", transition: "0.2s"
           }}
-          onMouseEnter={(e) => e.currentTarget.style.borderColor = item.color}
-          onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--br, #eaeaea)"}
-        >
-          <i className={`ti ${item.icon}`} style={{ color: item.color, fontSize: "16px" }}></i>
-          {item.label}
-        </a>
-      ))}
-    </div>
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#080c11"}
+          >
+            <i className={`ti ${item.icon}`} style={{ fontSize: "18px" }}></i>
+          </a>
+        ))}
+      </div>
+
+      <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{
+        position: "absolute", right: "max(20px, calc(50vw - 520px))", top: "50%", transform: "translateY(-50%)",
+        width: "42px", height: "42px",
+        backgroundColor: "#1b2a24",
+        border: "none", borderRadius: "50%",
+        color: "#fff", cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "0.2s"
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1b2a24"}
+      >
+        <i className="ti ti-arrow-up" style={{ fontSize: "18px" }}></i>
+      </button>
+    </footer>
   )
 }

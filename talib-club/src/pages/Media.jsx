@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { MEDIA, DEFAULT_TAXONOMY } from "../data/index.js"
-import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"
+import { MEDIA, DEFAULT_TAXONOMY, SITE } from "../data/index.js"
+import { useContentCollection, useTaxonomySettings, useSiteSettings } from "../lib/contentStore.js"
 
 export default function Media({ go }) {
   const { items: media, loading, error, isUsingFallback } = useContentCollection("media", MEDIA)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
+  const { site } = useSiteSettings(SITE)
   const [filter, setFilter] = useState("all")
 
   const filtered = media.filter(item => filter === "all" || item.type === filter)
@@ -76,6 +77,75 @@ export default function Media({ go }) {
       </div>
 
       {filtered.length === 0 && <div className="empty">ไม่พบรายการมีเดีย</div>}
+
+      {/* FOOTER */}
+      <Footer site={site} />
     </div>
+  )
+}
+
+function Footer({ site }) {
+  const links = [
+    { key: "facebook", icon: "ti-brand-facebook" },
+    { key: "youtube", icon: "ti-brand-youtube" },
+    { key: "spotify", icon: "ti-brand-spotify" },
+    { key: "instagram", icon: "ti-brand-instagram" },
+  ].map(item => ({ ...item, url: site?.social?.[item.key] })).filter(item => item.url)
+
+  return (
+    <footer style={{
+      backgroundColor: "#111a22",
+      color: "#fff",
+      padding: "40px 20px",
+      textAlign: "center",
+      position: "relative",
+      marginTop: "60px",
+      width: "100vw",
+      marginLeft: "calc(-50vw + 50%)",
+      boxSizing: "border-box",
+      borderTop: "1px solid #1f2937"
+    }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>เกี่ยวกับเว็บไซต์</a>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>ผู้ดูแลระบบ</a>
+        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>นโยบายความเป็นส่วนตัว</a>
+      </div>
+
+      <div style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "24px" }}>
+        All Rights Reserved for Talib Club {new Date().getFullYear()} ©
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
+        {links.map(item => (
+          <a key={item.key} href={item.url} target="_blank" rel="noreferrer" style={{
+            width: "42px", height: "42px",
+            backgroundColor: "#080c11",
+            borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", textDecoration: "none", transition: "0.2s"
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#080c11"}
+          >
+            <i className={`ti ${item.icon}`} style={{ fontSize: "18px" }}></i>
+          </a>
+        ))}
+      </div>
+
+      <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{
+        position: "absolute", right: "max(20px, calc(50vw - 520px))", top: "50%", transform: "translateY(-50%)",
+        width: "42px", height: "42px",
+        backgroundColor: "#1b2a24",
+        border: "none", borderRadius: "50%",
+        color: "#fff", cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "0.2s"
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1b2a24"}
+      >
+        <i className="ti ti-arrow-up" style={{ fontSize: "18px" }}></i>
+      </button>
+    </footer>
   )
 }
