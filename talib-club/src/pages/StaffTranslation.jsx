@@ -34,55 +34,43 @@ export default function StaffTranslation({ go }) {
   }
 
   async function runScrape() {
-    setScraping(true);
-    setProgress(0);
-    try {
-      // ดึงแค่หน้าแรกเพื่อเช็คจำนวนหน้า
-      const firstPageRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent("https://abuiyaad.com/wp-json/wp/v2/posts?per_page=100&page=1")}`);
-      if (!firstPageRes.ok) throw new Error("ไม่สามารถเชื่อมต่อ Proxy ได้");
-      const firstPageJson = await firstPageRes.json();
-      
-      // ตรวจสอบข้อมูลก่อน parse
-      if (!firstPageJson.contents) throw new Error("ไม่ได้รับข้อมูลจากเว็บไซต์");
-      
-      const totalPages = parseInt(firstPageJson.status?.headers?.["x-wp-totalpages"] || "1");
-      let allPosts = JSON.parse(firstPageJson.contents);
-      setProgress(Math.round((1 / totalPages) * 100));
+  setScraping(true)
+  setProgress(30)
+  try {
+    const res = await fetch("/api/abuiyaad-scrape")
+    const data = await res.json()
 
-      // วนลูปโดยมีการหน่วงเวลา (Delay) เพื่อไม่ให้ Proxy มองว่าเรากำลังโจมตีเว็บ
-      for (let page = 2; page <= totalPages; page++) {
-        // หน่วงเวลา 1 วินาทีในแต่ละหน้า
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://abuiyaad.com/wp-json/wp/v2/posts?per_page=100&page=${page}`)}`);
-        if (res.ok) {
-          const data = await res.json();
-          allPosts = [...allPosts, ...JSON.parse(data.contents)];
-          setProgress(Math.round((page / totalPages) * 100));
-        }
+    if (!data.articles) throw new Error(data.error)
+
+    setProgress(70)
+
+    const BATCH_LIMIT = 499
+    for (let i = 0; i < data.articles.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db)
+      const chunk = data.articles.slice(i, i + BATCH_LIMIT)
+
+      for (const post of chunk) {
+        const id = docId(post.url)
+        batch.set(
+          doc(db, COLLECTION, id),
+          { title: post.title, url: post.url, status: STATUS.pending },
+          { merge: true }
+        )
       }
-
-      // บันทึกข้อมูล
-      const batch = writeBatch(db);
-      allPosts.forEach(post => {
-        batch.set(doc(db, COLLECTION, docId(post.link)), {
-          title: post.title.rendered.replace(/<[^>]+>/g, ''),
-          url: post.link,
-          status: STATUS.pending,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      });
-      await batch.commit();
-      
-      notifySuccess(`กวาดข้อมูลสำเร็จ! รวม ${allPosts.length} รายการ`);
-      loadItems();
-    } catch (err) {
-      notifyError("กวาดข้อมูลไม่ได้: " + err.message);
-    } finally {
-      setScraping(false);
-      setProgress(0);
+      await batch.commit()
     }
+
+    setProgress(100)
+    notifySuccess(`สำเร็จ! ได้บทความทั้งหมด ${data.count} รายการ`)
+    loadItems()
+
+  } catch (err) {
+    notifyError("กวาดข้อมูลไม่ได้: " + err.message)
+  } finally {
+    setScraping(false)
+    setProgress(0)
   }
+}
   async function updateItem(item, patch) {
     try {
       const batch = writeBatch(db)
