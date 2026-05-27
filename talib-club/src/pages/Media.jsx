@@ -94,24 +94,19 @@ function Footer({ site }) {
 
   return (
     <footer style={{
-      backgroundColor: "#111a22",
-      color: "#fff",
-      padding: "40px 20px",
+      padding: "40px 0 20px",
+      marginTop: "60px",
       textAlign: "center",
       position: "relative",
-      marginTop: "60px",
-      width: "100vw",
-      marginLeft: "calc(-50vw + 50%)",
-      boxSizing: "border-box",
-      borderTop: "1px solid #1f2937"
+      borderTop: ".5px solid var(--br2)"
     }}>
       <div style={{ display: "flex", justifyContent: "center", gap: "24px", flexWrap: "wrap", marginBottom: "16px" }}>
-        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>เกี่ยวกับเว็บไซต์</a>
-        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>ผู้ดูแลระบบ</a>
-        <a href="#" style={{ color: "#2ea970", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>นโยบายความเป็นส่วนตัว</a>
+        <a href="#" style={{ color: "var(--text)", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>เกี่ยวกับเว็บไซต์</a>
+        <a href="#" style={{ color: "var(--text)", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>ผู้ดูแลระบบ</a>
+        <a href="#" style={{ color: "var(--text)", textDecoration: "none", fontSize: "14px", fontWeight: 500 }}>นโยบายความเป็นส่วนตัว</a>
       </div>
 
-      <div style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "24px" }}>
+      <div style={{ fontSize: "13px", color: "var(--t3)", marginBottom: "24px", fontWeight: 300 }}>
         All Rights Reserved for Talib Club {new Date().getFullYear()} ©
       </div>
 
@@ -119,13 +114,14 @@ function Footer({ site }) {
         {links.map(item => (
           <a key={item.key} href={item.url} target="_blank" rel="noreferrer" style={{
             width: "42px", height: "42px",
-            backgroundColor: "#080c11",
+            backgroundColor: "var(--card)",
+            border: ".5px solid var(--br)",
             borderRadius: "50%",
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", textDecoration: "none", transition: "0.2s"
+            color: "var(--t2)", textDecoration: "none", transition: "0.2s"
           }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#080c11"}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "var(--teal)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--card)"; e.currentTarget.style.color = "var(--t2)"; e.currentTarget.style.borderColor = "var(--br)"; }}
           >
             <i className={`ti ${item.icon}`} style={{ fontSize: "18px" }}></i>
           </a>
@@ -133,16 +129,17 @@ function Footer({ site }) {
       </div>
 
       <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{
-        position: "absolute", right: "max(20px, calc(50vw - 520px))", top: "50%", transform: "translateY(-50%)",
+        position: "absolute", right: "0", top: "40px",
         width: "42px", height: "42px",
-        backgroundColor: "#1b2a24",
-        border: "none", borderRadius: "50%",
-        color: "#fff", cursor: "pointer",
+        backgroundColor: "var(--teal-bg)",
+        border: "1px solid rgba(15,110,86,0.1)",
+        borderRadius: "50%",
+        color: "var(--teal)", cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "0.2s"
       }}
-      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--teal)"}
-      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1b2a24"}
+      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--teal-bg)"; e.currentTarget.style.color = "var(--teal)"; }}
       >
         <i className="ti ti-arrow-up" style={{ fontSize: "18px" }}></i>
       </button>
