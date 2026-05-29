@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from "react"
-import { initializeApp, getApps } from "firebase/app"
 import { 
   collection, onSnapshot, query, updateDoc, doc, 
   serverTimestamp, addDoc, deleteDoc, setDoc, orderBy, getFirestore 
 } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
-import { toast } from "react-hot-toast"
+import { initializeApp, getApps } from "firebase/app"
+import toast from "react-hot-toast"
 
 // ฟังก์ชันสำหรับแจ้งเตือน
 const notifySuccess = (msg) => toast.success(msg)
@@ -46,7 +46,6 @@ const DEFAULT_MAGAZINE = [
 ]
 
 // ━━━ TELEGRAM NOTIFICATION CONFIG ━━━
-// รหัส Token และ Chat ID ของคุณ
 const TELEGRAM_BOT_TOKEN = "8683156343:AAEn8qfYjvhq2XhOkb0UuO3HP2re8U1emgk";
 const TELEGRAM_CHAT_ID = "-1003358204239";
 
@@ -66,6 +65,7 @@ const sendBotNotification = async (message) => {
 
 const formatDate = (date) => {
   if (!date) return "-"
+  // รองรับ Firebase Timestamp หรือ Date ธรรมดา
   const d = date?.toDate ? date.toDate() : (date.seconds ? new Date(date.seconds * 1000) : new Date(date))
   if (isNaN(d.getTime())) return "-"
   return new Intl.DateTimeFormat("th-TH", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(d)
@@ -87,12 +87,12 @@ export default function StaffWork({ authState, go }) {
   const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Dynamic Data States
+  // Dynamic Data States (โหลดจาก Firebase)
   const [staffTeam, setStaffTeam] = useState(DEFAULT_STAFF)
   const [magazineQueue, setMagazineQueue] = useState(DEFAULT_MAGAZINE)
   const [newStaffName, setNewStaffName] = useState("")
 
-  // Form State (เปลี่ยนจากการเลือก assignees รวมๆ เป็นแยกระบุหน้าที่ชัดเจน)
+  // Form State (แยกหน้าที่มีผู้เขียน, กราฟิก, แอดมินโพสต์)
   const [form, setForm] = useState({ title: "", type: "", description: "", writer: "", graphic: "", adminPost: "", files: [] })
   const [uploading, setUploading] = useState(false)
   const [reviewingId, setReviewingId] = useState(null)
@@ -102,13 +102,14 @@ export default function StaffWork({ authState, go }) {
 
   const fileInputRef = useRef(null)
   
-  // ปรับแก้ให้ดึงชื่อจริงจากระบบ Login (App.jsx) หรือ localStorage ก่อน
-  // ถ้าไม่มีเลยจริงๆ (เช่นในหน้าจอ Preview นี้) ถึงจะแสดงชื่อสำรอง
-  const currentUser = authState?.user?.name || localStorage.getItem("talib_user") || "ผู้เยี่ยมชม"
+  // ⚡️ แก้ไขตรงนี้: ดึงชื่อจาก localStorage โดยตรง จะตรงกับคนที่ Login แน่นอน ⚡️
+  const currentUser = localStorage.getItem("talib_user") || "ผู้เยี่ยมชม"
   const isAdmin = ADMIN_TEAM.includes(currentUser)
 
+  // ดึงข้อมูลทั้งหมดจาก Firebase แบบ Real-time
   useEffect(() => {
     setLoading(true)
+
     const qSubs = query(collection(db, "submissions"), orderBy("createdAt", "desc"))
     const unsubSubs = onSnapshot(qSubs, (snap) => {
       setSubs(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -120,20 +121,31 @@ export default function StaffWork({ authState, go }) {
     })
 
     const unsubStaff = onSnapshot(doc(db, "settings", "staff"), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().members) setStaffTeam(docSnap.data().members)
+      if (docSnap.exists() && docSnap.data().members) {
+        setStaffTeam(docSnap.data().members)
+      } else {
+        setStaffTeam(DEFAULT_STAFF)
+      }
     })
 
     const unsubMag = onSnapshot(doc(db, "settings", "magazine"), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().queue) setMagazineQueue(docSnap.data().queue)
+      if (docSnap.exists() && docSnap.data().queue) {
+        setMagazineQueue(docSnap.data().queue)
+      } else {
+        setMagazineQueue(DEFAULT_MAGAZINE)
+      }
     })
 
-    return () => { unsubSubs(); unsubStaff(); unsubMag(); }
+    return () => {
+      unsubSubs()
+      unsubStaff()
+      unsubMag()
+    }
   }, [])
 
   const filteredSubs = useMemo(() => {
     return subs.filter(s => {
       if (myTasksOnly) {
-        // เช็คว่าเกี่ยวข้องกับงานนี้ในฐานะใดฐานะหนึ่งหรือไม่
         return s.staffName === currentUser || s.writer === currentUser || s.graphic === currentUser || s.adminPost === currentUser
       }
       return true
@@ -147,7 +159,7 @@ export default function StaffWork({ authState, go }) {
     posted: subs.filter(s => s.status === STATUS_OPTIONS.POSTED).length,
   }), [subs])
 
-  // --- Admin Methods ---
+  // --- Admin Methods (Update Firebase Settings) ---
   const handleAddStaff = async () => {
     if (!newStaffName.trim()) return
     const updatedTeam = [...staffTeam, newStaffName.trim()].sort()
@@ -155,7 +167,10 @@ export default function StaffWork({ authState, go }) {
       await setDoc(doc(db, "settings", "staff"), { members: updatedTeam }, { merge: true })
       setNewStaffName("")
       notifySuccess(`เพิ่ม "${newStaffName}" เข้าระบบแล้ว`)
-    } catch (e) { notifyError("เกิดข้อผิดพลาดในการเพิ่มทีมงาน") }
+    } catch (e) {
+      console.error(e)
+      notifyError("เกิดข้อผิดพลาดในการเพิ่มทีมงาน")
+    }
   }
 
   const handleRemoveStaff = async (name) => {
@@ -164,7 +179,10 @@ export default function StaffWork({ authState, go }) {
       try {
         await setDoc(doc(db, "settings", "staff"), { members: updatedTeam }, { merge: true })
         notifySuccess(`ลบ "${name}" ออกจากระบบแล้ว`)
-      } catch (e) { notifyError("เกิดข้อผิดพลาดในการลบทีมงาน") }
+      } catch (e) {
+        console.error(e)
+        notifyError("เกิดข้อผิดพลาดในการลบทีมงาน")
+      }
     }
   }
 
@@ -174,7 +192,10 @@ export default function StaffWork({ authState, go }) {
     try {
       await setDoc(doc(db, "settings", "magazine"), { queue: updatedQueue }, { merge: true })
       notifySuccess(`อัปเดตคิววารสารสำเร็จ`)
-    } catch (e) { notifyError("เกิดข้อผิดพลาดในการอัปเดตคิววารสาร") }
+    } catch (e) {
+      console.error(e)
+      notifyError("เกิดข้อผิดพลาดในการอัปเดตคิววารสาร")
+    }
   }
 
   // --- File Handlers ---
@@ -195,7 +216,7 @@ export default function StaffWork({ authState, go }) {
     setForm(prev => ({ ...prev, files: prev.files.filter((_, i) => i !== idx) }))
   }
 
-  // --- Submission Actions ---
+  // --- Submission Actions (Firebase) ---
   const handleCreateSubmission = async (e) => {
     e.preventDefault()
     if (!form.title || !form.type) {
@@ -206,7 +227,7 @@ export default function StaffWork({ authState, go }) {
     
     try {
       const fileLinks = []
-      const storage = getStorage(db.app) 
+      const storage = getStorage(app) 
       
       if (form.files && form.files.length > 0) {
         for (const file of form.files) {
@@ -234,8 +255,8 @@ export default function StaffWork({ authState, go }) {
       
       notifySuccess("ส่งงานเข้าระบบแล้ว รอแอดมินตรวจสอบ")
       
-      // แจ้งเตือนเข้า Telegram โดยตรงด้วยโครงสร้างข้อความใหม่
-      await sendBotNotification(`📬 [ส่งงานใหม่] โดย: ${currentUser}\n📌 หัวข้อ: "${form.title}"\n🏷️ ประเภท: ${form.type}\n\n👥 ทีมงานที่รับผิดชอบ:\n✍️ ผู้เขียน: ${form.writer || "-"}\n🎨 กราฟิก: ${form.graphic || "-"}\n📢 ผู้ดูแลโพสต์: ${form.adminPost || "-"}\n\nรอแอดมินตรวจสอบความถูกต้องครับ 🚀`)
+      // ส่งแจ้งเตือน Telegram
+      await sendBotNotification(`📬 [ส่งงานใหม่] โดย: ${currentUser}\n📌 หัวข้อ: "${form.title}"\n🏷️ ประเภท: ${form.type}\n\n👥 ทีมงานที่รับผิดชอบ:\n✍️ ผู้เขียน: ${form.writer || "-"}\n🎨 กราฟิก: ${form.graphic || "-"}\n📢 ผู้โพสต์: ${form.adminPost || "-"}\n\nรอแอดมินตรวจสอบความถูกต้องครับ 🚀`)
       
       setForm({ title: "", type: "", description: "", writer: "", graphic: "", adminPost: "", files: [] })
       setTab("dashboard")
@@ -260,11 +281,12 @@ export default function StaffWork({ authState, go }) {
 
       const targetSub = subs.find(s => s.id === id)
       if (nextStatus === STATUS_OPTIONS.APPROVED) {
-        await sendBotNotification(`✅ [ผ่านอนุมัติ] งาน "${targetSub.title}"\nของ ${targetSub.staffName} ได้รับการอนุมัติแล้ว 🎉 เตรียมตัวโพสต์ลงเพจได้เลย!`)
+        await sendBotNotification(`✅ [อนุมัติแล้ว] งาน "${targetSub.title}"\nของคุณ ${targetSub.staffName} ได้รับการอนุมัติแล้ว 🎉 เตรียมตัวจัดตารางลงงานได้เลย!`)
       } else if (nextStatus === STATUS_OPTIONS.REJECTED) {
-        await sendBotNotification(`⚠️ [ตีกลับ] งาน "${targetSub.title}"\nถูกตีกลับให้แก้ไข!\n\n💬 ฟีดแบ็กแอดมิน:\n"${feedbackText}"\n\nทีมงานที่เกี่ยวข้องรีบแก้ไขด้วยนะครับ 🛠️`)
+        await sendBotNotification(`⚠️ [ถูกตีกลับ] งาน "${targetSub.title}"\nของ ${targetSub.staffName} ถูกตีกลับให้แก้ไข!\n\n💬 ฟีดแบ็กจากแอดมิน:\n"${feedbackText}"\n\nรีบเข้าไปแก้ไขด้วยนะครับ 🛠️`)
       }
     } catch (e) {
+      console.error(e)
       notifyError("อัปเดตสถานะล้มเหลว")
     }
   }
@@ -284,8 +306,9 @@ export default function StaffWork({ authState, go }) {
       const targetSub = subs.find(s => s.id === id)
       setPostingForm({ scheduleDate: "", platforms: [], postLink: "" })
 
-      await sendBotNotification(`📢 [ลงงานแล้ว] อัลฮัมดุลิลละฮฺ\nงานหัวข้อ "${targetSub.title}" เผยแพร่เรียบร้อยแล้ว!\n\n📱 ช่องทาง: ${postingForm.platforms.join(", ")}\n🔗 ลิงก์โพสต์: ${postingForm.postLink || "-"}`)
+      await sendBotNotification(`📢 [ลงงานเรียบร้อย] อัลฮัมดุลิลละฮฺ\nงานหัวข้อ "${targetSub.title}" โพสต์เผยแพร่เรียบร้อยแล้ว!\n\n📱 แพลตฟอร์ม: ${postingForm.platforms.join(", ")}\n🔗 ลิงก์โพสต์: ${postingForm.postLink || "ไม่ได้ระบุ"}`)
     } catch (e) {
+      console.error(e)
       notifyError("บันทึกการโพสต์ล้มเหลว")
     }
   }
@@ -295,7 +318,10 @@ export default function StaffWork({ authState, go }) {
       try {
         await deleteDoc(doc(db, "submissions", id))
         notifySuccess("ลบงานเรียบร้อยแล้ว")
-      } catch (e) { notifyError("ลบงานล้มเหลว") }
+      } catch (e) {
+        console.error(e)
+        notifyError("ลบงานล้มเหลว")
+      }
     }
   }
 
@@ -369,7 +395,6 @@ export default function StaffWork({ authState, go }) {
                       )}
                     </div>
 
-                    {/* แสดงป้ายบอกหน้าที่ชัดเจนตามแบบใหม่ */}
                     <div style={{ marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
                       <span style={{ fontSize: "11px", color: "var(--t3)", fontWeight: "500" }}>👥 ทีมผู้รับผิดชอบ:</span>
                       {sub.writer && (
@@ -507,7 +532,7 @@ export default function StaffWork({ authState, go }) {
                 <textarea rows="3" placeholder="รายละเอียดต่างๆ..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
 
-              {/* ปรับปรุงใหม่: ระบุบทบาทชัดเจน */}
+              {/* แบ่งหน้าที่ชัดเจน */}
               <div className="staff-form-grid" style={{ marginTop: "12px", background: "var(--inp)", padding: "16px", borderRadius: "12px", border: "1px solid var(--br2)" }}>
                 <div style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
                   <label style={{ fontWeight: "600", color: "var(--text)" }}>👥 ระบุทีมงานผู้รับผิดชอบตามหน้าที่ (เลือกได้ตามความเหมาะสม)</label>
