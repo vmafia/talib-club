@@ -65,14 +65,13 @@ export default function Library() {
                 
                 {/* Left: Cover Image */}
                 <div style={{width: 90, flexShrink: 0}}>
-                  {b.coverUrl ? (
-                    {/* 💡 2. เรียกใช้ฟังก์ชัน getDirectUrl ตรง src ของรูปภาพ */}
-                    <img src={getDirectUrl(b.coverUrl)} alt={b.title} style={{width:"100%", borderRadius:6, objectFit:"cover", aspectRatio:"3/4", border:".5px solid var(--br2)", boxShadow:"0 4px 6px rgba(0,0,0,0.05)"}} />
-                  ) : (
-                    <div style={{width:"100%", aspectRatio:"3/4", borderRadius:6, background:"var(--acc2)", display:"flex", alignItems:"center", justifyContent:"center", border:".5px solid var(--br2)"}}>
-                      <i className={`ti ${b.type==="วารสาร"?"ti-news":b.type==="PDF"?"ti-file-text":"ti-book"}`} style={{fontSize:24, color:"var(--acc)"}}></i>
-                    </div>
-                  )}
+                 {b.coverUrl ? (
+  <img src={getDirectUrl(b.coverUrl)} alt={b.title} style={{width:"100%", borderRadius:6, objectFit:"cover", aspectRatio:"3/4", border:".5px solid var(--br2)", boxShadow:"0 4px 6px rgba(0,0,0,0.05)"}} />
+) : (
+  <div style={{width:"100%", aspectRatio:"3/4", borderRadius:6, background:"var(--acc2)", display:"flex", alignItems:"center", justifyContent:"center", border:".5px solid var(--br2)"}}>
+    <i className={`ti ${b.type==="วารสาร"?"ti-news":b.type==="PDF"?"ti-file-text":"ti-book"}`} style={{fontSize:24, color:"var(--acc)"}}></i>
+  </div>
+)}
                 </div>
 
                 {/* Right: Info & Actions */}
