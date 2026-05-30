@@ -134,6 +134,7 @@ export default function App() {
           </RequireStaff>
         )}
        {page === "donate" && <Donation />}
+       {page === "article" && <ArticleDetail item={ctx} go={go} authState={authState} />}
       </main>
     </div>
   )

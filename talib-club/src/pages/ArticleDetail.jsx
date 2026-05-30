@@ -52,33 +52,35 @@ export default function ArticleDetail({ item, go, authState }) {
 
   const isSaved = displayItem ? savedList.includes(displayItem.id) : false;
 
-  const toggleSave = async () => {
-    if (!uid) {
-      toast.error("กรุณาเข้าสู่ระบบก่อนบันทึกบทความ");
-      go("auth");
-      return;
-    }
-
-    const bookmarkId = `${uid}_${displayItem.id}`; // ใช้ UID ผสมกับรหัสบทความ
-
-    try {
-      if (isSaved) {
-        await deleteBookmark(bookmarkId);
-        toast.success("ยกเลิกการบันทึกแล้ว");
-      } else {
-        await saveBookmark({
-          id: bookmarkId,
-          uid: uid,
-          articleId: displayItem.id,
-          savedAt: new Date().toISOString()
-        });
-        toast.success("บันทึกบทความไว้ในบัญชีของคุณแล้ว!");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("เกิดข้อผิดพลาดจากระบบฐานข้อมูล กรุณาลองใหม่");
-    }
+  // ในหน้า ArticleDetail.jsx
+// แทนที่ฟังก์ชัน toggleSave ด้วยอันนี้ครับ
+const toggleSave = async () => {
+  if (!uid) {
+    toast.error("กรุณาเข้าสู่ระบบก่อนบันทึกบทความ");
+    go("auth");
+    return;
   }
+  
+  // สร้าง ID เฉพาะ: uid + articleId
+  const bookmarkId = `${uid}_${displayItem.id}`; 
+  
+  try {
+    if (isSaved) {
+      await deleteItem(bookmarkId); // ใช้ฟังก์ชัน deleteItem จาก useContentCollection
+      toast.success("ยกเลิกการบันทึกแล้ว");
+    } else {
+      await saveItem({
+        id: bookmarkId,
+        uid: uid,
+        articleId: displayItem.id,
+        savedAt: serverTimestamp()
+      });
+      toast.success("บันทึกบทความแล้ว!");
+    }
+  } catch (err) {
+    toast.error("บันทึกไม่สำเร็จ");
+  }
+}
 
   const handleShare = async () => {
     navigator.clipboard.writeText(window.location.href);

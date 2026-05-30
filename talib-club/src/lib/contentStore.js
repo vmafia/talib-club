@@ -13,6 +13,7 @@ export const CONTENT_COLLECTIONS = {
   books: "content_books",
   media: "content_media",
   scholars: "content_scholars",
+  bookmarks: "content_bookmarks",
 }
 
 export const SITE_DOC = { collection: "content_settings", id: "site" }
