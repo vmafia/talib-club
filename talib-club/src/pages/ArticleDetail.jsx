@@ -38,15 +38,14 @@ export default function ArticleDetail({ item, go, authState }) {
     window.localStorage.setItem(READER_STORAGE_KEY, JSON.stringify(readerPrefs))
   }, [readerPrefs])
 
-  // --- ระบบบันทึกบทความ (บังคับต้อง Login เท่านั้น) ---
   const isLoggedIn = !!authState?.user;
   const savedList = isLoggedIn ? (authState?.profile?.savedArticles || []) : [];
   const isSaved = displayItem ? savedList.includes(displayItem.id) : false;
 
   const toggleSave = async () => {
     if (!isLoggedIn) {
-      toast.error("กรุณาเข้าสู่ระบบเพื่อบันทึกบทความไว้อ่านภายหลัง");
-      go("auth"); // เด้งไปหน้าล็อกอิน
+      toast.error("กรุณาเข้าสู่ระบบก่อนบันทึกบทความ");
+      go("auth");
       return;
     }
 
@@ -108,7 +107,6 @@ export default function ArticleDetail({ item, go, authState }) {
         </div>
         <h1 className="article-title">{displayItem.title}</h1>
         
-        {/* เอาเรื่องเวลาอ่านออกแล้ว */}
         <div style={{ display: "flex", gap: 16, color: "var(--t3)", fontSize: 12, fontWeight: 300, flexWrap: "wrap", marginTop: 12 }}>
           <span><i className="ti ti-user" style={{ marginRight: 4, fontSize: 13 }}></i>{displayItem.author}</span>
           <span><i className="ti ti-calendar" style={{ marginRight: 4, fontSize: 13 }}></i>{displayItem.date}</span>

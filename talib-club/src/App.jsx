@@ -30,9 +30,11 @@ export default function App() {
   const urlToPage = {
     "": "home",
     "articles": "articles",
+    "article": "article",
     "library": "library",
     "library-detail": "library-detail",
     "media": "media",
+    "media-detail": "media-detail",
     "scholars": "scholars",
     "tracking-system": "tracking",
     "auth": "auth",
@@ -79,7 +81,7 @@ export default function App() {
       urlPath = "/" + p;
     }
     
-    // --- จุดที่แก้ไข: ฝัง ID ลงในลิงก์ URL อัตโนมัติ เพื่อให้แชร์ได้ ---
+    // ฝัง ID ลงในลิงก์ URL อัตโนมัติ เพื่อให้แชร์ได้ 
     if (data && data.id) {
       urlPath += `?id=${data.id}`
     }
@@ -94,8 +96,10 @@ export default function App() {
       <Nav page={page} go={go} theme={theme} setTheme={setTheme} authState={authState} />
       <main>
         {page === "home" && <Home go={go} />}
-        {page === "articles" && <Articles go={go} />}
-        {page === "article" && <ArticleDetail item={ctx} go={go} />}
+        {page === "articles" && <Articles go={go} authState={authState} ctx={ctx} />}
+        {/* ส่ง authState เข้าไปให้หน้าอ่านบทความ เพื่อให้ระบบรู้ว่าล็อกอินแล้ว */}
+        {page === "article" && <ArticleDetail item={ctx} go={go} authState={authState} />}
+        
         {page === "library" && <Library go={go} />}
         {page === "library-detail" && <LibraryDetail item={ctx} go={go} />}
         {page === "media" && <Media go={go} />}
@@ -103,6 +107,7 @@ export default function App() {
         {page === "scholars" && <Scholars />}
         {page === "tracking" && <Tracking />}
         {page === "auth" && <Auth authState={authState} go={go} />}
+        
         {page === "member" && (
           <RequireLogin authState={authState} go={go}>
             <MemberDashboard authState={authState} go={go} initialView={ctx?.view} />
@@ -129,8 +134,6 @@ export default function App() {
           </RequireStaff>
         )}
        {page === "donate" && <Donation />}
-       {page === "articles" && <Articles go={go} authState={authState} ctx={ctx} />}
-      {page === "article" && <ArticleDetail item={ctx} go={go} authState={authState} />}
       </main>
     </div>
   )
@@ -152,7 +155,7 @@ function RequireStaff({ authState, go, children }) {
 function LoadingState() {
   return (
     <div className="card" style={{ maxWidth: 420, margin: "44px auto", padding: 24, textAlign: "center" }}>
-      <i className="ti ti-loader-2" style={{ fontSize: 28, color: "var(--teal)" }}></i>
+      <i className="ti ti-loader-2 spin" style={{ fontSize: 28, color: "var(--teal)" }}></i>
       <p style={{ marginTop: 10 }}>กำลังตรวจสอบสถานะผู้ใช้...</p>
     </div>
   )

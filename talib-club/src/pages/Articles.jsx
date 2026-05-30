@@ -2,26 +2,21 @@ import { useState } from "react"
 import { ARTICLES, DEFAULT_TAXONOMY } from "../data/index.js"
 import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"
 
-export default function Articles({ go, authState, ctx }) {
+export default function Articles({ go, authState }) {
   const { items: articles, loading } = useContentCollection("articles", ARTICLES)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   
-  const [viewMode, setViewMode] = useState(ctx?.viewMode || "all")
   const [cat, setCat] = useState("all")
   const [search, setSearch] = useState("")
   const [type, setType] = useState("all")
-  const [showAllBrowse, setShowAllBrowse] = useState(ctx?.viewMode === "saved")
+  const [showAllBrowse, setShowAllBrowse] = useState(false)
   
-  // --- ระบบดึงข้อมูลบทความที่บันทึกไว้ (เฉพาะ Member เท่านั้น) ---
   const isLoggedIn = !!authState?.user;
-  const savedList = isLoggedIn ? (authState?.profile?.savedArticles || []) : [];
 
   const types = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.articleTypes || [])]
   const categories = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.articleCategories || [])]
 
   const filtered = articles.filter(a => {
-    if (viewMode === "saved" && !savedList.includes(a.id)) return false;
-    
     const matchCat = cat === "all" || a.category === cat
     const matchType = type === "all" || a.type === type
     const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase())
@@ -29,10 +24,10 @@ export default function Articles({ go, authState, ctx }) {
   })
 
   const seriesGroups = (taxonomy.articleSeries || []).map(s => ({
-    ...s, articles: articles.filter(a => a.type === "series" && a.seriesId === s.id && (viewMode === "all" || savedList.includes(a.id)))
+    ...s, articles: articles.filter(a => a.type === "series" && a.seriesId === s.id)
   })).filter(s => s.articles.length > 0)
 
-  const isDefaultView = viewMode === "all" && !search && cat === "all" && type === "all" && !showAllBrowse
+  const isDefaultView = !search && cat === "all" && type === "all" && !showAllBrowse
   const recentArticles = filtered.slice(0, 6)
 
   return (
@@ -43,23 +38,19 @@ export default function Articles({ go, authState, ctx }) {
         {loading && <p style={{ marginTop: 8, fontSize: 12 }}>กำลังโหลดบทความล่าสุด...</p>}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: ".5px solid var(--br2)", paddingBottom: 16 }}>
-        <button 
-          onClick={() => { setViewMode("all"); setShowAllBrowse(false); }} 
-          className={`btn ${viewMode === "all" ? "btn-teal" : "btn-outline"}`}
-          style={{ padding: "8px 16px", borderRadius: 8 }}
-        >
-          <i className="ti ti-file-text" style={{ marginRight: 6 }}></i> บทความทั้งหมด
-        </button>
-        <button 
-          onClick={() => { setViewMode("saved"); setShowAllBrowse(true); }} 
-          className={`btn ${viewMode === "saved" ? "btn-teal" : "btn-outline"}`}
-          style={{ padding: "8px 16px", borderRadius: 8 }}
-        >
-          <i className={`ti ${viewMode === "saved" ? "ti-bookmark-filled" : "ti-bookmark"}`} style={{ marginRight: 6 }}></i> 
-          บทความที่บันทึกไว้ {isLoggedIn && savedList.length > 0 && `(${savedList.length})`}
-        </button>
-      </div>
+      {/* ปุ่มลัดเข้าดูคลังส่วนตัว (โชว์เฉพาะคนล็อกอิน) */}
+      {isLoggedIn && (
+        <div style={{ marginBottom: 24 }}>
+          <button 
+            onClick={() => go("member", { view: "saved-articles" })} 
+            className="btn btn-outline"
+            style={{ padding: "8px 16px", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}
+          >
+            <i className="ti ti-bookmark-filled" style={{ color: "var(--teal)" }}></i> 
+            เปิดดูบทความที่บันทึกไว้ในคลังส่วนตัว
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
@@ -146,17 +137,13 @@ export default function Articles({ go, authState, ctx }) {
       ) : (
         <div>
           <div className="sec-hd" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="sec-title">{viewMode === "saved" ? `บทความที่บันทึกไว้ (${filtered.length})` : `${filtered.length} บทความที่พบ`}</span>
-            {!search && cat === "all" && type === "all" && viewMode !== "saved" && (
+            <span className="sec-title">{filtered.length} บทความที่พบ</span>
+            {!search && cat === "all" && type === "all" && (
               <button className="sec-link" onClick={() => { setShowAllBrowse(false) }} style={{ fontSize: 12 }}>กลับหน้าสารบัญซีรีส์</button>
             )}
           </div>
           {filtered.length === 0 ? (
-            <div className="empty">
-              {viewMode === "saved" 
-                ? (!isLoggedIn ? "กรุณาเข้าสู่ระบบเพื่อดูบทความที่คุณบันทึกไว้" : "คุณยังไม่ได้บันทึกบทความใดๆ ไว้เลย") 
-                : "ไม่พบบทความที่ตรงกับการค้นหา"}
-            </div>
+            <div className="empty">ไม่พบบทความที่ตรงกับการค้นหา</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
               {filtered.map(a => (
@@ -171,11 +158,6 @@ export default function Articles({ go, authState, ctx }) {
                     <p style={{ fontSize: 12, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.excerpt}</p>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 300 }}>{a.author} · {a.date}</div>
-                      {viewMode === "saved" && (
-                        <div style={{ fontSize: 11, color: "var(--teal)", fontWeight: 300 }}>
-                           <i className="ti ti-bookmark-filled"></i>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
