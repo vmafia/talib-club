@@ -17,6 +17,7 @@ import StaffWork from "./pages/StaffWork.jsx"
 import StaffTranslation from "./pages/StaffTranslation.jsx"
 import Admin from "./pages/Admin.jsx"
 import Donation from "./pages/Donation.jsx"
+import LibraryDetail from "./pages/LibraryDetail.jsx"
 import { Toaster } from "react-hot-toast"
 import "./styles/global.css"
 
@@ -41,6 +42,7 @@ export default function App() {
     "staff-translation": "staff-translation",
     "admin": "admin",
     "donate": "donate",
+    "library-detail": "library-detail",
   }
 
   // จัดการการเปลี่ยนหน้าเมื่อกดปุ่ม Back / Forward บนเบราว์เซอร์
@@ -131,6 +133,7 @@ export default function App() {
           </RequireStaff>
         )}
        {page === "donate" && <Donation />}
+       {page === "library-detail" && <LibraryDetail item={ctx} go={go} />}
       </main>
     </div>
   )
