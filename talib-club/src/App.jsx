@@ -6,7 +6,7 @@ import Home from "./pages/Home.jsx"
 import Articles from "./pages/Articles.jsx"
 import ArticleDetail from "./pages/ArticleDetail.jsx"
 import Library from "./pages/Library.jsx"
-import LibraryDetail from "./pages/LibraryDetail.jsx" // <-- เพิ่มการ Import หน้าละเอียดหนังสือ
+import LibraryDetail from "./pages/LibraryDetail.jsx"
 import Media from "./pages/Media.jsx"
 import MediaDetail from "./pages/MediaDetail.jsx"
 import Scholars from "./pages/Scholars.jsx"
@@ -27,12 +27,11 @@ export default function App() {
   const [page, setPage] = useState("home")
   const [ctx, setCtx] = useState(null)
 
-  // Mapping เส้นทาง URL กับชื่อหน้า
   const urlToPage = {
     "": "home",
     "articles": "articles",
     "library": "library",
-    "library-detail": "library-detail", // <-- เพิ่มเส้นทาง URL ของหน้าละเอียดหนังสือ
+    "library-detail": "library-detail",
     "media": "media",
     "scholars": "scholars",
     "tracking-system": "tracking",
@@ -45,14 +44,13 @@ export default function App() {
     "donate": "donate",
   }
 
-  // จัดการการเปลี่ยนหน้าเมื่อกดปุ่ม Back / Forward บนเบราว์เซอร์
   useEffect(() => {
     const handlePopstate = (event) => {
       if (event && event.state && event.state.page) {
         setPage(event.state.page)
         setCtx(event.state.ctx || null)
       } else {
-        const path = window.location.pathname.replace(/^\//, "") // ลบ / ออกจากด้านหน้า
+        const path = window.location.pathname.replace(/^\//, "")
         const mapped = urlToPage[path] || "home"
         setPage(mapped)
         setCtx(null)
@@ -61,11 +59,10 @@ export default function App() {
 
     const initialPath = window.location.pathname.replace(/^\//, "")
     const initialPage = urlToPage[initialPath] || "home"
-    window.history.replaceState({ page: initialPage, ctx: null }, "", window.location.pathname)
+    window.history.replaceState({ page: initialPage, ctx: null }, "", window.location.pathname + window.location.search)
     setPage(initialPage)
 
     window.addEventListener("popstate", handlePopstate)
-    
     return () => window.removeEventListener("popstate", handlePopstate)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -82,6 +79,11 @@ export default function App() {
       urlPath = "/" + p;
     }
     
+    // --- จุดที่แก้ไข: ฝัง ID ลงในลิงก์ URL อัตโนมัติ เพื่อให้แชร์ได้ ---
+    if (data && data.id) {
+      urlPath += `?id=${data.id}`
+    }
+    
     window.history.pushState({ page: p, ctx: data }, "", urlPath);
   }
 
@@ -94,8 +96,8 @@ export default function App() {
         {page === "home" && <Home go={go} />}
         {page === "articles" && <Articles go={go} />}
         {page === "article" && <ArticleDetail item={ctx} go={go} />}
-        {page === "library" && <Library go={go} />} {/* <-- ส่งต่อฟังก์ชัน go เข้าไปในหน้าห้องสมุดหลัก */}
-        {page === "library-detail" && <LibraryDetail item={ctx} go={go} />} {/* <-- เปิดพื้นที่ให้หน้าละเอียดหนังสือแสดงผล */}
+        {page === "library" && <Library go={go} />}
+        {page === "library-detail" && <LibraryDetail item={ctx} go={go} />}
         {page === "media" && <Media go={go} />}
         {page === "media-detail" && <MediaDetail item={ctx} go={go} />}
         {page === "scholars" && <Scholars />}
