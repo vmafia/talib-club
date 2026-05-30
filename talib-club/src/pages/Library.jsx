@@ -26,7 +26,7 @@ export default function Library() {
 const { items: books, loading } = useContentCollection("books", BOOKS)
 const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
-const [filter, setFilter] = useState("all") // สำหรับปุ่มประเภทหลัก
+const [filter, setFilter] = useState("all")
 const [search, setSearch] = useState("")
 
 // --- State สำหรับตัวกรองขั้นสูง ---
@@ -40,7 +40,7 @@ const ITEMS_PER_PAGE = 12
 
 const types = ["all", ...(taxonomy.bookTypes || [])]
 
-// สกัดรายชื่อ หมวดหมู่ และ แหล่งที่มา ทั้งหมดจากหนังสือที่มีอยู่ (ไม่ให้ซ้ำกัน)
+// สกัดรายชื่อ หมวดหมู่ และ แหล่งที่มา ทั้งหมดจากหนังสือที่มีอยู่
 const availableCategories = useMemo(() => {
 const cats = new Set(books.map(b => b.category).filter(Boolean))
 return ["all", ...Array.from(cats).sort()]
@@ -110,7 +110,6 @@ return (
         </button>
       ))}
 
-      {/* ปุ่มเปิด/ปิด ตัวกรองขั้นสูง */}
       <button
         onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
         className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"}
@@ -121,11 +120,9 @@ return (
     </div>
   </div>
 
-  {/* ADVANCED FILTERS (ซ่อน/แสดง) */}
+  {/* ADVANCED FILTERS */}
   {showAdvancedFilters && (
     <div className="card" style={{ padding: 16, marginBottom: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, background: "var(--acc2)" }}>
-
-      {/* ตัวกรองหมวดหมู่ */}
       <div>
         <label style={{ display: "block", fontSize: 11, color: "var(--t2)", marginBottom: 6, fontWeight: 500 }}>หมวดหมู่เนื้อหา</label>
         <select
@@ -140,7 +137,6 @@ return (
         </select>
       </div>
 
-      {/* ตัวกรองแหล่งที่มา / ผู้เขียน */}
       <div>
         <label style={{ display: "block", fontSize: 11, color: "var(--t2)", marginBottom: 6, fontWeight: 500 }}>แหล่งที่มา / สำนักพิมพ์</label>
         <select
@@ -154,14 +150,6 @@ return (
           ))}
         </select>
       </div>
-
-    </div>
-  )}
-
-  {/* แสดงจำนวนผลลัพธ์ */}
-  {(search || filter !== "all" || categoryFilter !== "all" || sourceFilter !== "all") && (
-    <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16 }}>
-      พบหนังสือ {filtered.length} เล่ม
     </div>
   )}
 
@@ -171,8 +159,6 @@ return (
     : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 16 }}>
       {currentItems.map(b => (
         <div key={b.id} className="card" style={{ padding: 16, display: "flex", gap: 16 }}>
-
-          {/* Left: Cover Image */}
           <div style={{ width: 90, flexShrink: 0 }}>
             {b.coverUrl ? (
               <img src={getDirectUrl(b.coverUrl)} alt={b.title} style={{ width: "100%", borderRadius: 6, objectFit: "cover", aspectRatio: "3/4", border: ".5px solid var(--br2)", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }} />
@@ -183,7 +169,6 @@ return (
             )}
           </div>
 
-          {/* Right: Info & Actions */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -205,7 +190,6 @@ return (
               {b.desc || "ไม่มีคำอธิบายเพิ่มเติม"}
             </p>
 
-            {/* Actions */}
             <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
               <a className="btn btn-teal" href={getDownloadUrl(b.fileUrl)} target="_blank" rel="noopener noreferrer"
                 style={{ flex: 1, fontSize: 11, padding: "6px 0", textDecoration: "none", textAlign: "center", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : .55 }}>
@@ -217,7 +201,6 @@ return (
               </a>
             </div>
           </div>
-
         </div>
       ))}
     </div>
