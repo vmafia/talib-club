@@ -1,6 +1,96 @@
-import { useState, useEffect, useMemo } from "react"import { BOOKS, DEFAULT_TAXONOMY } from "../data/index.js"import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"// 💡 1. ฟังก์ชันดึงรูปปก (ทะลุบล็อก Google Drive)function getDirectUrl(url) {if (!url) return "";const match = url.match(//file/d/([a-zA-Z0-9_-]+)/);if (match && match[1]) {return https://drive.google.com/thumbnail?id=${match[1]}&sz=w800;}return url;}// 💡 2. ฟังก์ชันแปลงลิงก์ให้เป็นแบบ "ดาวน์โหลดไฟล์ลงเครื่อง" อัตโนมัติfunction getDownloadUrl(url) {if (!url) return "";const match = url.match(//file/d/([a-zA-Z0-9_-]+)/);if (match && match[1]) {return https://drive.google.com/uc?export=download&id=${match[1]};}return url;}export default function Library() {const { items: books, loading } = useContentCollection("books", BOOKS)const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)const [filter, setFilter] = useState("all") // สำหรับปุ่มประเภทหลักconst [search, setSearch] = useState("")// --- State สำหรับตัวกรองขั้นสูง ---const [categoryFilter, setCategoryFilter] = useState("all")const [sourceFilter, setSourceFilter] = useState("all")const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)// --- ระบบ Pagination ---const [currentPage, setCurrentPage] = useState(1)const ITEMS_PER_PAGE = 12const types = ["all", ...(taxonomy.bookTypes || [])]// สกัดรายชื่อ หมวดหมู่ และ แหล่งที่มา ทั้งหมดจากหนังสือที่มีอยู่ (ไม่ให้ซ้ำกัน)const availableCategories = useMemo(() => {const cats = new Set(books.map(b => b.category).filter(Boolean))return ["all", ...Array.from(cats).sort()]}, [books])const availableSources = useMemo(() => {const sources = new Set(books.map(b => b.source).filter(Boolean))return ["all", ...Array.from(sources).sort()]}, [books])// รีเซ็ตหน้า 1 ทุกครั้งที่มีการเปลี่ยนตัวกรองuseEffect(() => {setCurrentPage(1)}, [search, filter, categoryFilter, sourceFilter])// กรองข้อมูลตามที่เลือกไว้ทั้งหมดconst filtered = useMemo(() => {return books.filter(b => {const matchType = filter === "all" || b.type === filterconst matchCategory = categoryFilter === "all" || b.category === categoryFilterconst matchSource = sourceFilter === "all" || b.source === sourceFilterconst matchSearch = !search ||b.title.toLowerCase().includes(search.toLowerCase()) ||(b.desc && b.desc.toLowerCase().includes(search.toLowerCase())) ||(b.author && b.author.toLowerCase().includes(search.toLowerCase()))  return matchType && matchCategory && matchSource && matchSearch
+import { useState, useEffect, useMemo } from "react"
+
+
+import { BOOKS, DEFAULT_TAXONOMY } from "../data/index.js"
+
+
+import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"
+
+// 💡 1. ฟังก์ชันดึงรูปปก (ทะลุบล็อก Google Drive)
+function getDirectUrl(url) {
+if (!url) return "";
+const match = url.match(//file/d/([a-zA-Z0-9_-]+)/);
+if (match && match[1]) {
+return https://drive.google.com/thumbnail?id=${match[1]}&sz=w800;
+}
+return url;
+}
+
+// 💡 2. ฟังก์ชันแปลงลิงก์ให้เป็นแบบ "ดาวน์โหลดไฟล์ลงเครื่อง" อัตโนมัติ
+function getDownloadUrl(url) {
+if (!url) return "";
+const match = url.match(//file/d/([a-zA-Z0-9_-]+)/);
+if (match && match[1]) {
+return https://drive.google.com/uc?export=download&id=${match[1]};
+}
+return url;
+}
+
+export default function Library() {
+const { items: books, loading } = useContentCollection("books", BOOKS)
+const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
+
+const [filter, setFilter] = useState("all") // สำหรับปุ่มประเภทหลัก
+const [search, setSearch] = useState("")
+
+// --- State สำหรับตัวกรองขั้นสูง ---
+const [categoryFilter, setCategoryFilter] = useState("all")
+const [sourceFilter, setSourceFilter] = useState("all")
+const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+
+// --- ระบบ Pagination ---
+const [currentPage, setCurrentPage] = useState(1)
+const ITEMS_PER_PAGE = 12
+
+const types = ["all", ...(taxonomy.bookTypes || [])]
+
+// สกัดรายชื่อ หมวดหมู่ และ แหล่งที่มา ทั้งหมดจากหนังสือที่มีอยู่ (ไม่ให้ซ้ำกัน)
+const availableCategories = useMemo(() => {
+const cats = new Set(books.map(b => b.category).filter(Boolean))
+return ["all", ...Array.from(cats).sort()]
+}, [books])
+
+const availableSources = useMemo(() => {
+const sources = new Set(books.map(b => b.source).filter(Boolean))
+return ["all", ...Array.from(sources).sort()]
+}, [books])
+
+// รีเซ็ตหน้า 1 ทุกครั้งที่มีการเปลี่ยนตัวกรอง
+useEffect(() => {
+setCurrentPage(1)
+}, [search, filter, categoryFilter, sourceFilter])
+
+// กรองข้อมูลตามที่เลือกไว้ทั้งหมด
+const filtered = useMemo(() => {
+return books.filter(b => {
+const matchType = filter === "all" || b.type === filter
+const matchCategory = categoryFilter === "all" || b.category === categoryFilter
+const matchSource = sourceFilter === "all" || b.source === sourceFilter
+const matchSearch = !search ||
+b.title.toLowerCase().includes(search.toLowerCase()) ||
+(b.desc && b.desc.toLowerCase().includes(search.toLowerCase())) ||
+(b.author && b.author.toLowerCase().includes(search.toLowerCase()))
+
+  return matchType && matchCategory && matchSource && matchSearch
 })
-}, [books, filter, categoryFilter, sourceFilter, search])// คำนวณข้อมูลหน้าปัจจุบันconst totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)const startIndex = (currentPage - 1) * ITEMS_PER_PAGEconst currentItems = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)return (ห้องสมุดหนังสือ วารสาร และสื่อดาวน์โหลดทั้งหมดของ Talib Club{loading && <p style={{ marginTop: 8, fontSize: 12 }}>กำลังโหลดรายการล่าสุด...}  {/* SEARCH + MAIN FILTER */}
+
+
+}, [books, filter, categoryFilter, sourceFilter, search])
+
+// คำนวณข้อมูลหน้าปัจจุบัน
+const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+const currentItems = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+return (
+
+
+ห้องสมุด
+หนังสือ วารสาร และสื่อดาวน์โหลดทั้งหมดของ Talib Club
+{loading && <p style={{ marginTop: 8, fontSize: 12 }}>กำลังโหลดรายการล่าสุด...}
+
+
+  {/* SEARCH + MAIN FILTER */}
   <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
     <div style={{position:"relative",flex:1,minWidth:250}}>
       <i className="ti ti-search" style={{position:"absolute",left:10,top:"50%",
@@ -187,4 +277,7 @@ import { useState, useEffect, useMemo } from "react"import { BOOKS, DEFAULT_TAXO
     </a>
   </div>
 </div>
-)}
+
+
+)
+}
