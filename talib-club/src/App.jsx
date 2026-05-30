@@ -16,6 +16,7 @@ import StaffDashboard from "./pages/StaffDashboard.jsx"
 import StaffWork from "./pages/StaffWork.jsx"
 import StaffTranslation from "./pages/StaffTranslation.jsx"
 import Admin from "./pages/Admin.jsx"
+import Donation from "./pages/Donation.jsx"
 import { Toaster } from "react-hot-toast"
 import "./styles/global.css"
 
@@ -39,6 +40,7 @@ export default function App() {
     "staff-work": "staff-work",
     "staff-translation": "staff-translation",
     "admin": "admin",
+    "donate": "donate",
   }
 
   // จัดการการเปลี่ยนหน้าเมื่อกดปุ่ม Back / Forward บนเบราว์เซอร์
@@ -128,6 +130,7 @@ export default function App() {
             <Admin go={go} authState={authState} initialTab={ctx?.tab} />
           </RequireStaff>
         )}
+       {page === "donate" && <Donation />}
       </main>
     </div>
   )

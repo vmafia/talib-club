@@ -172,7 +172,11 @@ export default function Home({ go }) {
             เงินบริจาคของท่านช่วยเผยแพร่ความรู้อิสลามในภาษาไทย
           </div>
         </div>
-        <button className="btn btn-teal">บริจาคสนับสนุน</button>
+       <button 
+  onClick={() => go('donate')} 
+  style={{ background: "var(--teal)", color: "white", padding: "8px 16px", borderRadius: "8px", border: "none", cursor: "pointer" }}
+>บริจาคสนับสนุน
+</button>
       </div>
 
       {/* FOOTER */}
