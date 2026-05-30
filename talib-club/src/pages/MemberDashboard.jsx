@@ -63,6 +63,7 @@ export default function MemberDashboard({ authState, go, initialView = "overview
         </div>
       </div>
 
+      
       <div className="member-tabs" aria-label="เมนูสมาชิก">
         <button className={`pill ${view === "overview" ? "on" : ""}`} onClick={() => setView("overview")}>
           แดชบอร์ด
@@ -91,7 +92,8 @@ function Overview({ authState, go, setView }) {
       </div>
 
       <div className="grid3" style={{ marginTop: 12 }}>
-        <DashboardCard icon="ti-bookmark" title="บทความที่บันทึกไว้" text="เก็บบทความที่อยากกลับมาอ่านภายหลัง" />
+        {/* เพิ่ม onClick ให้ปุ่มนี้เพื่อกระโดดไปหน้าบทความ โหมด saved */}
+        <DashboardCard icon="ti-bookmark" title="บทความที่บันทึกไว้" text="เก็บบทความที่อยากกลับมาอ่านภายหลัง" onClick={() => go("articles", { viewMode: "saved" })} />
         <DashboardCard icon="ti-bell" title="การแจ้งเตือน" text="ข่าวสาร กิจกรรม และหนังสือใหม่" />
         <DashboardCard icon="ti-settings" title="ตั้งค่าบัญชี" text="จัดการข้อมูลส่วนตัวและการเข้าสู่ระบบ" onClick={() => setView("profile")} />
       </div>

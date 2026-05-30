@@ -5,24 +5,22 @@ import { useContentCollection } from "../lib/contentStore.js"
 
 const READER_DEFAULTS = { size: "md", tone: "3" }
 const READER_STORAGE_KEY = "talibReaderPrefs"
-const SAVED_ARTICLES_KEY = "talibSavedArticles"
 const READER_SIZE_LABELS = { sm: "ก-", md: "ก", lg: "ก+" }
 const READER_TONE_LABELS = { 1: "1", 2: "2", 3: "3", 4: "4", 5: "5" }
 
-export default function ArticleDetail({ item, go }) {
+export default function ArticleDetail({ item, go, authState }) {
   const { items: articles, loading, saveItem } = useContentCollection("articles", ARTICLES)
   
-  // 1. ดึง ID จาก URL สำหรับลิงก์แชร์ และป้องกับยอดนับซ้ำ
   const urlId = new URLSearchParams(window.location.search).get("id")
   const hasIncrementedView = useRef(null)
 
   const displayItem = useMemo(() => {
-    if (item) return item;
+    if (item && !item.viewMode) return item;
     if (urlId && articles.length > 0) return articles.find(a => String(a.id) === String(urlId));
+    if (item && item.id) return item;
     return null;
   }, [item, urlId, articles])
 
-  // 2. ระบบนับยอดเข้าชม (Views) จริงผ่าน Firebase
   useEffect(() => {
     if (displayItem && !loading && saveItem && hasIncrementedView.current !== displayItem.id) {
       hasIncrementedView.current = displayItem.id;
@@ -35,28 +33,32 @@ export default function ArticleDetail({ item, go }) {
     if (!loading && !displayItem) go("articles")
   }, [displayItem, loading, go])
 
-  // 3. ระบบจัดการขนาดตัวอักษร
   const [readerPrefs, setReaderPrefs] = useState(() => getSavedReaderPrefs())
   useEffect(() => {
     window.localStorage.setItem(READER_STORAGE_KEY, JSON.stringify(readerPrefs))
   }, [readerPrefs])
 
-  // 4. ระบบบันทึกบทความ (Bookmark) ลง LocalStorage
-  const [savedList, setSavedList] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem(SAVED_ARTICLES_KEY) || "[]") } catch { return [] }
-  })
-  const isSaved = displayItem ? savedList.includes(displayItem.id) : false
+  // --- ระบบบันทึกบทความ (บังคับต้อง Login เท่านั้น) ---
+  const isLoggedIn = !!authState?.user;
+  const savedList = isLoggedIn ? (authState?.profile?.savedArticles || []) : [];
+  const isSaved = displayItem ? savedList.includes(displayItem.id) : false;
 
-  const toggleSave = () => {
-    let nextList;
-    if (isSaved) nextList = savedList.filter(id => id !== displayItem.id);
-    else nextList = [...savedList, displayItem.id];
-    setSavedList(nextList);
-    window.localStorage.setItem(SAVED_ARTICLES_KEY, JSON.stringify(nextList));
-    toast.success(isSaved ? "ยกเลิกการบันทึกแล้ว" : "บันทึกบทความไว้อ่านแล้ว!");
+  const toggleSave = async () => {
+    if (!isLoggedIn) {
+      toast.error("กรุณาเข้าสู่ระบบเพื่อบันทึกบทความไว้อ่านภายหลัง");
+      go("auth"); // เด้งไปหน้าล็อกอิน
+      return;
+    }
+
+    let nextList = isSaved ? savedList.filter(id => id !== displayItem.id) : [...savedList, displayItem.id];
+    try {
+      await authState.updateUserProfile({ savedArticles: nextList });
+      toast.success(isSaved ? "ยกเลิกการบันทึกแล้ว" : "บันทึกบทความไว้ในบัญชีของคุณแล้ว!");
+    } catch (err) {
+      toast.error("บันทึกไม่สำเร็จ กรุณาลองใหม่");
+    }
   }
 
-  // 5. ปุ่ม Actions
   const handleShare = async () => {
     navigator.clipboard.writeText(window.location.href);
     toast.success("คัดลอกลิงก์สำหรับแชร์แล้ว");
@@ -65,16 +67,13 @@ export default function ArticleDetail({ item, go }) {
     }
   }
 
-  const handlePrint = () => {
-    window.print();
-  }
+  const handlePrint = () => window.print();
 
   if (loading && !displayItem) {
     return <div className="article-page" style={{textAlign: "center", padding: "100px 0"}}><i className="ti ti-loader-2 spin" style={{fontSize:32, color:"var(--teal)"}}></i></div>
   }
   if (!displayItem) return null
 
-  // 6. ระบบสร้างสารบัญ (TOC) จากเครื่องหมาย ## ในเนื้อหา
   const toc = [];
   const parsedBody = (displayItem.body || "").split("\n\n").map((para, index) => {
     if (para.startsWith("## ")) {
@@ -101,7 +100,6 @@ export default function ArticleDetail({ item, go }) {
         <i className="ti ti-arrow-left" style={{ marginRight: 6, fontSize: 12 }}></i>กลับหน้าบทความ
       </button>
 
-      {/* หัวข้อบทความ และสถิติ */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <span className="tag tag-teal">{displayItem.category}</span>
@@ -110,18 +108,17 @@ export default function ArticleDetail({ item, go }) {
         </div>
         <h1 className="article-title">{displayItem.title}</h1>
         
+        {/* เอาเรื่องเวลาอ่านออกแล้ว */}
         <div style={{ display: "flex", gap: 16, color: "var(--t3)", fontSize: 12, fontWeight: 300, flexWrap: "wrap", marginTop: 12 }}>
           <span><i className="ti ti-user" style={{ marginRight: 4, fontSize: 13 }}></i>{displayItem.author}</span>
           <span><i className="ti ti-calendar" style={{ marginRight: 4, fontSize: 13 }}></i>{displayItem.date}</span>
           <span title="ผู้เข้าชม"><i className="ti ti-eye" style={{ marginRight: 4, fontSize: 13 }}></i>{(displayItem.views || 0).toLocaleString()}</span>
           <span title="แชร์"><i className="ti ti-share" style={{ marginRight: 4, fontSize: 13 }}></i>{(displayItem.shares || 0).toLocaleString()}</span>
-          <span><i className="ti ti-clock" style={{ marginRight: 4, fontSize: 13 }}></i>{displayItem.readTime} นาทีอ่าน</span>
         </div>
       </div>
 
       <div className="divider" />
 
-      {/* แถบเครื่องมือจัดการบทความ (Share, Print, Save) */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
         <button onClick={handleShare} className="btn btn-outline" style={{ fontSize: 12, flex: "1 1 100px", padding: "8px 0" }}>
           <i className="ti ti-share" style={{ marginRight: 6, fontSize: 14 }}></i> คัดลอกลิงก์
@@ -138,21 +135,16 @@ export default function ArticleDetail({ item, go }) {
       <div className="reader-tools" aria-label="ตัวเลือกการอ่าน">
         <div className="reader-control" aria-label="ขนาดตัวอักษร">
           {Object.entries(READER_SIZE_LABELS).map(([value, label]) => (
-            <button key={value} type="button" className={`reader-btn ${readerPrefs.size === value ? "on" : ""}`} onClick={() => setReaderPrefs(prev => ({ ...prev, size: value }))}>
-              {label}
-            </button>
+            <button key={value} type="button" className={`reader-btn ${readerPrefs.size === value ? "on" : ""}`} onClick={() => setReaderPrefs(prev => ({ ...prev, size: value }))}>{label}</button>
           ))}
         </div>
         <div className="reader-control" aria-label="ความเข้มตัวอักษร">
           {Object.entries(READER_TONE_LABELS).map(([value, label]) => (
-            <button key={value} type="button" className={`reader-btn ${readerPrefs.tone === value ? "on" : ""}`} onClick={() => setReaderPrefs(prev => ({ ...prev, tone: value }))}>
-              {label}
-            </button>
+            <button key={value} type="button" className={`reader-btn ${readerPrefs.tone === value ? "on" : ""}`} onClick={() => setReaderPrefs(prev => ({ ...prev, tone: value }))}>{label}</button>
           ))}
         </div>
       </div>
 
-      {/* สารบัญเนื้อหา (Table Of Contents) โชว์เมื่อมีหัวข้อเกิน 1 อัน */}
       {toc.length > 0 && (
         <div className="card" style={{ padding: "20px 24px", marginBottom: 32, background: "var(--bg2)", border: ".5px solid var(--br2)" }}>
           <h3 style={{ fontSize: 16, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
@@ -161,14 +153,7 @@ export default function ArticleDetail({ item, go }) {
           <ul style={{ margin: 0, paddingLeft: 24, display: "flex", flexDirection: "column", gap: 10 }}>
             {toc.map(t => (
               <li key={t.id} style={{ fontSize: t.level === 2 ? 14 : 13, color: "var(--text)" }}>
-                <a 
-                  href={`#${t.id}`} 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    document.getElementById(t.id)?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  style={{ color: "var(--teal)", textDecoration: "none", opacity: t.level === 3 ? 0.8 : 1 }}
-                >
+                <a href={`#${t.id}`} onClick={(e) => { e.preventDefault(); document.getElementById(t.id)?.scrollIntoView({ behavior: 'smooth' }); }} style={{ color: "var(--teal)", textDecoration: "none", opacity: t.level === 3 ? 0.8 : 1 }}>
                   {t.title}
                 </a>
               </li>
@@ -177,17 +162,9 @@ export default function ArticleDetail({ item, go }) {
         </div>
       )}
 
-      {/* บทคัดย่อ */}
-      <div className="article-excerpt">
-        <p>{displayItem.excerpt}</p>
-      </div>
+      <div className="article-excerpt"><p>{displayItem.excerpt}</p></div>
+      <div className={readerClass} style={{ scrollBehavior: "smooth" }}>{parsedBody}</div>
 
-      {/* เนื้อหาหลัก (ที่ผ่านการ Parse หัวข้อแล้ว) */}
-      <div className={readerClass} style={{ scrollBehavior: "smooth" }}>
-        {parsedBody}
-      </div>
-
-      {/* แท็ก */}
       {displayItem.tags && displayItem.tags.length > 0 && (
         <div style={{ marginTop: 32, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {displayItem.tags.map(t => (
@@ -196,13 +173,10 @@ export default function ArticleDetail({ item, go }) {
         </div>
       )}
 
-      {/* บทความที่เกี่ยวข้อง */}
       {related.length > 0 && (
         <div style={{ marginTop: 40 }}>
           <div className="divider" />
-          <div className="sec-hd" style={{ marginBottom: 14 }}>
-            <span className="sec-title">บทความที่เกี่ยวข้อง</span>
-          </div>
+          <div className="sec-hd" style={{ marginBottom: 14 }}><span className="sec-title">บทความที่เกี่ยวข้อง</span></div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {related.map(r => (
               <div key={r.id} className="card" style={{ padding: "12px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }} onClick={() => go("article", r)}>
@@ -223,11 +197,6 @@ export default function ArticleDetail({ item, go }) {
 function getSavedReaderPrefs() {
   try {
     const saved = JSON.parse(window.localStorage.getItem(READER_STORAGE_KEY) || "{}")
-    return {
-      size: READER_SIZE_LABELS[saved.size] ? saved.size : READER_DEFAULTS.size,
-      tone: READER_TONE_LABELS[saved.tone] ? saved.tone : READER_DEFAULTS.tone,
-    }
-  } catch {
-    return READER_DEFAULTS
-  }
+    return { size: READER_SIZE_LABELS[saved.size] ? saved.size : READER_DEFAULTS.size, tone: READER_TONE_LABELS[saved.tone] ? saved.tone : READER_DEFAULTS.tone }
+  } catch { return READER_DEFAULTS }
 }

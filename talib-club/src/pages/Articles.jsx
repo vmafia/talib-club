@@ -1,31 +1,24 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { ARTICLES, DEFAULT_TAXONOMY } from "../data/index.js"
 import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.js"
 
-const SAVED_ARTICLES_KEY = "talibSavedArticles"
-
-export default function Articles({ go }) {
+export default function Articles({ go, authState, ctx }) {
   const { items: articles, loading } = useContentCollection("articles", ARTICLES)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   
-  const [viewMode, setViewMode] = useState("all") // โหมด "ทั้งหมด" หรือ "บันทึกไว้"
+  const [viewMode, setViewMode] = useState(ctx?.viewMode || "all")
   const [cat, setCat] = useState("all")
   const [search, setSearch] = useState("")
   const [type, setType] = useState("all")
-  const [showAllBrowse, setShowAllBrowse] = useState(false)
+  const [showAllBrowse, setShowAllBrowse] = useState(ctx?.viewMode === "saved")
   
-  const [savedList, setSavedList] = useState([])
-
-  // ดึงรายการที่บันทึกไว้เมื่อเปิดหน้านี้
-  useEffect(() => {
-    try { setSavedList(JSON.parse(window.localStorage.getItem(SAVED_ARTICLES_KEY) || "[]")) } 
-    catch { setSavedList([]) }
-  }, [])
+  // --- ระบบดึงข้อมูลบทความที่บันทึกไว้ (เฉพาะ Member เท่านั้น) ---
+  const isLoggedIn = !!authState?.user;
+  const savedList = isLoggedIn ? (authState?.profile?.savedArticles || []) : [];
 
   const types = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.articleTypes || [])]
   const categories = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.articleCategories || [])]
 
-  // กรองบทความ
   const filtered = articles.filter(a => {
     if (viewMode === "saved" && !savedList.includes(a.id)) return false;
     
@@ -39,7 +32,6 @@ export default function Articles({ go }) {
     ...s, articles: articles.filter(a => a.type === "series" && a.seriesId === s.id && (viewMode === "all" || savedList.includes(a.id)))
   })).filter(s => s.articles.length > 0)
 
-  // เงื่อนไขในการตัดหน้าแสดงผล (ไม่โชว์หมวดหมู่คลีนถ้าย้ายไปแท็บ "บันทึกไว้")
   const isDefaultView = viewMode === "all" && !search && cat === "all" && type === "all" && !showAllBrowse
   const recentArticles = filtered.slice(0, 6)
 
@@ -51,7 +43,6 @@ export default function Articles({ go }) {
         {loading && <p style={{ marginTop: 8, fontSize: 12 }}>กำลังโหลดบทความล่าสุด...</p>}
       </div>
 
-      {/* แถบสลับโหมด "ทั้งหมด" กับ "บทความที่บันทึกไว้" */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, borderBottom: ".5px solid var(--br2)", paddingBottom: 16 }}>
         <button 
           onClick={() => { setViewMode("all"); setShowAllBrowse(false); }} 
@@ -66,11 +57,10 @@ export default function Articles({ go }) {
           style={{ padding: "8px 16px", borderRadius: 8 }}
         >
           <i className={`ti ${viewMode === "saved" ? "ti-bookmark-filled" : "ti-bookmark"}`} style={{ marginRight: 6 }}></i> 
-          บทความที่บันทึกไว้ {savedList.length > 0 && `(${savedList.length})`}
+          บทความที่บันทึกไว้ {isLoggedIn && savedList.length > 0 && `(${savedList.length})`}
         </button>
       </div>
 
-      {/* SEARCH + FILTER */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <i className="ti ti-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 14 }}></i>
@@ -83,7 +73,6 @@ export default function Articles({ go }) {
         </select>
       </div>
 
-      {/* CATEGORY TABS */}
       <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
         {categories.map(c => (
           <button key={c.id} onClick={() => { setCat(c.id); if (c.id !== "all") setShowAllBrowse(true) }} style={{
@@ -99,9 +88,7 @@ export default function Articles({ go }) {
       </div>
 
       {isDefaultView ? (
-        /* โหมดลดความแออัด (UX Clean View): แยกเป็นหมวดหมู่ซีรีส์ และบทความมาใหม่ */
         <div>
-          {/* SERIES SECTION */}
           {seriesGroups.length > 0 && (
             <div style={{ marginBottom: 36 }}>
               <div className="sec-hd"><span className="sec-title">ซีรีส์บทความวิชาการ</span></div>
@@ -131,11 +118,8 @@ export default function Articles({ go }) {
             </div>
           )}
 
-          {/* RECENT ARTICLES */}
           <div>
-            <div className="sec-hd">
-              <span className="sec-title">บทความมาใหม่ล่าสุด</span>
-            </div>
+            <div className="sec-hd"><span className="sec-title">บทความมาใหม่ล่าสุด</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
               {recentArticles.map(a => (
                 <div key={a.id} className="card" style={{ cursor: "pointer" }} onClick={() => go("article", a)}>
@@ -147,7 +131,6 @@ export default function Articles({ go }) {
                     <p style={{ fontSize: 12, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.excerpt}</p>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 300 }}>{a.author} · {a.date}</div>
-                      <div style={{ fontSize: 11, color: "var(--teal)", fontWeight: 300 }}><i className="ti ti-clock" style={{ marginRight: 3, fontSize: 11 }}></i>{a.readTime} นาที</div>
                     </div>
                   </div>
                 </div>
@@ -161,7 +144,6 @@ export default function Articles({ go }) {
           </div>
         </div>
       ) : (
-        /* โหมดผลลัพธ์การค้นหา / หมวดหมู่เฉพาะ / หมวดบันทึกไว้ (Grid View) */
         <div>
           <div className="sec-hd" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span className="sec-title">{viewMode === "saved" ? `บทความที่บันทึกไว้ (${filtered.length})` : `${filtered.length} บทความที่พบ`}</span>
@@ -170,7 +152,11 @@ export default function Articles({ go }) {
             )}
           </div>
           {filtered.length === 0 ? (
-            <div className="empty">{viewMode === "saved" ? "คุณยังไม่ได้บันทึกบทความใดๆ ไว้เลย" : "ไม่พบบทความที่ตรงกับการค้นหา"}</div>
+            <div className="empty">
+              {viewMode === "saved" 
+                ? (!isLoggedIn ? "กรุณาเข้าสู่ระบบเพื่อดูบทความที่คุณบันทึกไว้" : "คุณยังไม่ได้บันทึกบทความใดๆ ไว้เลย") 
+                : "ไม่พบบทความที่ตรงกับการค้นหา"}
+            </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
               {filtered.map(a => (
@@ -185,10 +171,11 @@ export default function Articles({ go }) {
                     <p style={{ fontSize: 12, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.excerpt}</p>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 300 }}>{a.author} · {a.date}</div>
-                      <div style={{ fontSize: 11, color: "var(--teal)", fontWeight: 300 }}>
-                         {viewMode === "saved" && <i className="ti ti-bookmark-filled" style={{ marginRight: 6 }}></i>}
-                         <i className="ti ti-clock" style={{ marginRight: 3, fontSize: 11 }}></i>{a.readTime} นาที
-                      </div>
+                      {viewMode === "saved" && (
+                        <div style={{ fontSize: 11, color: "var(--teal)", fontWeight: 300 }}>
+                           <i className="ti ti-bookmark-filled"></i>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
