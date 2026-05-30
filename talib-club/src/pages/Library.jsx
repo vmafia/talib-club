@@ -176,7 +176,7 @@ export default function Library({ go }) {
                     onClick={(e) => e.stopPropagation()} /* <-- ป้องกันไม่ให้ทะลุไปคลิกการ์ด */
                     style={{ fontSize: 11, padding: "6px 10px", textDecoration: "none", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
                   >
-                    <i className="ti ti-eye" style={{ fontSize: 12 }}></i>ดูในไดรฟ์
+                    <i className="ti ti-eye" style={{ fontSize: 12 }}></i>
                   </a>
                 </div>
               </div>
