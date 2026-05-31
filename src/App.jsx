@@ -10,6 +10,7 @@ import LibraryDetail from "./pages/LibraryDetail.jsx"
 import Media from "./pages/Media.jsx"
 import MediaDetail from "./pages/MediaDetail.jsx"
 import Scholars from "./pages/Scholars.jsx"
+import Quran from "./pages/Quran.jsx"
 import Tracking from "./pages/Tracking.jsx"
 import Auth from "./pages/Auth.jsx"
 import MemberDashboard from "./pages/MemberDashboard.jsx"
@@ -36,6 +37,7 @@ export default function App() {
     "media": "media",
     "media-detail": "media-detail",
     "scholars": "scholars",
+    "quran": "quran",
     "tracking-system": "tracking",
     "auth": "auth",
     "member": "member",
@@ -107,6 +109,7 @@ export default function App() {
         {page === "media" && <Media go={go} />}
         {page === "media-detail" && <MediaDetail item={ctx} go={go} authState={authState} />}
         {page === "scholars" && <Scholars />}
+        {page === "quran" && <Quran />}
         {page === "tracking" && <Tracking />}
         {page === "auth" && <Auth authState={authState} go={go} />}
         
