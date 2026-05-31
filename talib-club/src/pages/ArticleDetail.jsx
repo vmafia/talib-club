@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react"
 import toast from "react-hot-toast"
 import { ARTICLES } from "../data/index.js"
 import { useContentCollection } from "../lib/contentStore.js"
+import { serverTimestamp } from "firebase/firestore"
 
 const READER_DEFAULTS = { size: "md", tone: "3" }
 const READER_STORAGE_KEY = "talibReaderPrefs"
@@ -66,10 +67,10 @@ const toggleSave = async () => {
   
   try {
     if (isSaved) {
-      await deleteItem(bookmarkId); // ใช้ฟังก์ชัน deleteItem จาก useContentCollection
+      await deleteBookmark(bookmarkId); // ใช้ฟังก์ชัน deleteBookmark จาก useContentCollection
       toast.success("ยกเลิกการบันทึกแล้ว");
     } else {
-      await saveItem({
+      await saveBookmark({
         id: bookmarkId,
         uid: uid,
         articleId: displayItem.id,
@@ -78,6 +79,7 @@ const toggleSave = async () => {
       toast.success("บันทึกบทความแล้ว!");
     }
   } catch (err) {
+    console.error("Save bookmark failed:", err);
     toast.error("บันทึกไม่สำเร็จ");
   }
 }
