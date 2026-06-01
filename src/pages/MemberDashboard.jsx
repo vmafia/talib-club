@@ -135,6 +135,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const uid = authState?.user?.uid
   const { items: readingSessions } = useContentCollection("reading_sessions", [])
   const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const { items: shelfItems } = useContentCollection("bookshelf", [])
 
   const streakSettings = useMemo(() => {
     return normalizeStreakSettings(streakRecords.find(item => item.uid === uid || item.id === uid), uid)
@@ -153,6 +154,45 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
 
   const todaySeconds = todaySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
   const goalPercent = Math.min(100, Math.round((todaySeconds / (DAILY_READING_GOAL_MINUTES * 60)) * 100))
+
+  const todayQuizPassed = useMemo(() => {
+    return shelfItems.some(item => {
+      if (item.uid !== uid || !item.lastQuiz) return false
+      const dateKey = getLocalDayKey(item.lastQuiz.takenAt)
+      return dateKey === streak.todayKey && item.lastQuiz.score >= 3
+    })
+  }, [shelfItems, streak.todayKey, uid])
+
+  const last7Days = useMemo(() => {
+    const list = []
+    const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]
+    for (let i = 6; i >= 0; i--) {
+      const key = addDaysToKey(streak.todayKey, -i)
+      const dateObj = new Date(`${key}T00:00:00`)
+      const name = dayNames[dateObj.getDay()]
+      
+      const daySessions = readingSessions.filter(
+        item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt)) === key
+      )
+      const secs = daySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
+      const minutes = Math.round(secs / 60)
+      const metGoal = secs >= DAILY_READING_GOAL_MINUTES * 60
+      
+      const protection = streakSettings.protectedDays.find(
+        p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === key
+      )
+      
+      list.push({
+        key,
+        name,
+        minutes,
+        metGoal,
+        protection,
+        hasRead: daySessions.length > 0
+      })
+    }
+    return list
+  }, [readingSessions, streak.todayKey, streakSettings.protectedDays, uid])
 
   async function protectToday(type) {
     if (!uid) return
@@ -182,6 +222,55 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
     toast.success(isLeave ? "บันทึกวันลากิจแล้ว streak ยังปลอดภัย" : "ใช้น้ำแข็งคุ้มครอง streak วันนี้แล้ว")
   }
 
+  async function claimMission(missionId) {
+    if (!uid) return
+    const isM1 = missionId === "m1"
+    const isM2 = missionId === "m2"
+    const isM3 = missionId === "m3"
+    
+    const todayClaims = streakSettings.claimedMissions?.[streak.todayKey] || {}
+    if (todayClaims[missionId]) {
+      toast.success("คุณรับรางวัลภารกิจนี้ไปแล้ว")
+      return
+    }
+    
+    let completed = false
+    if (isM1) completed = todaySeconds >= 600
+    if (isM2) completed = todaySessions.some(s => s.reflection && s.reflection.length >= 100)
+    if (isM3) completed = todayQuizPassed
+    
+    if (!completed) {
+      toast.error("ภารกิจยังไม่เสร็จสมบูรณ์")
+      return
+    }
+    
+    let nextFreeze = streakSettings.freezeCredits
+    let nextLeave = streakSettings.leaveCredits
+    if (isM1 || isM3) nextFreeze += 1
+    if (isM2) nextLeave += 1
+    
+    const nextClaimed = {
+      ...streakSettings.claimedMissions,
+      [streak.todayKey]: {
+        ...(streakSettings.claimedMissions?.[streak.todayKey] || {}),
+        [missionId]: true
+      }
+    }
+    
+    await saveStreakSettings({
+      ...streakSettings,
+      freezeCredits: nextFreeze,
+      leaveCredits: nextLeave,
+      claimedMissions: nextClaimed
+    })
+    
+    toast.success(
+      isM2
+        ? "สำเร็จ! รับรางวัล สิทธิ์ลากิจ +1 📅"
+        : "สำเร็จ! รับรางวัล น้ำแข็งคุ้มครอง +1 🧊"
+    )
+  }
+
   useEffect(() => {
     try {
       const local = localStorage.getItem("quran-last-read")
@@ -200,10 +289,59 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
         settings={streakSettings}
         todaySeconds={todaySeconds}
         goalPercent={goalPercent}
+        last7Days={last7Days}
         onRead={() => setView("bookshelf")}
         onFreeze={() => protectToday("freeze")}
         onLeave={() => protectToday("leave")}
       />
+
+      {/* 🎯 ภารกิจรับไอเทมประจำวัน (Daily Missions - Duolingo Style) */}
+      <div className="card" style={{ padding: 24, marginBottom: 20, textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--teal-bg)", display: "grid", placeItems: "center" }}>
+            <i className="ti ti-target" style={{ color: "var(--teal)", fontSize: 18 }}></i>
+          </div>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 600 }}>ภารกิจรับไอเทมประจำวัน (Daily Missions)</h3>
+            <p style={{ fontSize: 11, color: "var(--t2)" }}>ทำภารกิจสะสมน้ำแข็ง 🧊 หรือสิทธิ์ลากิจ 📅 เพื่อใช้หยุดพักโดยไม่เสีย Streak</p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MissionRow 
+            title="1. นักอ่านผู้ทุ่มเท"
+            desc="อ่านหนังสือสะสมเวลาอย่างน้อย 10 นาทีวันนี้"
+            progress={todaySeconds}
+            target={600}
+            formatProgress={(val) => `${Math.round(val / 60)}/10 นาที`}
+            rewardText="+1 น้ำแข็ง 🧊"
+            claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m1}
+            onClaim={() => claimMission("m1")}
+          />
+
+          <MissionRow 
+            title="2. ข้อคิดสะท้อนธรรมลึกซึ้ง"
+            desc="บันทึกเซสชันอ่านและเขียนข้อคิดความยาว 100 ตัวอักษรขึ้นไปวันนี้"
+            progress={todaySessions.reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0)}
+            target={100}
+            formatProgress={(val) => `${val}/100 ตัวอักษร`}
+            rewardText="+1 สิทธิ์ลากิจ 📅"
+            claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m2}
+            onClaim={() => claimMission("m2")}
+          />
+
+          <MissionRow 
+            title="3. ผู้พิชิตแบบทดสอบ"
+            desc="ทำแบบทดสอบหนังสือวันนี้ และได้คะแนนตั้งแต่ 3/5 ข้อขึ้นไป"
+            progress={todayQuizPassed ? 1 : 0}
+            target={1}
+            formatProgress={(val) => val === 1 ? "สำเร็จ" : "ยังไม่สำเร็จ"}
+            rewardText="+1 น้ำแข็ง 🧊"
+            claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m3}
+            onClaim={() => claimMission("m3")}
+          />
+        </div>
+      </div>
 
       {lastRead && (
         <div className="card" style={{ 
@@ -236,7 +374,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
           </button>
         </div>
       )}
-
+      
       <div className="grid3">
         <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชี" onClick={() => setView("profile")} />
         <DashboardCard icon="ti-book" title="อัลกุรอานของฉัน" text="เปิดอ่าน แปลไทย ตัฟซีรย่อ และค้นหาคำสำคัญ" onClick={() => onOpenQuran(1, null)} />
@@ -254,7 +392,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   )
 }
 
-function ReadingStreakPanel({ streak, settings, todaySeconds, goalPercent, onRead, onFreeze, onLeave }) {
+function ReadingStreakPanel({ streak, settings, todaySeconds, goalPercent, last7Days, onRead, onFreeze, onLeave }) {
   const protectedLabel = streak.todayProtected?.type === "leave" ? "ลากิจ" : streak.todayProtected ? "น้ำแข็ง" : ""
   const statusText = streak.todayVerified
     ? "วันนี้อ่านจริงแล้ว ไฟยังต่อเนื่อง"
@@ -263,30 +401,149 @@ function ReadingStreakPanel({ streak, settings, todaySeconds, goalPercent, onRea
       : "อ่านอย่างน้อยวันละนิดเพื่อรักษาไฟ"
 
   return (
-    <section className="card streak-panel">
-      <div className="streak-flame">
-        <i className="ti ti-flame"></i>
-      </div>
-      <div className="streak-main">
-        <span className="badge badge-teal">Daily reading streak</span>
-        <h2>{streak.current} วันต่อเนื่อง</h2>
-        <p>{statusText} · เป้าหมายวันนี้ {formatReadingMinutes(todaySeconds)}/{DAILY_READING_GOAL_MINUTES} นาที</p>
-        <div className="streak-progress" aria-label="reading goal progress">
-          <span style={{ width: `${goalPercent}%` }}></span>
+    <section className="card streak-panel" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", width: "100%", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="streak-flame" style={{ flexShrink: 0 }}>
+          <i className="ti ti-flame"></i>
+        </div>
+        <div className="streak-main" style={{ flex: 1, minWidth: 200, textAlign: "left" }}>
+          <span className="badge badge-teal">Daily reading streak</span>
+          <h2>{streak.current} วันต่อเนื่อง</h2>
+          <p>{statusText} · เป้าหมายวันนี้ {formatReadingMinutes(todaySeconds)}/{DAILY_READING_GOAL_MINUTES} นาที</p>
+          <div className="streak-progress" aria-label="reading goal progress">
+            <span style={{ width: `${goalPercent}%` }}></span>
+          </div>
+        </div>
+        <div className="streak-actions" style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="btn btn-teal" onClick={onRead}>
+            <i className="ti ti-player-play" style={{ marginRight: 6 }}></i>เริ่มอ่าน
+          </button>
+          <button className="btn btn-outline" onClick={onFreeze} disabled={streak.todayVerified || streak.todayProtected || settings.freezeCredits <= 0}>
+            <i className="ti ti-snowflake" style={{ marginRight: 6 }}></i>น้ำแข็ง {settings.freezeCredits}
+          </button>
+          <button className="btn btn-outline" onClick={onLeave} disabled={streak.todayVerified || streak.todayProtected || settings.leaveCredits <= 0}>
+            <i className="ti ti-calendar-pause" style={{ marginRight: 6 }}></i>ลากิจ {settings.leaveCredits}
+          </button>
         </div>
       </div>
-      <div className="streak-actions">
-        <button className="btn btn-teal" onClick={onRead}>
-          <i className="ti ti-player-play" style={{ marginRight: 6 }}></i>เริ่มอ่าน
-        </button>
-        <button className="btn btn-outline" onClick={onFreeze} disabled={streak.todayVerified || streak.todayProtected || settings.freezeCredits <= 0}>
-          <i className="ti ti-snowflake" style={{ marginRight: 6 }}></i>น้ำแข็ง {settings.freezeCredits}
-        </button>
-        <button className="btn btn-outline" onClick={onLeave} disabled={streak.todayVerified || streak.todayProtected || settings.leaveCredits <= 0}>
-          <i className="ti ti-calendar-pause" style={{ marginRight: 6 }}></i>ลากิจ {settings.leaveCredits}
-        </button>
+
+      {/* สถิติรายวัน 7 วันล่าสุด (Duolingo Style Week View) */}
+      <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid var(--br)", width: "100%", textAlign: "left" }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t2)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <i className="ti ti-calendar" style={{ color: "var(--teal)" }}></i> สถิติการอ่านรายวัน (7 วันล่าสุด)
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 4 }}>
+          {last7Days.map(day => {
+            let bg = "var(--bg3)"
+            let border = "1px solid var(--br)"
+            let color = "var(--t3)"
+            let icon = null
+
+            if (day.metGoal) {
+              bg = "var(--teal-bg)"
+              border = "1.5px solid var(--teal)"
+              color = "var(--teal)"
+              icon = <i className="ti ti-flame" style={{ fontSize: 16 }}></i>
+            } else if (day.protection) {
+              const isLeave = day.protection.type === "leave"
+              bg = isLeave ? "rgba(59, 115, 196, 0.1)" : "rgba(100, 200, 255, 0.1)"
+              border = isLeave ? "1.5px solid #3b73c4" : "1.5px solid #64c8ff"
+              color = isLeave ? "#3b73c4" : "#64c8ff"
+              icon = isLeave ? <i className="ti ti-calendar-pause" style={{ fontSize: 14 }}></i> : <i className="ti ti-snowflake" style={{ fontSize: 14 }}></i>
+            } else if (day.hasRead) {
+              bg = "var(--bg2)"
+              border = "1px dashed var(--teal)"
+              color = "var(--teal)"
+              icon = <span style={{ fontSize: 10, fontWeight: "bold" }}>{day.minutes}ม</span>
+            } else {
+              icon = <i className="ti ti-minus" style={{ opacity: 0.3 }}></i>
+            }
+
+            const isToday = day.key === streak.todayKey
+
+            return (
+              <div key={day.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1, minWidth: 44 }}>
+                <span style={{ fontSize: 11, color: isToday ? "var(--teal)" : "var(--t2)", fontWeight: isToday ? 600 : 300 }}>{day.name}</span>
+                <div style={{
+                  width: 36, height: 36, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: bg, border: border, color: color,
+                  position: "relative"
+                }}>
+                  {icon}
+                  {isToday && (
+                    <span style={{
+                      position: "absolute", bottom: -2, width: 6, height: 6,
+                      borderRadius: "50%", background: "var(--teal)"
+                    }} />
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </section>
+  )
+}
+
+function MissionRow({ title, desc, progress, target, formatProgress, rewardText, claimed, onClaim }) {
+  const completed = progress >= target
+  const percent = Math.min(100, Math.round((progress / target) * 100))
+  
+  return (
+    <div style={{ 
+      padding: "12px 14px", 
+      background: "var(--bg2)", 
+      borderRadius: 12, 
+      display: "flex", 
+      alignItems: "center", 
+      justifyContent: "space-between", 
+      gap: 12,
+      flexWrap: "wrap",
+      textAlign: "left"
+    }}>
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <strong style={{ fontSize: 13, color: "var(--text)" }}>{title}</strong>
+          <span style={{ fontSize: 10, fontWeight: 500, color: "var(--teal)", background: "var(--teal-bg)", padding: "1px 6px", borderRadius: 4 }}>
+            {rewardText}
+          </span>
+        </div>
+        <p style={{ fontSize: 11, color: "var(--t2)", marginBottom: 8 }}>{desc}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, height: 6, background: "var(--bg3)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ width: `${percent}%`, height: "100%", background: "var(--teal)", borderRadius: 3 }}></div>
+          </div>
+          <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 500, whiteSpace: "nowrap" }}>
+            {formatProgress(progress)}
+          </span>
+        </div>
+      </div>
+      
+      <div>
+        {claimed ? (
+          <button className="btn btn-outline" disabled style={{ padding: "6px 12px", fontSize: 11, opacity: 0.6, cursor: "not-allowed" }}>
+            <i className="ti ti-check" style={{ marginRight: 4 }}></i>รับแล้ว
+          </button>
+        ) : (
+          <button 
+            onClick={onClaim}
+            disabled={!completed}
+            className={`btn ${completed ? "btn-teal" : "btn-outline"}`}
+            style={{ 
+              padding: "6px 12px", 
+              fontSize: 11, 
+              opacity: completed ? 1 : 0.6, 
+              cursor: completed ? "pointer" : "not-allowed",
+              boxShadow: completed ? "0 4px 10px rgba(45,190,160,0.2)" : "none"
+            }}
+          >
+            {completed ? "รับรางวัล" : "ยังไม่เสร็จ"}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -377,6 +634,7 @@ function normalizeStreakSettings(settings, uid) {
     freezeCredits: Number.isFinite(Number(settings?.freezeCredits)) ? Number(settings.freezeCredits) : DEFAULT_FREEZE_CREDITS,
     leaveCredits: Number.isFinite(Number(settings?.leaveCredits)) ? Number(settings.leaveCredits) : DEFAULT_LEAVE_CREDITS,
     protectedDays,
+    claimedMissions: settings?.claimedMissions || {},
   }
 }
 
