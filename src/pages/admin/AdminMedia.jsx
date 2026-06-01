@@ -29,6 +29,12 @@ export default function AdminMedia() {
   const [selected, setSelected] = useState([]) 
   const [busy, setBusy] = useState(false)
 
+  const [bulkType, setBulkType] = useState("")
+  const [bulkChannel, setBulkChannel] = useState("")
+  const [bulkPlaylist, setBulkPlaylist] = useState("")
+  const [bulkIsNewPlaylist, setBulkIsNewPlaylist] = useState(false)
+  const [bulkDate, setBulkDate] = useState("")
+
   const [page, setPage] = useState(1)
   const ITEMS_PER_PAGE = 20
 
@@ -138,6 +144,61 @@ export default function AdminMedia() {
     }
   }
 
+  async function handleBulkUpdate() {
+    if (selected.length === 0) return
+    const ok = await confirmAction({ 
+      title: `ยืนยันการแก้ไข ${selected.length} รายการ?`, 
+      message: "ฟิลด์ที่กรอก/เลือกไว้จะถูกอัปเดตทดแทนค่าเดิมในมีเดียทั้งหมดที่เลือก", 
+      confirmText: "ยืนยันการอัปเดต", 
+      confirmColor: "var(--teal)" 
+    })
+    if (!ok) return
+    
+    setBusy(true)
+    try {
+      let updatedCount = 0;
+      await Promise.all(selected.map(async (id) => {
+        const original = items.find(m => String(m.id) === String(id))
+        if (!original) return
+        
+        const next = { ...original }
+        if (bulkType) {
+          next.type = bulkType
+        }
+        if (bulkChannel !== undefined && bulkChannel !== "") {
+          next.channel = bulkChannel
+        }
+        if (bulkPlaylist) {
+          if (bulkPlaylist === "__none__") {
+            next.series = ""
+          } else {
+            next.series = bulkPlaylist
+          }
+        }
+        if (bulkDate) {
+          next.date = bulkDate
+        }
+        
+        await saveItem(next)
+        updatedCount++
+      }))
+      
+      setBulkType("")
+      setBulkChannel("")
+      setBulkPlaylist("")
+      setBulkIsNewPlaylist(false)
+      setBulkDate("")
+      setSelected([])
+      
+      notifySuccess(`อัปเดตข้อมูลมีเดีย ${updatedCount} รายการเรียบร้อยแล้ว`)
+    } catch (err) {
+      console.error(err)
+      notifyError("เกิดข้อผิดพลาดในการอัปเดตข้อมูลบางส่วน")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (editing) {
     return <MediaForm item={editing} setItem={setEdit} onSave={save} onCancel={() => setEdit(null)} taxonomy={taxonomy} existingPlaylists={existingPlaylists} busy={busy} />
   }
@@ -197,11 +258,78 @@ export default function AdminMedia() {
       )}
 
       {selected.length > 0 && (
-        <div style={{ background: "rgba(45,190,160,0.1)", border: "1px solid var(--teal)", padding: "10px 16px", borderRadius: 12, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "var(--teal)", fontWeight: 500 }}>เลือกอยู่ {selected.length} รายการ</span>
-          <button className="btn" style={{ background: "#e05555", color: "#fff", padding: "6px 14px", fontSize: 12 }} onClick={removeSelected} disabled={busy}>
-            <i className={busy ? "ti ti-loader-2 spin" : "ti ti-trash"} style={{ marginRight: 6 }}></i> {busy ? "กำลังลบ..." : "ลบที่เลือกทั้งหมด"}
-          </button>
+        <div className="card" style={{ border: "1.5px solid var(--teal)", padding: 20, borderRadius: 16, marginBottom: 20, background: "var(--teal-bg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+            <span style={{ fontSize: 14, color: "var(--teal)", fontWeight: 600 }}>
+              <i className="ti ti-checkbox" style={{ marginRight: 6 }}></i>
+              เลือกอยู่ {selected.length} รายการ
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" onClick={() => setSelected([])} style={{ fontSize: 12, padding: "6px 12px" }}>
+                ยกเลิกการเลือก
+              </button>
+              <button className="btn" style={{ background: "#e05555", color: "#fff", padding: "6px 12px", fontSize: 12 }} onClick={removeSelected} disabled={busy}>
+                <i className={busy ? "ti ti-loader-2 spin" : "ti ti-trash"} style={{ marginRight: 6 }}></i>
+                {busy ? "กำลังลบ..." : "ลบที่เลือก"}
+              </button>
+            </div>
+          </div>
+
+          <div className="divider" style={{ margin: "0 0 16px" }} />
+          
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 12 }}>
+            <i className="ti ti-edit" style={{ marginRight: 6, color: "var(--teal)" }}></i>
+            แก้ไขข้อมูลพร้อมกันทั้งหมด (Bulk Edit)
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนประเภท</span>
+              <select value={bulkType} onChange={e => setBulkType(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)" }}>
+                <option value="">-- ไม่เปลี่ยน --</option>
+                <option value="youtube">YouTube</option>
+                <option value="spotify">Spotify</option>
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนช่อง</span>
+              <input value={bulkChannel} onChange={e => setBulkChannel(e.target.value)} placeholder="เช่น Talib Club" style={{ fontSize: 12, padding: "7px 10px", borderRadius: 8, background: "var(--card)", border: "0.5px solid var(--br)" }} />
+            </label>
+
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนเพลย์ลิสต์</span>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {bulkIsNewPlaylist ? (
+                  <input value={bulkPlaylist === "__none__" ? "" : bulkPlaylist} onChange={e => setBulkPlaylist(e.target.value)} placeholder="พิมพ์ชื่อใหม่..." style={{ fontSize: 12, padding: "7px 10px", borderRadius: 8, background: "var(--card)", border: "0.5px solid var(--br)", flex: 1 }} />
+                ) : (
+                  <select value={bulkPlaylist} onChange={e => setBulkPlaylist(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)", flex: 1 }}>
+                    <option value="">-- ไม่เปลี่ยน --</option>
+                    <option value="__none__">-- ไม่มีเพลย์ลิสต์ (ล้างค่า) --</option>
+                    {existingPlaylists.map(pl => <option key={pl} value={pl}>{pl}</option>)}
+                  </select>
+                )}
+                <button className="btn btn-outline" onClick={() => { setBulkIsNewPlaylist(!bulkIsNewPlaylist); setBulkPlaylist(""); }} style={{ fontSize: 10, padding: "8px", height: "32px", whiteSpace: "nowrap" }}>
+                  {bulkIsNewPlaylist ? "เลือกที่มี" : "+ พิมพ์เอง"}
+                </button>
+              </div>
+            </div>
+
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนวันที่เผยแพร่</span>
+              <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, background: "var(--card)", border: "0.5px solid var(--br)" }} />
+            </label>
+
+            <button 
+              className="btn btn-teal" 
+              onClick={handleBulkUpdate} 
+              disabled={busy || (!bulkType && !bulkChannel && !bulkPlaylist && !bulkDate)}
+              style={{ padding: "8px 16px", fontSize: 12, height: "34px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            >
+              <i className={busy ? "ti ti-loader-2 spin" : "ti ti-device-floppy"}></i>
+              {busy ? "กำลังอัปเดต..." : "อัปเดตข้อมูลที่เลือก"}
+            </button>
+          </div>
         </div>
       )}
 

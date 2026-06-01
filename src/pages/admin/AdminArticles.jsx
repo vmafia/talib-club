@@ -31,6 +31,12 @@ export default function AdminArticles() {
   const [selected, setSelected] = useState([]) 
   const [busy, setBusy] = useState(false)
 
+  const [bulkType, setBulkType] = useState("")
+  const [bulkCategory, setBulkCategory] = useState("")
+  const [bulkSeries, setBulkSeries] = useState("")
+  const [bulkAuthor, setBulkAuthor] = useState("")
+  const [bulkDate, setBulkDate] = useState("")
+
   const [page, setPage] = useState(1)
   const ITEMS_PER_PAGE = 20
 
@@ -126,6 +132,63 @@ export default function AdminArticles() {
     }
   }
 
+  async function handleBulkUpdate() {
+    if (selected.length === 0) return
+    const ok = await confirmAction({ 
+      title: `ยืนยันการแก้ไข ${selected.length} รายการ?`, 
+      message: "ฟิลด์ที่กรอก/เลือกไว้จะถูกอัปเดตทดแทนค่าเดิมในบทความทั้งหมดที่เลือก", 
+      confirmText: "ยืนยันการอัปเดต", 
+      confirmColor: "var(--teal)" 
+    })
+    if (!ok) return
+    
+    setBusy(true)
+    try {
+      let updatedCount = 0;
+      await Promise.all(selected.map(async (id) => {
+        const original = items.find(a => String(a.id) === String(id))
+        if (!original) return
+        
+        const next = { ...original }
+        if (bulkType) {
+          next.type = bulkType
+          if (bulkType === "series") {
+            next.seriesId = bulkSeries || original.seriesId || ""
+          } else {
+            next.seriesId = ""
+            next.part = null
+          }
+        }
+        if (bulkCategory) {
+          next.category = bulkCategory
+        }
+        if (bulkAuthor !== undefined && bulkAuthor !== "") {
+          next.author = bulkAuthor
+        }
+        if (bulkDate) {
+          next.date = bulkDate
+        }
+        
+        await saveItem(next)
+        updatedCount++
+      }))
+      
+      setBulkType("")
+      setBulkCategory("")
+      setBulkSeries("")
+      setBulkAuthor("")
+      setBulkDate("")
+      setSelected([])
+      
+      notifySuccess(`อัปเดตข้อมูลบทความ ${updatedCount} รายการเรียบร้อยแล้ว`)
+    } catch (err) {
+      console.error(err)
+      notifyError("เกิดข้อผิดพลาดในการอัปเดตข้อมูลบางส่วน")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (editing) {
     return <ArticleForm item={editing} setItem={setEdit} onSave={save} onCancel={() => setEdit(null)} taxonomy={taxonomy} busy={busy} />
   }
@@ -188,11 +251,77 @@ export default function AdminArticles() {
       )}
 
       {selected.length > 0 && (
-        <div style={{ background: "rgba(45,190,160,0.1)", border: "1px solid var(--teal)", padding: "10px 16px", borderRadius: 12, marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 13, color: "var(--teal)", fontWeight: 500 }}>เลือกอยู่ {selected.length} รายการ</span>
-          <button className="btn" style={{ background: "#e05555", color: "#fff", padding: "6px 14px", fontSize: 12 }} onClick={removeSelected} disabled={busy}>
-            <i className={busy ? "ti ti-loader-2 spin" : "ti ti-trash"} style={{ marginRight: 6 }}></i> {busy ? "กำลังลบ..." : "ลบที่เลือกทั้งหมด"}
-          </button>
+        <div className="card" style={{ border: "1.5px solid var(--teal)", padding: 20, borderRadius: 16, marginBottom: 20, background: "var(--teal-bg)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+            <span style={{ fontSize: 14, color: "var(--teal)", fontWeight: 600 }}>
+              <i className="ti ti-checkbox" style={{ marginRight: 6 }}></i>
+              เลือกอยู่ {selected.length} รายการ
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-outline" onClick={() => setSelected([])} style={{ fontSize: 12, padding: "6px 12px" }}>
+                ยกเลิกการเลือก
+              </button>
+              <button className="btn" style={{ background: "#e05555", color: "#fff", padding: "6px 12px", fontSize: 12 }} onClick={removeSelected} disabled={busy}>
+                <i className={busy ? "ti ti-loader-2 spin" : "ti ti-trash"} style={{ marginRight: 6 }}></i>
+                {busy ? "กำลังลบ..." : "ลบที่เลือก"}
+              </button>
+            </div>
+          </div>
+
+          <div className="divider" style={{ margin: "0 0 16px" }} />
+          
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 12 }}>
+            <i className="ti ti-edit" style={{ marginRight: 6, color: "var(--teal)" }}></i>
+            แก้ไขข้อมูลพร้อมกันทั้งหมด (Bulk Edit)
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, alignItems: "flex-end" }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนประเภท</span>
+              <select value={bulkType} onChange={e => { setBulkType(e.target.value); if (e.target.value !== "series") setBulkSeries("") }} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)" }}>
+                <option value="">-- ไม่เปลี่ยน --</option>
+                {(taxonomy.articleTypes || []).map(type => <option key={type.id} value={type.id}>{type.label}</option>)}
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนหมวดหมู่</span>
+              <select value={bulkCategory} onChange={e => setBulkCategory(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)" }}>
+                <option value="">-- ไม่เปลี่ยน --</option>
+                {(taxonomy.articleCategories || []).map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+              </select>
+            </label>
+
+            {bulkType === "series" && (
+              <label style={{ display: "grid", gap: 4 }}>
+                <span style={{ fontSize: 11, color: "var(--t2)" }}>ย้ายเข้าซีรีส์</span>
+                <select value={bulkSeries} onChange={e => setBulkSeries(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)" }}>
+                  <option value="">-- เลือกซีรีส์ --</option>
+                  {(taxonomy.articleSeries || []).map(series => <option key={series.id} value={series.id}>{series.name}</option>)}
+                </select>
+              </label>
+            )}
+
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนชื่อผู้เขียน</span>
+              <input value={bulkAuthor} onChange={e => setBulkAuthor(e.target.value)} placeholder="เช่น Talib Club" style={{ fontSize: 12, padding: "7px 10px", borderRadius: 8, background: "var(--card)", border: "0.5px solid var(--br)" }} />
+            </label>
+
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนวันที่</span>
+              <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, background: "var(--card)", border: "0.5px solid var(--br)" }} />
+            </label>
+
+            <button 
+              className="btn btn-teal" 
+              onClick={handleBulkUpdate} 
+              disabled={busy || (!bulkType && !bulkCategory && !bulkAuthor && !bulkDate)}
+              style={{ padding: "8px 16px", fontSize: 12, height: "34px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            >
+              <i className={busy ? "ti ti-loader-2 spin" : "ti ti-device-floppy"}></i>
+              {busy ? "กำลังอัปเดต..." : "อัปเดตข้อมูลที่เลือก"}
+            </button>
+          </div>
         </div>
       )}
 
