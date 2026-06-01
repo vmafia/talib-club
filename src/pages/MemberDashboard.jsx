@@ -306,6 +306,7 @@ function BookshelfPanel({ authState, go, setView }) {
   const { items: books } = useContentCollection("books", BOOKS)
   const { items: shelfItems, loading, saveItem, deleteItem } = useContentCollection("bookshelf", [])
   const [bookId, setBookId] = useState("")
+  const [quizState, setQuizState] = useState(null)
 
   const myShelf = useMemo(() => {
     return shelfItems
@@ -370,6 +371,57 @@ function BookshelfPanel({ authState, go, setView }) {
     if (!ok) return
     await deleteItem(id)
     toast.success("นำออกจากชั้นหนังสือแล้ว")
+  }
+
+  async function startQuiz(item) {
+    setQuizState({ item, loading: true, quiz: [], answers: {}, source: "" })
+    try {
+      const response = await fetch("/api/generate-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          book: {
+            id: item.book.id,
+            title: item.book.title,
+            author: item.book.author,
+            type: item.book.type,
+            category: item.book.category,
+            desc: item.book.desc,
+            note: item.note || "",
+          },
+        }),
+      })
+      const data = await response.json()
+      setQuizState({ item, loading: false, quiz: data.quiz || [], answers: {}, source: data.source || "fallback" })
+    } catch (error) {
+      console.error(error)
+      toast.error("สร้างแบบทดสอบไม่สำเร็จ")
+      setQuizState(null)
+    }
+  }
+
+  function answerQuiz(index, answerIndex) {
+    setQuizState(prev => prev ? ({
+      ...prev,
+      answers: { ...prev.answers, [index]: answerIndex },
+    }) : prev)
+  }
+
+  async function finishQuiz() {
+    if (!quizState?.item) return
+    const score = quizState.quiz.reduce((sum, question, index) => {
+      return sum + (quizState.answers[index] === question.answerIndex ? 1 : 0)
+    }, 0)
+    await updateShelfItem(quizState.item, {
+      lastQuiz: {
+        score,
+        total: quizState.quiz.length,
+        source: quizState.source,
+        takenAt: Date.now(),
+      },
+    })
+    toast.success(`บันทึกคะแนนแล้ว: ${score}/${quizState.quiz.length}`)
+    setQuizState(null)
   }
 
   if (loading) {
@@ -437,7 +489,12 @@ function BookshelfPanel({ authState, go, setView }) {
                     <h3 style={{ fontSize: 15, lineHeight: 1.45 }}>{item.book.title}</h3>
                     <p style={{ fontSize: 12, marginTop: 2 }}>{item.book.author} · {item.book.type}</p>
                   </div>
-                  <button className="btn btn-outline" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => go("library-detail", item.book)}>
+                  {item.status === "finished" && (
+                    <button className="btn btn-teal" style={{ padding: "5px 10px", fontSize: 11, flexShrink: 0 }} onClick={() => startQuiz(item)}>
+                      <i className="ti ti-sparkles" style={{ marginRight: 4 }}></i>Quiz
+                    </button>
+                  )}
+                  <button className="btn btn-outline" style={{ padding: "5px 10px", fontSize: 11, flexShrink: 0 }} onClick={() => go("library-detail", item.book)}>
                     เปิด
                   </button>
                 </div>
@@ -467,9 +524,100 @@ function BookshelfPanel({ authState, go, setView }) {
                   onChange={event => updateShelfItem(item, { note: event.target.value })}
                   style={{ marginTop: 12, minHeight: 70 }}
                 />
+                {item.lastQuiz && (
+                  <div style={{ marginTop: 10, fontSize: 11, color: "var(--teal)", background: "var(--teal-bg)", padding: "8px 10px", borderRadius: 8 }}>
+                    คะแนน Quiz ล่าสุด {item.lastQuiz.score}/{item.lastQuiz.total} · {item.lastQuiz.source || "AI"}
+                  </div>
+                )}
               </div>
             ))}
           </div>
+        )}
+      </div>
+      {quizState && (
+        <QuizModal
+          quizState={quizState}
+          onAnswer={answerQuiz}
+          onClose={() => setQuizState(null)}
+          onFinish={finishQuiz}
+        />
+      )}
+    </div>
+  )
+}
+
+function QuizModal({ quizState, onAnswer, onClose, onFinish }) {
+  const answered = Object.keys(quizState.answers || {}).length
+  const score = quizState.quiz.reduce((sum, question, index) => {
+    return sum + (quizState.answers[index] === question.answerIndex ? 1 : 0)
+  }, 0)
+  const done = quizState.quiz.length > 0 && answered === quizState.quiz.length
+  const sourceLabel = quizState.source === "openai"
+    ? "OpenAI"
+    : quizState.source === "anthropic"
+      ? "Anthropic"
+      : "โหมดสำรอง"
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+      <div className="card" style={{ maxWidth: 760, maxHeight: "88vh", overflowY: "auto", padding: 22 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <span className="badge badge-teal">{sourceLabel}</span>
+            <h2 style={{ fontSize: 20, marginTop: 8 }}>Quiz หลังอ่านจบ</h2>
+            <p style={{ fontSize: 12, marginTop: 4 }}>{quizState.item?.book?.title}</p>
+          </div>
+          <button className="btn btn-outline" style={{ padding: "6px 12px" }} onClick={onClose}>ปิด</button>
+        </div>
+
+        {quizState.loading ? (
+          <div className="empty" style={{ padding: "38px 0" }}>
+            <i className="ti ti-loader-2 spin" style={{ color: "var(--teal)", fontSize: 24, display: "block", marginBottom: 10 }}></i>
+            กำลังสร้างแบบทดสอบจาก AI...
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gap: 14 }}>
+              {quizState.quiz.map((question, qIndex) => {
+                const selected = quizState.answers[qIndex]
+                const hasAnswered = selected !== undefined
+                return (
+                  <div key={qIndex} className="card" style={{ padding: 14, background: "var(--bg2)", boxShadow: "none" }}>
+                    <h3 style={{ fontSize: 14, lineHeight: 1.55 }}>{qIndex + 1}. {question.question}</h3>
+                    <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                      {question.options.map((option, optionIndex) => {
+                        const isCorrect = hasAnswered && optionIndex === question.answerIndex
+                        const isWrong = hasAnswered && selected === optionIndex && selected !== question.answerIndex
+                        return (
+                          <button
+                            key={optionIndex}
+                            className="btn btn-outline"
+                            onClick={() => onAnswer(qIndex, optionIndex)}
+                            style={{
+                              borderRadius: 10,
+                              textAlign: "left",
+                              justifyContent: "flex-start",
+                              background: isCorrect ? "var(--teal-bg)" : isWrong ? "rgba(224,85,85,.12)" : "var(--card)",
+                              color: isWrong ? "#ff8a8a" : "var(--text)",
+                            }}
+                          >
+                            {option}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {hasAnswered && (
+                      <p style={{ fontSize: 12, marginTop: 10, color: "var(--t2)" }}>{question.explanation}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+              <strong style={{ fontSize: 14 }}>คะแนนตอนนี้ {score}/{quizState.quiz.length}</strong>
+              <button className="btn btn-teal" disabled={!done} onClick={onFinish}>บันทึกคะแนน</button>
+            </div>
+          </>
         )}
       </div>
     </div>
