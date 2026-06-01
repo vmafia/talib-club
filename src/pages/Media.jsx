@@ -19,11 +19,14 @@ export default function Media({ go }) {
 
   const filters = [
     { id: "all", label: "ทั้งหมด", icon: "ti-layout-grid" },
-    ...(taxonomy.mediaTypes || []).map(item => ({
-      id: item,
-      label: item === "youtube" ? "YouTube" : item === "spotify" ? "Spotify" : item === "video" ? "คลิปสั้น" : item,
-      icon: item === "youtube" ? "ti-brand-youtube" : item === "spotify" ? "ti-brand-spotify" : item === "video" ? "ti-video" : "ti-player-play",
-    })),
+    ...(taxonomy.mediaTypes || []).map(item => {
+      const lower = String(item).toLowerCase();
+      return {
+        id: lower,
+        label: lower === "youtube" ? "YouTube" : lower === "spotify" ? "Spotify" : lower === "video" ? "คลิปสั้น" : item,
+        icon: lower === "youtube" ? "ti-brand-youtube" : lower === "spotify" ? "ti-brand-spotify" : lower === "video" ? "ti-video" : "ti-player-play",
+      };
+    }),
   ]
 
   // 1. จัดกลุ่มเพลย์ลิสต์
@@ -35,7 +38,7 @@ export default function Media({ go }) {
       pl = {
         name: playlistName,
         teacher: item.channel || item.series || "Talib Club",
-        type: item.type,
+        type: String(item.type || "").toLowerCase(),
         items: []
       }
       playlists.push(pl)
@@ -45,7 +48,7 @@ export default function Media({ go }) {
 
   // 2. กรองเพลย์ลิสต์หน้าแรก (ค้นหา + ประเภท)
   const filteredPlaylists = playlists.filter(pl => {
-    const matchType = filter === "all" || pl.type === filter;
+    const matchType = filter === "all" || String(pl.type).toLowerCase() === String(filter).toLowerCase();
     const matchSearch = String(pl.name).toLowerCase().includes(searchPlaylist.toLowerCase()) || 
                         String(pl.teacher).toLowerCase().includes(searchPlaylist.toLowerCase());
     return matchType && matchSearch;

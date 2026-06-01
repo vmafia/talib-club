@@ -349,7 +349,8 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
           </div>
           <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} style={{
             background: "var(--bg2)", border: "none", cursor: "pointer",
-            color: "var(--t3)", padding: "6px 10px", borderRadius: 20,
+            color: "var(--t3)", width: 34, height: 34, borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center"
           }} title="เปลี่ยนธีม" aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}>
             <i className={`ti ${theme === "light" ? "ti-moon" : "ti-sun"}`}></i>
           </button>
@@ -494,7 +495,7 @@ const iconButtonStyle = {
 
 function AccountDrawer({ name, email, photoURL, isStaff, nav, logout, onClose, page, isInstallable, installApp }) {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+    <div className="account-drawer" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
       <div 
         onClick={onClose} 
         style={{

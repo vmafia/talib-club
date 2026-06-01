@@ -17,14 +17,14 @@ export default function Articles({ go, authState }) {
   const categories = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.articleCategories || [])]
 
   const filtered = articles.filter(a => {
-    const matchCat = cat === "all" || a.category === cat
-    const matchType = type === "all" || a.type === type
-    const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase())
+    const matchCat = cat === "all" || String(a.category).toLowerCase() === String(cat).toLowerCase()
+    const matchType = type === "all" || String(a.type).toLowerCase() === String(type).toLowerCase()
+    const matchSearch = !search || String(a.title).toLowerCase().includes(search.toLowerCase())
     return matchCat && matchType && matchSearch
   })
 
   const seriesGroups = (taxonomy.articleSeries || []).map(s => ({
-    ...s, articles: articles.filter(a => a.type === "series" && a.seriesId === s.id)
+    ...s, articles: articles.filter(a => String(a.type).toLowerCase() === "series" && String(a.seriesId).toLowerCase() === String(s.id).toLowerCase())
   })).filter(s => s.articles.length > 0)
 
   const isDefaultView = !search && cat === "all" && type === "all" && !showAllBrowse
