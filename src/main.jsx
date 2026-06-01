@@ -14,4 +14,12 @@ if ('serviceWorker' in navigator) {
         console.error('Service Worker registration failed:', err);
       });
   });
+
+  // Automatically refresh page to load new version once service worker updates and activates
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
 }

@@ -170,6 +170,7 @@ export default function ReadingApp({ authState, go, ctx }) {
 
   // Reading Mode State
   const [activeBook, setActiveBook] = useState(null)
+  const [activeMobileTab, setActiveMobileTab] = useState("preview") // "preview" or "form" for mobile split layout
   
   // External Upload States
   const [addMode, setAddMode] = useState("library")
@@ -473,6 +474,7 @@ export default function ReadingApp({ authState, go, ctx }) {
     setStartPage(shelfItem.currentPage || 1)
     setEndPage("")
     setReflection("")
+    setActiveMobileTab("preview")
     startTimestampRef.current = Date.now()
   }
 
@@ -634,19 +636,79 @@ export default function ReadingApp({ authState, go, ctx }) {
           </div>
         </div>
 
+        {/* Mobile Tabs navigation (rendered only on mobile) */}
+        <div style={{ display: "none", gap: 8, marginBottom: 12, borderBottom: "1.5px solid var(--br2)", paddingBottom: 2 }} className="mobile-tabs-container">
+          <button 
+            type="button"
+            onClick={() => setActiveMobileTab("preview")} 
+            style={{
+              flex: 1,
+              padding: "10px 14px",
+              fontFamily: "'Prompt', sans-serif",
+              fontSize: 13,
+              fontWeight: activeMobileTab === "preview" ? 600 : 400,
+              background: activeMobileTab === "preview" ? "var(--teal-bg)" : "transparent",
+              color: activeMobileTab === "preview" ? "var(--teal)" : "var(--t3)",
+              border: "none",
+              borderBottom: activeMobileTab === "preview" ? "2.5px solid var(--teal)" : "none",
+              cursor: "pointer",
+              borderRadius: "8px 8px 0 0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              transition: "all 0.2s"
+            }}
+          >
+            <i className="ti ti-book" style={{ fontSize: 15 }}></i>
+            อ่านหนังสือเต็มจอ
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveMobileTab("form")} 
+            style={{
+              flex: 1,
+              padding: "10px 14px",
+              fontFamily: "'Prompt', sans-serif",
+              fontSize: 13,
+              fontWeight: activeMobileTab === "form" ? 600 : 400,
+              background: activeMobileTab === "form" ? "var(--teal-bg)" : "transparent",
+              color: activeMobileTab === "form" ? "var(--teal)" : "var(--t3)",
+              border: "none",
+              borderBottom: activeMobileTab === "form" ? "2.5px solid var(--teal)" : "none",
+              cursor: "pointer",
+              borderRadius: "8px 8px 0 0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              transition: "all 0.2s"
+            }}
+          >
+            <i className="ti ti-notebook" style={{ fontSize: 15 }}></i>
+            บันทึกผล ({reflection.length >= MIN_REFLECTION_CHARS ? "ครบ" : "กรอกข้อมูล"})
+          </button>
+        </div>
+
         {/* Workspace Split */}
         <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr", gap: 18, flex: 1, minHeight: 0 }} className="reader-split">
           <style dangerouslySetInnerHTML={{__html: `
             @media (max-width: 900px) {
+              .mobile-tabs-container {
+                display: flex !important;
+              }
               .reader-split {
                 grid-template-columns: 1fr !important;
+                flex: 1 !important;
+                min-height: 0 !important;
               }
               .reader-preview {
-                height: 40vh !important;
+                display: ${activeMobileTab === "preview" ? "block" : "none"} !important;
+                height: 100% !important;
               }
               .reader-form-card {
-                height: auto !important;
-                max-height: 48vh !important;
+                display: ${activeMobileTab === "form" ? "flex" : "none"} !important;
+                height: 100% !important;
               }
             }
           `}} />
