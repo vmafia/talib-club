@@ -81,8 +81,8 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
     // 4. Feature Announcement
     list.push({
       id: "sync-feature",
-      title: "ระบบคลาวด์ซิงก์ข้อมูล",
-      desc: "ประวัติการอ่านและอายะฮ์ที่ท่านบันทึกไว้ถูกซิงก์กับฐานข้อมูล Firestore อัตโนมัติ",
+      title: "ซิงก์ข้อมูลระหว่างอุปกรณ์",
+      desc: "ประวัติการอ่านและอายะฮ์ที่ท่านบันทึกไว้จะเชื่อมโยงกับบัญชีของท่านโดยอัตโนมัติ เพื่อการเข้าใช้งานจากทุกอุปกรณ์",
       time: "ระบบ",
       icon: "ti-cloud-upload",
       color: "#3b73c4",

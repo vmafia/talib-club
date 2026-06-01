@@ -1,14 +1,26 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useContentCollection } from "../lib/contentStore.js"
+import { MEDIA } from "../data/index.js"
 
-export default function MediaDetail({ item, go, authState }) {
+export default function MediaDetail({ item: initialItem, go, authState }) {
+  const { items: mediaList, loading } = useContentCollection("media", MEDIA)
   const { saveItem: saveHistory } = useContentCollection("history", [])
+
+  const urlId = new URLSearchParams(window.location.search).get("id")
+
+  const item = useMemo(() => {
+    if (initialItem && initialItem.title) return initialItem;
+    if (urlId && mediaList.length > 0) return mediaList.find(m => String(m.id) === String(urlId));
+    if (initialItem && initialItem.id && mediaList.length > 0) return mediaList.find(m => String(m.id) === String(initialItem.id));
+    return null;
+  }, [initialItem, urlId, mediaList])
+
   // ถ้ารีเฟรชแล้วไม่มีข้อมูล ให้กลับไปหน้ามีเดีย
   useEffect(() => {
-    if (!item) {
+    if (!loading && !item) {
       go("media")
     }
-  }, [item, go])
+  }, [item, loading, go])
 
   // บันทึกประวัติการดูสื่อ
   useEffect(() => {
@@ -27,6 +39,7 @@ export default function MediaDetail({ item, go, authState }) {
     }
   }, [item, authState?.user?.uid, saveHistory])
 
+  if (loading) return <div style={{textAlign: "center", padding: 40}}><i className="ti ti-loader-2 spin" style={{fontSize: 24, color: "var(--teal)"}}></i></div>
   if (!item) return null
 
   return (

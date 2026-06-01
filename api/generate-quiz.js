@@ -39,58 +39,66 @@ function fallbackQuiz(book = {}) {
   const type = book.type || "หนังสือ"
   const desc = book.desc || "เนื้อหาสำคัญของเล่มนี้"
 
-  return [
-    {
-      question: `หนังสือ "${title}" อยู่ในหมวดใด?`,
-      options: [category, "ประวัติศาสตร์", "ภาษาอาหรับ", "สื่อการสอน"],
-      answerIndex: 0,
-      explanation: `ข้อมูลหนังสือระบุหมวดไว้ว่า ${category}`,
-    },
-    {
-      question: `ผู้จัดทำหรือผู้เขียนของ "${title}" คือใคร?`,
-      options: [author, "Abu Iyaad", "คณะนักแปลนิรนาม", "ไม่ระบุ"],
-      answerIndex: 0,
-      explanation: `ข้อมูลในคลังหนังสือระบุผู้เขียน/ผู้จัดทำเป็น ${author}`,
-    },
-    {
-      question: "หลังอ่านจบ ผู้อ่านควรทำสิ่งใดเพื่อทบทวนความเข้าใจ?",
-      options: ["สรุปประเด็นหลักและจดข้อคิด", "ลบหนังสือออกทันที", "ข้ามการทบทวน", "จำเฉพาะชื่อเรื่อง"],
-      answerIndex: 0,
-      explanation: "การสรุปและจดข้อคิดช่วยย้ำความเข้าใจและทำให้กลับมาทบทวนได้ง่าย",
-    },
-    {
-      question: `ประเภทของรายการนี้คืออะไร?`,
-      options: [type, "บทความ", "คลิปเสียง", "ข่าวประกาศ"],
-      answerIndex: 0,
-      explanation: `รายการนี้ถูกจัดเป็นประเภท ${type}`,
-    },
-    {
-      question: `คำอธิบายใดใกล้เคียงกับเนื้อหาของ "${title}" มากที่สุด?`,
-      options: [desc, "รายงานการเงินประจำปี", "คู่มือใช้งานระบบหลังบ้าน", "ตารางจัดส่งพัสดุ"],
-      answerIndex: 0,
-      explanation: "ตัวเลือกนี้มาจากคำอธิบายหนังสือในคลังข้อมูล",
-    },
+  const makeQuestion = (seed, difficulty, question, correct, distractors, explanation) => {
+    const options = [correct, ...distractors].slice(0, 4).map(item => String(item || "ไม่ระบุ"))
+    const answerIndex = seed % 4
+    const [answer] = options.splice(0, 1)
+    options.splice(answerIndex, 0, answer)
+    return { difficulty, question, options, answerIndex, explanation }
+  }
+
+  const summary = desc.length > 120 ? `${desc.slice(0, 117)}...` : desc
+  const templates = [
+    ["easy", `หนังสือ "${title}" ถูกจัดอยู่ในหมวดใด?`, category, ["ประวัติศาสตร์ทั่วไป", "ภาษาอาหรับขั้นต้น", "ข่าวประกาศ"], `ข้อมูลหนังสือระบุหมวดไว้ว่า ${category}`],
+    ["easy", `ผู้เขียนหรือผู้จัดทำของ "${title}" คือใคร?`, author, ["คณะผู้แปลนิรนาม", "ฝ่ายจัดส่ง", "ไม่ระบุ"], `ข้อมูลที่บันทึกไว้ระบุผู้เขียน/ผู้จัดทำเป็น ${author}`],
+    ["easy", "ประเภทของรายการนี้คืออะไร?", type, ["บทความ", "คลิปเสียง", "ประกาศกิจกรรม"], `รายการนี้ถูกจัดเป็นประเภท ${type}`],
+    ["easy", `ข้อใดอธิบายเนื้อหาของ "${title}" ได้ใกล้เคียงที่สุด?`, summary, ["คู่มือใช้งานระบบหลังบ้าน", "ตารางจัดส่งพัสดุ", "รายงานการเงิน"], "คำตอบอ้างอิงจากคำอธิบายหนังสือที่บันทึกไว้"],
+    ["easy", "หลังอ่านจบควรทำสิ่งใดเพื่อทบทวนความเข้าใจ?", "สรุปประเด็นหลักและจดข้อคิด", ["ลบไฟล์ออกทันที", "ข้ามการทบทวน", "จำเฉพาะชื่อเรื่อง"], "การสรุปช่วยย้ำความเข้าใจและทำให้กลับมาทบทวนได้ง่าย"],
+    ["easy", "การอ่านแบบรักษา streak ควรเน้นสิ่งใดมากที่สุด?", "อ่านจริงอย่างสม่ำเสมอพร้อมบันทึกข้อคิด", ["เลื่อนเปอร์เซ็นต์ให้เต็มเร็วที่สุด", "เปิดไฟล์ทิ้งไว้โดยไม่อ่าน", "ตอบแบบทดสอบแบบเดา"], "ระบบอ่านจริงให้ความสำคัญกับเวลาอ่านและหลักฐานความเข้าใจ"],
+    ["easy", "ถ้าต้องการจำเนื้อหาให้ดีขึ้น ควรทำอะไรระหว่างอ่าน?", "หยุดเป็นช่วง ๆ เพื่อสรุปความหมาย", ["อ่านข้ามทุกหัวข้อ", "ดูเฉพาะปกหนังสือ", "เก็บไว้โดยไม่เปิดอ่าน"], "การสรุปเป็นระยะช่วยตรวจความเข้าใจของตนเอง"],
+    ["medium", `จากข้อมูลที่มี "${title}" เหมาะกับการทบทวนด้านใดมากที่สุด?`, category, ["การเงินส่วนบุคคล", "การเขียนโปรแกรม", "การออกแบบบรรจุภัณฑ์"], `หมวด ${category} เป็นเบาะแสหลักของเนื้อหาที่ควรทบทวน`],
+    ["medium", "ข้อใดเป็นหลักฐานการอ่านที่น่าเชื่อถือที่สุด?", "เวลาอ่านจริง หน้าอ่าน และข้อคิดจากเนื้อหา", ["จำนวนครั้งที่กดเปิดหน้าเว็บ", "เปอร์เซ็นต์ที่เลื่อนเอง", "ชื่อไฟล์ที่ยาว"], "หลักฐานหลายส่วนช่วยลดการบันทึกแบบผิวเผิน"],
+    ["medium", "เมื่อเจอประเด็นสำคัญในหนังสือ ควรบันทึกอย่างไร?", "เขียนด้วยภาษาของตนเองและระบุบริบท", ["คัดลอกชื่อหนังสืออย่างเดียว", "ใส่เครื่องหมายถูกโดยไม่อธิบาย", "ปล่อยช่องบันทึกว่าง"], "การเรียบเรียงเองช่วยพิสูจน์ว่าเข้าใจเนื้อหา"],
+    ["medium", "ถ้าอ่านไม่ถึงเป้าหมายประจำวัน ควรใช้ฟีเจอร์ใดเพื่อรักษา streak แบบตรงไปตรงมา?", "น้ำแข็งหรือวันลากิจ", ["เพิ่มคะแนน Quiz เอง", "แก้วันที่ย้อนหลัง", "ลบประวัติการอ่าน"], "น้ำแข็งและวันลากิจถูกออกแบบมาเพื่อคุ้มครอง streak โดยไม่บิดเบือนข้อมูลอ่านจริง"],
+    ["medium", "ก่อนทำ Quiz หลังอ่านจบ ควรตรวจสอบสิ่งใด?", "อ่านครบตามเป้าหมายและมีบันทึกข้อคิด", ["มีรูปปกสวยพอ", "ไฟล์มีขนาดใหญ่", "ชื่อผู้ใช้ถูกต้อง"], "Quiz ควรตามหลังการอ่านและการทบทวน ไม่ใช่แทนที่การอ่าน"],
+    ["medium", `หาก "${title}" เป็นไฟล์นอกที่สมาชิกเพิ่มเอง สิ่งใดควรกรอกเพิ่มเพื่อให้ติดตามดีขึ้น?`, "จำนวนหน้าและแหล่งที่มา", ["สีปุ่มในหน้าเว็บ", "รหัสผ่านบัญชี", "ยอดวิวของคนอื่น"], "จำนวนหน้าและแหล่งที่มาช่วยคำนวณความคืบหน้าและทำให้ข้อมูลน่าเชื่อถือ"],
+    ["medium", "ข้อใดเป็นพฤติกรรมที่ระบบอ่านจริงพยายามลดลง?", "เลื่อนเปอร์เซ็นต์โดยไม่ได้อ่าน", ["อ่านสั้น ๆ ทุกวัน", "จดสิ่งที่เข้าใจ", "ทำแบบทดสอบหลังอ่าน"], "ระบบให้เครดิตจากเซสชันอ่านที่มีหลักฐาน ไม่ใช่การปรับเปอร์เซ็นต์เอง"],
+    ["medium", "เมื่ออ่านหลายวันต่อเนื่อง สิ่งใดสะท้อนวินัยได้ดีที่สุด?", "จำนวนวันอ่านจริงที่ผ่านการยืนยัน", ["จำนวนหนังสือที่กดเพิ่ม", "จำนวนไฟล์ที่อัปโหลด", "จำนวนปุ่มที่คลิก"], "streak ที่ดีควรมาจากกิจกรรมอ่านที่ตรวจสอบได้"],
+    ["hard", `หากต้องอธิบายแก่นของ "${title}" จากข้อมูลที่มี ควรเริ่มจากอะไร?`, "ชื่อเรื่อง หมวด ผู้เขียน และคำอธิบาย", ["ยอดดาวน์โหลดเท่านั้น", "ตำแหน่งปุ่มในเว็บ", "วันที่เข้าสู่ระบบ"], "เมื่อยังไม่มีเนื้อหาเต็ม metadata คือฐานข้อมูลที่เชื่อถือได้ที่สุด"],
+    ["hard", "ข้อใดเป็นข้อจำกัดของ Quiz ที่สร้างจาก metadata เท่านั้น?", "ไม่ควรถามรายละเอียดที่ไม่มีในข้อมูลหนังสือ", ["ควรถามอะไรก็ได้เพื่อให้ยาก", "ควรเดาคำพูดผู้เขียน", "ควรสร้างข้ออ้างใหม่"], "ระบบที่ดีต้องหลีกเลี่ยงการแต่งข้อมูลที่ไม่มีหลักฐาน"],
+    ["hard", "ทำไมระบบจึงควรบันทึกทั้งเวลาอ่านและ reflection?", "สองอย่างร่วมกันช่วยแยกการเปิดไฟล์เฉย ๆ ออกจากการอ่านเข้าใจ", ["ทำให้ไฟล์มีขนาดเล็กลง", "ทำให้ชื่อหนังสือสั้นลง", "แทนการอ่านทั้งหมดได้"], "เวลาเพียงอย่างเดียวไม่พิสูจน์ความเข้าใจ ส่วน reflection ช่วยเติมบริบท"],
+    ["hard", "ถ้าคะแนนยืนยันการอ่านไม่ผ่าน ควรแก้โดยวิธีใด?", "อ่านต่อให้ครบเวลาและเขียนข้อคิดให้ชัดขึ้น", ["เพิ่มเปอร์เซ็นต์เอง", "ปิดหน้าแล้วเปิดใหม่หลายครั้ง", "ตอบ Quiz แบบสุ่ม"], "การแก้ควรเพิ่มหลักฐานการอ่านจริง ไม่ใช่เพิ่มตัวเลข"],
+    ["hard", "ข้อใดทำให้ระบบชั้นหนังสือเหมาะกับการเรียนระยะยาวที่สุด?", "ติดตามความก้าวหน้าจากเซสชันอ่านจริงและทบทวนด้วย Quiz", ["เน้นกดดาวน์โหลดให้มากที่สุด", "ซ่อนข้อมูลการอ่านทั้งหมด", "ใช้เปอร์เซ็นต์โดยไม่มีหลักฐาน"], "การเรียนระยะยาวต้องมีวงจรอ่านจริง บันทึก ทบทวน และรักษาความต่อเนื่อง"],
   ]
+
+  return templates.map((item, index) => makeQuestion(index + title.length, item[0], item[1], item[2], item[3], item[4]))
 }
 
 function normalizeQuiz(raw, book) {
   const source = Array.isArray(raw) ? raw : raw?.quiz
   if (!Array.isArray(source)) return fallbackQuiz(book)
-  return source
-    .slice(0, 10)
+  const normalized = source
     .map(item => ({
       question: String(item.question || "").trim(),
       options: Array.isArray(item.options) ? item.options.slice(0, 4).map(option => String(option)) : [],
       answerIndex: Number.isInteger(item.answerIndex) ? item.answerIndex : 0,
       explanation: String(item.explanation || "").trim(),
+      difficulty: ["easy", "medium", "hard"].includes(item.difficulty) ? item.difficulty : "medium",
     }))
     .filter(item => item.question && item.options.length === 4 && item.answerIndex >= 0 && item.answerIndex < 4)
+  const seen = new Set(normalized.map(item => item.question))
+  const fillers = fallbackQuiz(book).filter(item => !seen.has(item.question))
+  return [...normalized, ...fillers].slice(0, 20)
 }
 
 function quizPrompt(book) {
   return `Create a Thai Islamic-studies reading quiz for this book.
 The quiz must help a Thai-speaking reader review what they read.
 Avoid sectarian polemics and avoid inventing claims not supported by the book metadata.
+Return exactly 20 multiple-choice questions.
+Mix difficulty: 7 easy, 8 medium, 5 hard.
+Use the field "difficulty" with one of: easy, medium, hard.
+If the metadata is limited, ask professional reading-comprehension and study-process questions grounded in the metadata and reading evidence.
 
 Book:
 ${JSON.stringify(book, null, 2)}`
@@ -130,12 +138,12 @@ async function generateWithOpenAI(book, apiKey) {
             properties: {
               quiz: {
                 type: "array",
-                minItems: 5,
-                maxItems: 8,
+                minItems: 20,
+                maxItems: 20,
                 items: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["question", "options", "answerIndex", "explanation"],
+                  required: ["question", "options", "answerIndex", "explanation", "difficulty"],
                   properties: {
                     question: { type: "string" },
                     options: {
@@ -146,6 +154,7 @@ async function generateWithOpenAI(book, apiKey) {
                     },
                     answerIndex: { type: "integer", minimum: 0, maximum: 3 },
                     explanation: { type: "string" },
+                    difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
                   },
                 },
               },
@@ -176,17 +185,20 @@ async function generateWithAnthropic(book, apiKey) {
     },
     body: JSON.stringify({
       model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-      max_tokens: 1800,
+      max_tokens: 5000,
       temperature: 0.2,
       messages: [{
         role: "user",
         content: `${quizPrompt(book)}
 
-Return ONLY JSON array with 5-8 objects. Each object must have:
+Return ONLY JSON array with exactly 20 objects. Each object must have:
 question: Thai string
 options: four Thai strings
 answerIndex: number 0-3
-explanation: Thai string`,
+explanation: Thai string
+difficulty: "easy", "medium", or "hard"
+
+The array must contain exactly 20 objects: 7 easy, 8 medium, and 5 hard.`,
       }],
     }),
   })

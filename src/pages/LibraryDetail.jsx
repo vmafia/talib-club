@@ -35,8 +35,9 @@ export default function LibraryDetail({ item, go, authState }) {
   const hasIncrementedView = useRef(null) // ตัวรั้งสำหรับป้องกันการบวกยอดวิวซ้ำตอนเรนเดอร์
 
   const displayItem = useMemo(() => {
-    if (item) return item;
+    if (item && item.title) return item;
     if (urlId && books.length > 0) return books.find(b => String(b.id) === String(urlId));
+    if (item && item.id && books.length > 0) return books.find(b => String(b.id) === String(item.id));
     return null;
   }, [item, urlId, books])
 

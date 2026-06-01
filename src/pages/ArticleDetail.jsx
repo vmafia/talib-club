@@ -22,9 +22,9 @@ export default function ArticleDetail({ item, go, authState }) {
   const hasIncrementedView = useRef(null)
 
   const displayItem = useMemo(() => {
-    if (item && !item.viewMode) return item;
+    if (item && item.title && !item.viewMode) return item;
     if (urlId && articles.length > 0) return articles.find(a => String(a.id) === String(urlId));
-    if (item && item.id) return item;
+    if (item && item.id && articles.length > 0) return articles.find(a => String(a.id) === String(item.id));
     return null;
   }, [item, urlId, articles])
 

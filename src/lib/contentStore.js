@@ -15,6 +15,8 @@ export const CONTENT_COLLECTIONS = {
   scholars: "content_scholars",
   bookmarks: "content_bookmarks",
   bookshelf: "content_bookshelf",
+  reading_sessions: "content_reading_sessions",
+  reading_streaks: "content_reading_streaks",
   quran_bookmarks: "content_quran_bookmarks",
   history: "content_history",
 }
