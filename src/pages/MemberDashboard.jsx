@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react"
 import toast from 'react-hot-toast'
-import { ARTICLES } from "../data/index.js"
+import { ARTICLES, BOOKS } from "../data/index.js"
 import { useContentCollection } from "../lib/contentStore.js"
 import { confirmAction } from "../utils/feedback.jsx"
 import Quran from "./Quran.jsx"
@@ -84,6 +84,7 @@ export default function MemberDashboard({ authState, go, initialView = "overview
         />
       )}
       {view === "saved-articles" && <SavedArticlesPanel authState={authState} go={go} setView={setView} />}
+      {view === "bookshelf" && <BookshelfPanel authState={authState} go={go} setView={setView} />}
       {view === "profile" && <ProfilePanel authState={authState} copied={copied} copyText={copyText} go={go} setView={setView} />}
       {view === "quran" && (
         <div style={{ width: "100%", maxWidth: "1400px", margin: "0 auto" }}>
@@ -116,6 +117,22 @@ export default function MemberDashboard({ authState, go, initialView = "overview
 
 function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
+  const uid = authState?.user?.uid
+  const { items: rawHistory } = useContentCollection("history", [])
+  const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
+
+  const streak = useMemo(() => {
+    const activityDates = rawHistory
+      .filter(item => item.uid === uid)
+      .map(item => item.timestamp || item.updatedAt || item.createdAt)
+
+    savedVerses
+      .filter(item => item.uid === uid)
+      .forEach(item => activityDates.push(item.updatedAt || item.createdAt || item.savedAt))
+
+    if (lastRead?.timestamp) activityDates.push(lastRead.timestamp)
+    return calculateReadingStreak(activityDates)
+  }, [lastRead, rawHistory, savedVerses, uid])
 
   useEffect(() => {
     try {
@@ -166,8 +183,8 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
         <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชี" onClick={() => setView("profile")} />
         <DashboardCard icon="ti-book" title="อัลกุรอานของฉัน" text="เปิดอ่าน แปลไทย ตัฟซีรย่อ และค้นหาคำสำคัญ" onClick={() => onOpenQuran(1, null)} />
         <DashboardCard icon="ti-notebook" title="อายะฮ์ที่บันทึกไว้" text="ข้อคิดและประโยชน์ที่ได้รับจากอัลกุรอาน" onClick={onOpenSavedVerses} />
-        <DashboardCard icon="ti-book-2" title="ชั้นหนังสือของฉัน" text="บันทึกหนังสือที่กำลังอ่านและอ่านจบ" />
-        <DashboardCard icon="ti-flame" title="Reading Streak" text="ติดตามวันที่อ่านต่อเนื่อง" />
+        <DashboardCard icon="ti-book-2" title="ชั้นหนังสือของฉัน" text="ติดตามหนังสือที่กำลังอ่าน อ่านจบ และความคืบหน้า" onClick={() => setView("bookshelf")} />
+        <DashboardCard icon="ti-flame" title={`${streak.current} วันต่อเนื่อง`} text={`สถิติสูงสุด ${streak.best} วัน · มีกิจกรรม ${streak.totalDays} วัน`} onClick={() => setView("profile")} />
         <DashboardCard 
           icon="ti-bookmark" 
           title="บทความที่บันทึกไว้" 
@@ -219,6 +236,244 @@ function getSavedMonthString(date) {
   const month = THAI_MONTHS[date.getMonth()];
   const year = date.getFullYear() + 543; // ปี พ.ศ.
   return `${month} ${year}`;
+}
+
+function getTimeMs(value) {
+  if (!value) return 0
+  if (typeof value.toDate === "function") return value.toDate().getTime()
+  if (value.seconds) return value.seconds * 1000
+  if (typeof value === "number") return value
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function getLocalDayKey(value) {
+  const ms = getTimeMs(value)
+  if (!ms) return ""
+  const date = new Date(ms)
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function calculateReadingStreak(values) {
+  const days = new Set(values.map(getLocalDayKey).filter(Boolean))
+  const sorted = [...days].sort()
+  let best = 0
+  let run = 0
+  let prevTime = 0
+
+  sorted.forEach(day => {
+    const currentTime = new Date(`${day}T00:00:00`).getTime()
+    run = prevTime && currentTime - prevTime === 86400000 ? run + 1 : 1
+    best = Math.max(best, run)
+    prevTime = currentTime
+  })
+
+  let current = 0
+  const cursor = new Date()
+  cursor.setHours(0, 0, 0, 0)
+  const yesterday = new Date(cursor)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  if (days.has(getLocalDayKey(cursor.getTime())) || days.has(getLocalDayKey(yesterday.getTime()))) {
+    while (days.has(getLocalDayKey(cursor.getTime()))) {
+      current += 1
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    if (current === 0) {
+      cursor.setDate(cursor.getDate() - 1)
+      while (days.has(getLocalDayKey(cursor.getTime()))) {
+        current += 1
+        cursor.setDate(cursor.getDate() - 1)
+      }
+    }
+  }
+
+  return { current, best, totalDays: days.size }
+}
+
+const BOOK_STATUS = [
+  { id: "reading", label: "กำลังอ่าน" },
+  { id: "finished", label: "อ่านจบแล้ว" },
+  { id: "planned", label: "อยากอ่าน" },
+]
+
+function BookshelfPanel({ authState, go, setView }) {
+  const uid = authState?.user?.uid
+  const { items: books } = useContentCollection("books", BOOKS)
+  const { items: shelfItems, loading, saveItem, deleteItem } = useContentCollection("bookshelf", [])
+  const [bookId, setBookId] = useState("")
+
+  const myShelf = useMemo(() => {
+    return shelfItems
+      .filter(item => item.uid === uid)
+      .map(item => ({
+        ...item,
+        book: books.find(book => String(book.id) === String(item.bookId)),
+      }))
+      .filter(item => item.book)
+      .sort((a, b) => getTimeMs(b.updatedAt || b.addedAt) - getTimeMs(a.updatedAt || a.addedAt))
+  }, [books, shelfItems, uid])
+
+  const availableBooks = useMemo(() => {
+    const savedIds = new Set(myShelf.map(item => String(item.bookId)))
+    return books.filter(book => !savedIds.has(String(book.id)))
+  }, [books, myShelf])
+
+  const stats = useMemo(() => {
+    const finished = myShelf.filter(item => item.status === "finished").length
+    const reading = myShelf.filter(item => item.status === "reading").length
+    const avgProgress = myShelf.length
+      ? Math.round(myShelf.reduce((sum, item) => sum + Number(item.progress || 0), 0) / myShelf.length)
+      : 0
+    return { finished, reading, avgProgress }
+  }, [myShelf])
+
+  async function addBook() {
+    if (!bookId || !uid) return
+    const book = books.find(item => String(item.id) === String(bookId))
+    if (!book) return
+
+    await saveItem({
+      id: `${uid}_book_${book.id}`,
+      uid,
+      bookId: String(book.id),
+      status: "reading",
+      progress: 0,
+      note: "",
+      addedAt: Date.now(),
+    })
+    setBookId("")
+    toast.success("เพิ่มเข้าชั้นหนังสือแล้ว")
+  }
+
+  async function updateShelfItem(item, patch) {
+    const nextProgress = patch.status === "finished" ? 100 : patch.progress
+    await saveItem({
+      ...item,
+      ...patch,
+      progress: nextProgress !== undefined ? Number(nextProgress) : Number(item.progress || 0),
+      updatedAt: Date.now(),
+    })
+  }
+
+  async function removeShelfItem(id) {
+    const ok = await confirmAction({
+      title: "นำออกจากชั้นหนังสือ?",
+      message: "รายการนี้จะถูกลบออกจากชั้นหนังสือของคุณ",
+      confirmText: "นำออก",
+      danger: true,
+    })
+    if (!ok) return
+    await deleteItem(id)
+    toast.success("นำออกจากชั้นหนังสือแล้ว")
+  }
+
+  if (loading) {
+    return <div style={{ textAlign: "center", padding: 40 }}><i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)" }}></i></div>
+  }
+
+  return (
+    <div className="profile-layout" style={{ maxWidth: 900, margin: "0 auto" }}>
+      <button
+        onClick={() => setView("overview")}
+        className="sec-link"
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 16, background: "none", border: "none", fontFamily: "'Prompt', sans-serif", cursor: "pointer", color: "var(--t2)" }}
+      >
+        <i className="ti ti-arrow-left"></i> กลับหน้าแดชบอร์ด
+      </button>
+
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--teal-bg)", display: "grid", placeItems: "center" }}>
+              <i className="ti ti-books" style={{ color: "var(--teal)", fontSize: 20 }}></i>
+            </div>
+            <div>
+              <h2 style={{ fontSize: 18 }}>ชั้นหนังสือของฉัน</h2>
+              <p style={{ fontSize: 12, marginTop: 2 }}>ติดตามหนังสือที่กำลังอ่าน อ่านจบ และเป้าหมายต่อไป</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-stat-grid">
+          <div className="card profile-stat-card">
+            <div className="profile-stat-icon" style={{ background: "var(--teal-bg)", color: "var(--teal)" }}><i className="ti ti-book-2"></i></div>
+            <div><div className="profile-stat-label">กำลังอ่าน</div><div className="profile-stat-value">{stats.reading} เล่ม</div></div>
+          </div>
+          <div className="card profile-stat-card">
+            <div className="profile-stat-icon" style={{ background: "rgba(255,179,0,.12)", color: "rgb(255,179,0)" }}><i className="ti ti-check"></i></div>
+            <div><div className="profile-stat-label">อ่านจบแล้ว</div><div className="profile-stat-value">{stats.finished} เล่ม</div></div>
+          </div>
+          <div className="card profile-stat-card">
+            <div className="profile-stat-icon" style={{ background: "rgba(59,115,196,.14)", color: "#6ba0ff" }}><i className="ti ti-chart-dots"></i></div>
+            <div><div className="profile-stat-label">ความคืบหน้าเฉลี่ย</div><div className="profile-stat-value">{stats.avgProgress}%</div></div>
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 14, background: "var(--bg2)", boxShadow: "none", marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
+            <select value={bookId} onChange={event => setBookId(event.target.value)}>
+              <option value="">เลือกหนังสือเพื่อเพิ่มเข้าชั้น</option>
+              {availableBooks.map(book => (
+                <option key={book.id} value={book.id}>{book.title}</option>
+              ))}
+            </select>
+            <button className="btn btn-teal" onClick={addBook} disabled={!bookId}>เพิ่ม</button>
+          </div>
+        </div>
+
+        {myShelf.length === 0 ? (
+          <div className="empty" style={{ padding: "40px 0" }}>ยังไม่มีหนังสือในชั้น เลือกหนังสือด้านบนเพื่อเริ่มติดตามได้เลย</div>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {myShelf.map(item => (
+              <div key={item.id} className="card bookshelf-item" style={{ padding: 16, boxShadow: "none", background: "var(--bg2)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 style={{ fontSize: 15, lineHeight: 1.45 }}>{item.book.title}</h3>
+                    <p style={{ fontSize: 12, marginTop: 2 }}>{item.book.author} · {item.book.type}</p>
+                  </div>
+                  <button className="btn btn-outline" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => go("library-detail", item.book)}>
+                    เปิด
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "160px minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
+                  <select value={item.status || "reading"} onChange={event => updateShelfItem(item, { status: event.target.value })}>
+                    {BOOK_STATUS.map(status => <option key={status.id} value={status.id}>{status.label}</option>)}
+                  </select>
+                  <label style={{ display: "grid", gap: 6, fontSize: 11, color: "var(--t2)" }}>
+                    <span>ความคืบหน้า {Number(item.progress || 0)}%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={Number(item.progress || 0)}
+                      onChange={event => updateShelfItem(item, { progress: event.target.value })}
+                    />
+                  </label>
+                  <button className="btn btn-outline" style={{ padding: "7px 10px", fontSize: 11, color: "#e05555" }} onClick={() => removeShelfItem(item.id)}>
+                    ลบ
+                  </button>
+                </div>
+
+                <textarea
+                  value={item.note || ""}
+                  placeholder="บันทึกข้อคิดหรือหน้าที่อ่านค้างไว้..."
+                  onChange={event => updateShelfItem(item, { note: event.target.value })}
+                  style={{ marginTop: 12, minHeight: 70 }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function SavedArticlesPanel({ authState, go, setView }) {
@@ -485,6 +740,7 @@ function ProfilePanel({ authState, copied, copyText, go, setView }) {
   
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
   const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [])
+  const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
   
   const history = useMemo(() => {
     if (!user?.uid) return [];
@@ -516,8 +772,12 @@ function ProfilePanel({ authState, copied, copyText, go, setView }) {
     const articlesRead = history.filter(h => h.type === "article").length;
     const booksDownloaded = history.filter(h => h.type === "book").length;
     const mediaWatched = history.filter(h => h.type === "media").length;
-    return { articlesRead, booksDownloaded, mediaWatched };
-  }, [history])
+    const streak = calculateReadingStreak([
+      ...history.map(item => item.timestamp || item.updatedAt || item.createdAt),
+      ...savedVerses.filter(item => item.uid === user?.uid).map(item => item.updatedAt || item.createdAt || item.savedAt),
+    ]);
+    return { articlesRead, booksDownloaded, mediaWatched, streak };
+  }, [history, savedVerses, user?.uid])
 
   const handleHistoryClick = (h) => {
     const targetId = h.itemId || h.id;

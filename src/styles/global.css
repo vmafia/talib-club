@@ -117,6 +117,7 @@ input,select,textarea{font-family:'Prompt',sans-serif;font-size:13px;background:
 input::placeholder,textarea::placeholder{color:var(--t3)}
 input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg)}
 input:disabled,select:disabled,textarea:disabled{color:var(--t3);background:var(--bg2);cursor:not-allowed}
+input[type="range"]{accent-color:var(--teal);padding:0;box-shadow:none}
 .empty{text-align:center;padding:60px 24px;color:var(--t3);font-size:13px;font-weight:300}
 
 /* Reading */
@@ -329,6 +330,7 @@ button.dashboard-card:hover{transform:translateY(-2px)}
   .profile-row{display:block}
   .profile-row div{text-align:left;margin-top:4px}
   .copy-btn{margin-left:0}
+  .bookshelf-item > div:nth-of-type(2){grid-template-columns:minmax(0, 1fr) !important}
   .article-page{max-width:100%}
   .article-title{font-size:24px;line-height:1.4}
   .reader-tools{display:grid;grid-template-columns:1fr;gap:8px;margin-top:-8px}

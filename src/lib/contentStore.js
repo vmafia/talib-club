@@ -14,6 +14,7 @@ export const CONTENT_COLLECTIONS = {
   media: "content_media",
   scholars: "content_scholars",
   bookmarks: "content_bookmarks",
+  bookshelf: "content_bookshelf",
   quran_bookmarks: "content_quran_bookmarks",
   history: "content_history",
 }
