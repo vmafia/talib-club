@@ -63,7 +63,8 @@ export default function Quran({ initialSura, initialAyah, authState }) {
     return localStorage.getItem("quran-sidebar-collapsed") === "true"
   })
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
-  const [benefitsExpanded, setBenefitsExpanded] = useState(true)
+  const [benefitsExpanded, setBenefitsExpanded] = useState(false)
+  const [showObjective, setShowObjective] = useState(false)
   const [scrollPercent, setScrollPercent] = useState(0)
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [searchHasRun, setSearchHasRun] = useState(false)
@@ -84,7 +85,8 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   }, [sidebarCollapsed])
 
   useEffect(() => {
-    setBenefitsExpanded(true)
+    setBenefitsExpanded(false)
+    setShowObjective(false)
   }, [selectedSura])
 
   // Synchronize Quran selection (selectedSura and targetScrollAyah) with the browser URL query parameters
@@ -307,7 +309,6 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   
   const [activeBookmarkModal, setActiveBookmarkModal] = useState(null)
   const [modalNotes, setModalNotes] = useState("")
-  const [showObjective, setShowObjective] = useState(true)
   
   // Track mobile resize
   useEffect(() => {
@@ -696,6 +697,10 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         @keyframes slideUp {
           from { transform: translateY(100%); }
           to { transform: translateY(0); }
+        }
+        @keyframes loadingBar {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
       `}</style>
 
@@ -1432,7 +1437,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           </div>
 
           {/* LOADING & ERROR STATES */}
-          {loading && (
+          {loading && verses.length === 0 && (
             <div className="card" style={{ padding: 40, textAlign: "center" }}>
               <i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)", marginBottom: 8 }}></i>
               <div style={{ fontSize: 13, color: "var(--t2)" }}>กำลังโหลดพระดำรัสและไฟล์ข้อมูลอายะฮ์...</div>
@@ -1449,8 +1454,38 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           )}
 
           {/* READING AREA */}
-          {!loading && !error && (verses.length > 0 || (mode === "mushaf" && selectedPage)) && (
-            <div ref={readingAreaRef} className="card" style={{ padding: isMobile ? "16px 12px" : "24px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
+          {!error && (verses.length > 0 || (mode === "mushaf" && selectedPage)) && (
+            <div ref={readingAreaRef} className="card" style={{ 
+              padding: isMobile ? "16px 12px" : "24px 28px", 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: 16,
+              position: "relative",
+              overflow: "hidden"
+            }}>
+              {/* Sleek Top Loading Bar */}
+              {loading && (
+                <div style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "3px",
+                  background: "linear-gradient(90deg, transparent, var(--teal), transparent)",
+                  backgroundSize: "200% 100%",
+                  animation: "loadingBar 1.5s infinite linear",
+                  zIndex: 5
+                }} />
+              )}
+              
+              <div style={{ 
+                opacity: loading ? 0.55 : 1, 
+                transition: "opacity 0.25s ease", 
+                pointerEvents: loading ? "none" : "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16
+              }}>
               
               {/* BISMILLAH PREPEND */}
               {hasBismillah && !selectedPage && (
@@ -1495,54 +1530,74 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                       </button>
                     </div>
 
-                    {pageLoading ? (
+                    {pageLoading && pageVerses.length === 0 ? (
                       <div style={{ padding: 40, textAlign: "center" }}>
                         <i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)", marginBottom: 8 }}></i>
                         <div style={{ fontSize: 12, color: "var(--t2)" }}>กำลังโหลดหน้า {selectedPage}...</div>
                       </div>
                     ) : (
-                      <div 
-                        className="mushaf-flow" 
-                        style={{ 
-                          fontSize: `${arabicSize}px`, 
-                          fontFamily: "'Amiri', serif", 
-                          color: "var(--text)", 
-                          direction: "rtl",
-                          textAlign: "justify",
-                          lineHeight: 2.3
-                        }}
-                      >
-                        {pageVerses.length > 0 ? (
-                          pageVerses.map(v => (
-                            <span key={v.id}>
-                              {v.text || v.arabic_text}{" "}
-                              <span 
-                                style={{ 
-                                  fontFamily: "sans-serif", 
-                                  fontSize: `${Math.round(arabicSize * 0.5)}px`, 
-                                  color: "var(--teal)", 
-                                  fontWeight: "bold",
-                                  margin: "0 4px",
-                                  display: "inline-flex",
-                                  width: `${Math.round(arabicSize * 0.95)}px`,
-                                  height: `${Math.round(arabicSize * 0.95)}px`,
-                                  border: "1.5px solid var(--teal)",
-                                  borderRadius: "50%",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  direction: "ltr"
-                                }}
-                                title={`ซูเราะฮ์ ${v.suraName || ""} [${v.sura}:${v.aya}]`}
-                              >
-                                {getArabicNumber(v.aya)}
-                              </span>{" "}
-                            </span>
-                          ))
-                        ) : (
-                          <div style={{ direction: "ltr", textAlign: "center", fontFamily: "'Prompt', sans-serif", fontSize: 13, color: "var(--t2)", padding: "36px 12px" }}>
-                            ไม่พบข้อมูลหน้านี้ กรุณาลองเลือกหน้าใหม่อีกครั้ง
-                          </div>
+                      <div style={{ 
+                        position: "relative",
+                        opacity: pageLoading ? 0.55 : 1, 
+                        transition: "opacity 0.25s ease",
+                        pointerEvents: pageLoading ? "none" : "auto" 
+                      }}>
+                        {pageLoading && (
+                          <div style={{
+                            position: "absolute",
+                            top: -10,
+                            left: 0,
+                            right: 0,
+                            height: "3px",
+                            background: "linear-gradient(90deg, transparent, var(--teal), transparent)",
+                            backgroundSize: "200% 100%",
+                            animation: "loadingBar 1.5s infinite linear",
+                            zIndex: 5
+                          }} />
                         )}
+                        <div 
+                          className="mushaf-flow" 
+                          style={{ 
+                            fontSize: `${arabicSize}px`, 
+                            fontFamily: "'Amiri', serif", 
+                            color: "var(--text)", 
+                            direction: "rtl",
+                            textAlign: "justify",
+                            lineHeight: 2.3
+                          }}
+                        >
+                          {pageVerses.length > 0 ? (
+                            pageVerses.map(v => (
+                              <span key={v.id}>
+                                {v.text || v.arabic_text}{" "}
+                                <span 
+                                  style={{ 
+                                    fontFamily: "sans-serif", 
+                                    fontSize: `${Math.round(arabicSize * 0.5)}px`, 
+                                    color: "var(--teal)", 
+                                    fontWeight: "bold",
+                                    margin: "0 4px",
+                                    display: "inline-flex",
+                                    width: `${Math.round(arabicSize * 0.95)}px`,
+                                    height: `${Math.round(arabicSize * 0.95)}px`,
+                                    border: "1.5px solid var(--teal)",
+                                    borderRadius: "50%",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    direction: "ltr"
+                                  }}
+                                  title={`ซูเราะฮ์ ${v.suraName || ""} [${v.sura}:${v.aya}]`}
+                                >
+                                  {getArabicNumber(v.aya)}
+                                </span>{" "}
+                              </span>
+                            ))
+                          ) : (
+                            <div style={{ direction: "ltr", textAlign: "center", fontFamily: "'Prompt', sans-serif", fontSize: 13, color: "var(--t2)", padding: "36px 12px" }}>
+                              ไม่พบข้อมูลหน้านี้ กรุณาลองเลือกหน้าใหม่อีกครั้ง
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -1763,6 +1818,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                   })}
                 </div>
               )}
+              </div>
             </div>
           )}
 
