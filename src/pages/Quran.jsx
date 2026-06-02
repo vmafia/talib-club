@@ -529,6 +529,12 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           color: var(--quran-text);
           transition: background 0.3s, color 0.3s;
         }
+        @media (max-width: 767px) {
+          .quran-container {
+            padding: 16px 0 0 0;
+            border-radius: 0;
+          }
+        }
 
         .quran-container .card {
           background: var(--quran-card-bg) !important;
@@ -1176,63 +1182,66 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               // MOBILE LAYOUT
               <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
                 {/* Mode Segmented Control */}
-                <div style={{ display: "flex", background: "var(--quran-br2)", padding: 3, borderRadius: 10, width: "100%", border: "0.5px solid var(--quran-br2)" }}>
+                <div style={{ display: "flex", background: "var(--quran-br2)", padding: 3, borderRadius: 10, width: "100%", border: "0.5px solid var(--quran-br2)", overflow: "hidden" }}>
                   <button 
                     className={`mode-btn ${mode === "translation" ? "active" : ""}`}
                     onClick={() => setMode("translation")}
                     style={{
                       flex: 1,
-                      padding: "8px 4px",
+                      padding: "8px 2px",
                       borderRadius: 8,
                       border: "none",
                       background: mode === "translation" ? "var(--quran-teal)" : "transparent",
                       color: mode === "translation" ? "#fff" : "var(--quran-t2)",
-                      fontSize: "11px",
+                      fontSize: "10px",
                       fontWeight: mode === "translation" ? 500 : 400,
                       cursor: "pointer",
                       transition: "all 0.2s ease",
                       textAlign: "center",
-                      whiteSpace: "nowrap"
+                      overflow: "hidden",
+                      minWidth: 0
                     }}
                   >
-                    แปลทีละอายะฮ์
+                    แปลอายะฮ์
                   </button>
                   <button 
                     className={`mode-btn ${mode === "tafsir" ? "active" : ""}`}
                     onClick={() => setMode("tafsir")}
                     style={{
                       flex: 1,
-                      padding: "8px 4px",
+                      padding: "8px 2px",
                       borderRadius: 8,
                       border: "none",
                       background: mode === "tafsir" ? "var(--quran-teal)" : "transparent",
                       color: mode === "tafsir" ? "#fff" : "var(--quran-t2)",
-                      fontSize: "11px",
+                      fontSize: "10px",
                       fontWeight: mode === "tafsir" ? 500 : 400,
                       cursor: "pointer",
                       transition: "all 0.2s ease",
                       textAlign: "center",
-                      whiteSpace: "nowrap"
+                      overflow: "hidden",
+                      minWidth: 0
                     }}
                   >
-                    คำแปล + ตัฟซีร
+                    แปล + ตัฟซีร
                   </button>
                   <button 
                     className={`mode-btn ${mode === "mushaf" ? "active" : ""}`}
                     onClick={() => setMode("mushaf")}
                     style={{
                       flex: 1,
-                      padding: "8px 4px",
+                      padding: "8px 2px",
                       borderRadius: 8,
                       border: "none",
                       background: mode === "mushaf" ? "var(--quran-teal)" : "transparent",
                       color: mode === "mushaf" ? "#fff" : "var(--quran-t2)",
-                      fontSize: "11px",
+                      fontSize: "10px",
                       fontWeight: mode === "mushaf" ? 500 : 400,
                       cursor: "pointer",
                       transition: "all 0.2s ease",
                       textAlign: "center",
-                      whiteSpace: "nowrap"
+                      overflow: "hidden",
+                      minWidth: 0
                     }}
                   >
                     มุศฮัฟล้วน
@@ -2042,7 +2051,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0, 0, 0, 0.4)",
+          background: "rgba(0, 0, 0, 0.55)",
           backdropFilter: "blur(4px)",
           zIndex: 100000,
           display: "flex",
@@ -2055,15 +2064,16 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             style={{
               width: "100%",
               maxHeight: "85vh",
-              background: "var(--quran-card-bg)",
+              background: "var(--card, #ffffff)",
+              backgroundColor: "var(--card, #ffffff)",
               borderRadius: "20px 20px 0 0",
               display: "flex",
               flexDirection: "column",
               padding: "16px 20px 24px",
               gap: 12,
               animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-              boxShadow: "0 -10px 40px rgba(0,0,0,0.15)",
-              border: "1px solid var(--quran-br)",
+              boxShadow: "0 -10px 40px rgba(0,0,0,0.25)",
+              border: "1px solid rgba(0,0,0,0.08)",
               borderBottom: "none"
             }}
             onClick={e => e.stopPropagation()}
