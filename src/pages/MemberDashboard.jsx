@@ -762,6 +762,8 @@ function BookshelfPanel({ authState, go, setView }) {
   const { items: books } = useContentCollection("books", BOOKS)
   const { items: shelfItems, loading, saveItem, deleteItem } = useContentCollection("bookshelf", [])
   const { items: readingSessions } = useContentCollection("reading_sessions", [])
+  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const [showTutorial, setShowTutorial] = useState(false)
   const [bookId, setBookId] = useState("")
   const [addMode, setAddMode] = useState("library")
   const [externalBook, setExternalBook] = useState({
@@ -993,12 +995,106 @@ function BookshelfPanel({ authState, go, setView }) {
     setQuizState(null)
   }
 
+  // ─── Streak & Missions logic ───────────────────────────────────────────────
+  const streakSettings = useMemo(() => {
+    return normalizeStreakSettings(streakRecords.find(item => item.uid === uid || item.id === uid), uid)
+  }, [streakRecords, uid])
+
+  const streak = useMemo(() => {
+    const verifiedDays = readingSessions
+      .filter(item => item.uid === uid && item.verified)
+      .map(item => item.dayKey || item.completedAt || item.createdAt)
+    return calculateReadingStreak(verifiedDays, streakSettings.protectedDays)
+  }, [readingSessions, streakSettings.protectedDays, uid])
+
+  const todaySessions = useMemo(() => {
+    return readingSessions.filter(item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt)) === streak.todayKey)
+  }, [readingSessions, streak.todayKey, uid])
+
+  const todaySeconds = todaySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
+  const goalPercent = Math.min(100, Math.round((todaySeconds / (DAILY_READING_GOAL_MINUTES * 60)) * 100))
+
+  const todayQuizPassed = useMemo(() => {
+    return shelfItems.some(item => {
+      if (item.uid !== uid || !item.lastQuiz) return false
+      const dateKey = getLocalDayKey(item.lastQuiz.takenAt)
+      return dateKey === streak.todayKey && item.lastQuiz.score >= 3
+    })
+  }, [shelfItems, streak.todayKey, uid])
+
+  const last7Days = useMemo(() => {
+    const list = []
+    const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]
+    for (let i = 6; i >= 0; i--) {
+      const key = addDaysToKey(streak.todayKey, -i)
+      const dateObj = new Date(`${key}T00:00:00`)
+      const name = dayNames[dateObj.getDay()]
+      const daySessions = readingSessions.filter(
+        item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt)) === key
+      )
+      const secs = daySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
+      const minutes = Math.round(secs / 60)
+      const metGoal = secs >= DAILY_READING_GOAL_MINUTES * 60
+      const protection = streakSettings.protectedDays.find(
+        p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === key
+      )
+      list.push({ key, name, minutes, metGoal, protection, hasRead: daySessions.length > 0 })
+    }
+    return list
+  }, [readingSessions, streak.todayKey, streakSettings.protectedDays, uid])
+
+  async function protectToday(type) {
+    if (!uid) return
+    if (streak.todayVerified) { toast.success("วันนี้ต่อไฟด้วยการอ่านจริงแล้ว"); return }
+    if (streak.todayProtected) { toast.success("วันนี้ได้รับการคุ้มครอง streak แล้ว"); return }
+    const key = streak.todayKey
+    const isLeave = type === "leave"
+    const creditKey = isLeave ? "leaveCredits" : "freezeCredits"
+    if (Number(streakSettings[creditKey] || 0) <= 0) { toast.error(isLeave ? "สิทธิ์ลากิจหมดแล้ว" : "น้ำแข็งหมดแล้ว"); return }
+    await saveStreakSettings({
+      ...streakSettings,
+      [creditKey]: Number(streakSettings[creditKey] || 0) - 1,
+      protectedDays: [...streakSettings.protectedDays, { date: key, type, usedAt: Date.now() }],
+    })
+    toast.success(isLeave ? "บันทึกวันลากิจแล้ว streak ยังปลอดภัย" : "ใช้น้ำแข็งคุ้มครอง streak วันนี้แล้ว")
+  }
+
+  async function claimMission(missionId) {
+    if (!uid) return
+    const todayClaims = streakSettings.claimedMissions?.[streak.todayKey] || {}
+    if (todayClaims[missionId]) { toast.success("คุณรับรางวัลภารกิจนี้ไปแล้ว"); return }
+    let completed = false
+    if (missionId === "m1") completed = todaySeconds >= 600
+    if (missionId === "m2") completed = todaySessions.some(s => s.reflection && s.reflection.length >= 100)
+    if (missionId === "m3") completed = todayQuizPassed
+    if (!completed) { toast.error("ภารกิจยังไม่เสร็จสมบูรณ์"); return }
+    let nextFreeze = streakSettings.freezeCredits
+    let nextLeave = streakSettings.leaveCredits
+    if (missionId === "m1" || missionId === "m3") nextFreeze += 1
+    if (missionId === "m2") nextLeave += 1
+    const nextClaimed = {
+      ...streakSettings.claimedMissions,
+      [streak.todayKey]: { ...(streakSettings.claimedMissions?.[streak.todayKey] || {}), [missionId]: true }
+    }
+    await saveStreakSettings({ ...streakSettings, freezeCredits: nextFreeze, leaveCredits: nextLeave, claimedMissions: nextClaimed })
+    toast.success(missionId === "m2" ? "สำเร็จ! รับรางวัล สิทธิ์ลากิจ +1 📅" : "สำเร็จ! รับรางวัล น้ำแข็งคุ้มครอง +1 🧊")
+  }
+
+  // ─── Onboarding ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const hasSeen = localStorage.getItem("talib_has_seen_onboarding")
+    if (!hasSeen) setShowTutorial(true)
+  }, [])
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   if (loading) {
     return <div style={{ textAlign: "center", padding: 40 }}><i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)" }}></i></div>
   }
 
   return (
     <div className="profile-layout" style={{ maxWidth: 980, margin: "0 auto" }}>
+      {showTutorial && <TutorialModal onClose={() => { localStorage.setItem("talib_has_seen_onboarding", "true"); setShowTutorial(false) }} />}
       <button
         onClick={() => setView("overview")}
         className="sec-link"
@@ -1006,6 +1102,38 @@ function BookshelfPanel({ authState, go, setView }) {
       >
         <i className="ti ti-arrow-left"></i> กลับหน้าแดชบอร์ด
       </button>
+
+      {/* ─── Streak Panel ─────────────────────────────────────────────────── */}
+      <ReadingStreakPanel
+        streak={streak}
+        settings={streakSettings}
+        todaySeconds={todaySeconds}
+        goalPercent={goalPercent}
+        last7Days={last7Days}
+        onRead={() => go("reader")}
+        onFreeze={() => protectToday("freeze")}
+        onLeave={() => protectToday("leave")}
+        onShowTutorial={() => setShowTutorial(true)}
+      />
+
+      {/* ─── Daily Missions ────────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 24, marginBottom: 20, textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--teal-bg)", display: "grid", placeItems: "center" }}>
+            <i className="ti ti-target" style={{ color: "var(--teal)", fontSize: 18 }}></i>
+          </div>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 600 }}>ภารกิจรับไอเทมประจำวัน (Daily Missions)</h3>
+            <p style={{ fontSize: 11, color: "var(--t2)" }}>ทำภารกิจสะสมน้ำแข็ง 🧊 หรือสิทธิ์ลากิจ 📅 เพื่อใช้หยุดพักโดยไม่เสีย Streak</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <MissionRow title="1. นักอ่านผู้ทุ่มเท" desc="อ่านหนังสือสะสมเวลาอย่างน้อย 10 นาทีวันนี้" progress={todaySeconds} target={600} formatProgress={(val) => `${Math.round(val / 60)}/10 นาที`} rewardText="+1 น้ำแข็ง 🧊" claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m1} onClaim={() => claimMission("m1")} />
+          <MissionRow title="2. ข้อคิดสะท้อนธรรมลึกซึ้ง" desc="บันทึกเซสชันอ่านและเขียนข้อคิดความยาว 100 ตัวอักษรขึ้นไปวันนี้" progress={todaySessions.reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0)} target={100} formatProgress={(val) => `${val}/100 ตัวอักษร`} rewardText="+1 สิทธิ์ลากิจ 📅" claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m2} onClaim={() => claimMission("m2")} />
+          <MissionRow title="3. ผู้พิชิตแบบทดสอบ" desc="ทำแบบทดสอบหนังสือวันนี้ และได้คะแนนตั้งแต่ 3/5 ข้อขึ้นไป" progress={todayQuizPassed ? 1 : 0} target={1} formatProgress={(val) => val === 1 ? "สำเร็จ" : "ยังไม่สำเร็จ"} rewardText="+1 น้ำแข็ง 🧊" claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m3} onClaim={() => claimMission("m3")} />
+        </div>
+      </div>
+
 
       <div className="card" style={{ padding: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
