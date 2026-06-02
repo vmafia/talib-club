@@ -318,8 +318,6 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <MissionRow
-            title="1. นักอ่านผู้ทุ่มเท"
-          <MissionRow
             title="1. ผู้อ่านจนจบเล่ม"
             desc="อ่านหนังสือจนจบ (กดเปลี่ยนสถานะเป็น อ่านจบ) สัปดาห์นี้"
             progress={shelfItems.filter(i => i.uid === uid && i.status === "finished" && i.finishedAt && getWeekKey(i.finishedAt) === getWeekKey()).length}
@@ -1092,7 +1090,7 @@ function BookshelfPanel({ authState, go, setView }) {
     })
 
     if (!completed) {
-      if (missionId === "m1") toast.error(`ภารกิจยังไม่สำเร็จ: อ่านครบ 20 นาที (ปัจจุบัน ${Math.round(todaySeconds/60)} นาที)`)
+      if (missionId === "m1") toast.error(`ภารกิจยังไม่สำเร็จ: อ่านครบ 20 นาที (ปัจจุบัน ${Math.round(todaySeconds / 60)} นาที)`)
       else if (missionId === "m2") toast.error(`ภารกิจยังไม่สำเร็จ: เขียนข้อคิดครบ 3,000 ตัวอักษร`)
       else toast.error(`ภารกิจยังไม่สำเร็จ: ทำแบบทดสอบได้ ${MISSION_QUIZ_MIN_SCORE}/20 ขึ้นไป`)
       return
@@ -2318,4 +2316,3 @@ function TutorialModal({ onClose }) {
     </div>
   )
 }
-
