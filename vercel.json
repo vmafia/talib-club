@@ -3,10 +3,6 @@
     {
       "source": "/__/auth/handler",
       "destination": "https://talib-club-web.firebaseapp.com/__/auth/handler"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }
