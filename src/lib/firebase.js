@@ -6,7 +6,7 @@ import { getStorage } from "firebase/storage"
 const defaultWebFirebaseConfig = {
   apiKey: "AIzaSyC8HoWaAu0XWy3he_pMxqUIWwREDPdeUpg",
   authDomain: "talib-club-web.firebaseapp.com",
-  projectId: "talib-club-web",
+  projectId: "talibclub.org",
   storageBucket: "talib-club-web.firebasestorage.app",
   messagingSenderId: "300903382422",
   appId: "1:300903382422:web:887e6f03a6c4f0092db1b7",
