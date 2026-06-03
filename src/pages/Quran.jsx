@@ -1577,31 +1577,42 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                             }}
                           >
                             {pageVerses.length > 0 ? (
-                              pageVerses.map(v => (
-                                <span key={v.id}>
-                                  {v.text || v.arabic_text}{" "}
-                                  <span
-                                    style={{
-                                      fontFamily: "sans-serif",
-                                      fontSize: `${Math.round(arabicSize * 0.5)}px`,
-                                      color: "var(--teal)",
-                                      fontWeight: "bold",
-                                      margin: "0 4px",
-                                      display: "inline-flex",
-                                      width: `${Math.round(arabicSize * 0.95)}px`,
-                                      height: `${Math.round(arabicSize * 0.95)}px`,
-                                      border: "1.5px solid var(--teal)",
-                                      borderRadius: "50%",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      direction: "ltr"
-                                    }}
-                                    title={`ซูเราะฮ์ ${v.suraName || ""} [${v.sura}:${v.aya}]`}
-                                  >
-                                    {getArabicNumber(v.aya)}
-                                  </span>{" "}
-                                </span>
-                              ))
+                              pageVerses.map(v => {
+                                const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
+                                return (
+                                  <span key={v.id}>
+                                    {v.text || v.arabic_text || ""}{" "}
+                                    <span
+                                      onClick={() => {
+                                        updateLastRead(v.sura, v.aya)
+                                        toast.success(`คั่นหน้าการอ่านที่ อายะฮ์ [${v.sura}:${v.aya}] เรียบร้อย 📖`)
+                                      }}
+                                      style={{
+                                        fontFamily: "sans-serif",
+                                        fontSize: `${Math.round(arabicSize * 0.5)}px`,
+                                        color: isBookmarked ? "#fff" : "var(--teal)",
+                                        backgroundColor: isBookmarked ? "var(--teal)" : "transparent",
+                                        fontWeight: "bold",
+                                        margin: "0 4px",
+                                        display: "inline-flex",
+                                        width: `${Math.round(arabicSize * 0.95)}px`,
+                                        height: `${Math.round(arabicSize * 0.95)}px`,
+                                        border: "1.5px solid var(--teal)",
+                                        borderRadius: "50%",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        direction: "ltr",
+                                        cursor: "pointer",
+                                        boxShadow: isBookmarked ? "0 0 10px rgba(45, 190, 160, 0.6)" : "none",
+                                        transition: "all 0.2s ease"
+                                      }}
+                                      title={`คั่นหน้าการอ่าน [${v.sura}:${v.aya}]`}
+                                    >
+                                      {getArabicNumber(v.aya)}
+                                    </span>{" "}
+                                  </span>
+                                )
+                              })
                             ) : (
                               <div style={{ direction: "ltr", textAlign: "center", fontFamily: "'Prompt', sans-serif", fontSize: 13, color: "var(--t2)", padding: "36px 12px" }}>
                                 ไม่พบข้อมูลหน้านี้ กรุณาลองเลือกหน้าใหม่อีกครั้ง
@@ -1655,30 +1666,42 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                         lineHeight: 2.3
                       }}
                     >
-                      {verses.map(v => (
-                        <span key={v.id}>
-                          {v.arabic_text}{" "}
-                          <span
-                            style={{
-                              fontFamily: "sans-serif",
-                              fontSize: `${Math.round(arabicSize * 0.5)}px`,
-                              color: "var(--teal)",
-                              fontWeight: "bold",
-                              margin: "0 4px",
-                              display: "inline-flex",
-                              width: `${Math.round(arabicSize * 0.95)}px`,
-                              height: `${Math.round(arabicSize * 0.95)}px`,
-                              border: "1.5px solid var(--teal)",
-                              borderRadius: "50%",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              direction: "ltr"
-                            }}
-                          >
-                            {getArabicNumber(v.aya)}
-                          </span>{" "}
-                        </span>
-                      ))}
+                      {verses.map(v => {
+                        const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
+                        return (
+                          <span key={v.id}>
+                            {v.arabic_text}{" "}
+                            <span
+                              onClick={() => {
+                                updateLastRead(v.sura, v.aya)
+                                toast.success(`คั่นหน้าการอ่านที่ อายะฮ์ [${v.sura}:${v.aya}] เรียบร้อย 📖`)
+                              }}
+                              style={{
+                                fontFamily: "sans-serif",
+                                fontSize: `${Math.round(arabicSize * 0.5)}px`,
+                                color: isBookmarked ? "#fff" : "var(--teal)",
+                                backgroundColor: isBookmarked ? "var(--teal)" : "transparent",
+                                fontWeight: "bold",
+                                margin: "0 4px",
+                                display: "inline-flex",
+                                width: `${Math.round(arabicSize * 0.95)}px`,
+                                height: `${Math.round(arabicSize * 0.95)}px`,
+                                border: "1.5px solid var(--teal)",
+                                borderRadius: "50%",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                direction: "ltr",
+                                cursor: "pointer",
+                                boxShadow: isBookmarked ? "0 0 10px rgba(45, 190, 160, 0.6)" : "none",
+                                transition: "all 0.2s ease"
+                              }}
+                              title={`คั่นหน้าการอ่าน [${v.sura}:${v.aya}]`}
+                            >
+                              {getArabicNumber(v.aya)}
+                            </span>{" "}
+                          </span>
+                        )
+                      })}
                     </div>
                   )
                 ) : (

@@ -247,6 +247,29 @@ export default function AdminArticles() {
           ))}
         </div>
 
+        {/* ✅ กล่องตัวกรองซีรีส์ (แสดงเมื่อเลือกประเภททั้งหมด หรือ ประเภทซีรีส์) */}
+        {(typeFilter === "all" || isSeriesType(typeFilter)) && (
+          <select 
+            value={seriesFilter} 
+            onChange={e => setSeriesFilter(e.target.value)} 
+            style={{ 
+              background: "var(--bg2)", 
+              border: "1px solid var(--br)", 
+              borderRadius: 24, 
+              padding: "8px 16px", 
+              fontSize: 13, 
+              color: "var(--text)",
+              height: 38,
+              cursor: "pointer"
+            }}
+          >
+            <option value="all">-- ทุกซีรีส์ --</option>
+            {(taxonomy.articleSeries || []).map(series => (
+              <option key={series.id} value={series.id}>{series.name}</option>
+            ))}
+          </select>
+        )}
+
         <button
           className={`btn ${showAdvanced ? "btn-teal" : "btn-outline"}`}
           onClick={() => setShowAdvanced(!showAdvanced)}
@@ -267,19 +290,6 @@ export default function AdminArticles() {
               ))}
             </select>
           </label>
-
-          {/* ✅ กล่องตัวกรองซีรีส์ (แสดงเมื่อเลือกประเภททั้งหมด หรือ ประเภทซีรีส์) */}
-          {(typeFilter === "all" || isSeriesType(typeFilter)) && (
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 500 }}>กรองตามซีรีส์</span>
-              <select value={seriesFilter} onChange={e => setSeriesFilter(e.target.value)} style={{ background: "var(--card)", border: "none" }}>
-                <option value="all">-- ทุกซีรีส์ --</option>
-                {(taxonomy.articleSeries || []).map(series => (
-                  <option key={series.id} value={series.id}>{series.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
         </div>
       )}
 

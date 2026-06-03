@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, lazy, Suspense } from "react"
+import { Component, useEffect, useState, lazy, Suspense, useRef } from "react"
 import { useTheme } from "./hooks/useTheme.js"
 import { useAuth } from "./hooks/useAuth.js"
 import Nav from "./components/Nav.jsx"
@@ -39,12 +39,98 @@ const Donation = lazyWithRetry(() => import("./pages/Donation.jsx"))
 import { Toaster } from "react-hot-toast"
 import PWAInstallBanner from "./components/PWAInstallBanner.jsx"
 import "./styles/global.css"
+import { useContentCollection } from "./lib/contentStore.js"
+
+function getTimeMs(value) {
+  if (!value) return 0
+  if (typeof value.toDate === "function") return value.toDate().getTime()
+  if (value.seconds) return value.seconds * 1000
+  if (typeof value === "number") return value
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function getLocalDayKey(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const ms = getTimeMs(value)
+  if (!ms) return ""
+  const date = new Date(ms)
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-")
+}
 
 export default function App() {
   const { theme, setTheme } = useTheme()
   const authState = useAuth()
   const [page, setPage] = useState("home")
   const [ctx, setCtx] = useState(null)
+
+  const uid = authState?.user?.uid
+  const { items: readingSessions } = useContentCollection("reading_sessions", [])
+  const countdownNotifRef = useRef(null)
+
+  useEffect(() => {
+    if (!uid) return
+
+    const interval = setInterval(() => {
+      const isNotifEnabled = localStorage.getItem("talib_notif_enabled") === "true"
+      if (!isNotifEnabled || typeof Notification === "undefined" || Notification.permission !== "granted") {
+        return
+      }
+
+      const now = new Date()
+      const todayKey = getLocalDayKey(now.getTime())
+
+      // 1. Preferred Time Notification
+      const notifTime = localStorage.getItem("talib_notif_time") || "20:00"
+      const [prefHour, prefMin] = notifTime.split(":").map(Number)
+      
+      const currentHour = now.getHours()
+      const currentMin = now.getMinutes()
+
+      if (currentHour === prefHour && currentMin === prefMin) {
+        const lastSent = localStorage.getItem("talib_last_pref_notif_sent")
+        if (lastSent !== todayKey) {
+          localStorage.setItem("talib_last_pref_notif_sent", todayKey)
+          new Notification("ได้เวลาอ่านหนังสือแล้ว 📖", {
+            body: "มาร่วมสร้างนิสัยการอ่านและสะสม streak วันนี้กันเถอะ!",
+            tag: "preferred-time-notif"
+          })
+        }
+      }
+
+      // 2. Realtime Countdown (23:00 - 00:00)
+      if (currentHour === 23) {
+        const todaySessions = readingSessions.filter(
+          item =>
+            item.uid === uid &&
+            item.verified &&
+            (item.dayKey || getLocalDayKey(item.completedAt || item.createdAt)) === todayKey
+        )
+        const todaySeconds = todaySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
+
+        if (todaySeconds < 600) {
+          const minutesLeft = 60 - currentMin
+          const notif = new Notification("รีบด่วน! เหลือเวลารักษา Streak ⏰", {
+            body: `คุณเหลือเวลาอีก ${minutesLeft} นาทีในการอ่านหนังสือเพื่อต่อไฟ Streak คืนนี้!`,
+            tag: "streak-countdown",
+            requireInteraction: true
+          })
+          countdownNotifRef.current = notif
+        } else {
+          if (countdownNotifRef.current) {
+            countdownNotifRef.current.close()
+            countdownNotifRef.current = null
+          }
+        }
+      }
+    }, 60000)
+
+    return () => clearInterval(interval)
+  }, [uid, readingSessions])
 
   const urlToPage = {
     "": "home",

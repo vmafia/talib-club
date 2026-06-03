@@ -13,6 +13,16 @@ const EMPTY = {
   refs: "",
 }
 
+const mapEraValue = (val) => {
+  if (!val) return ""
+  const str = String(val).trim()
+  if (str === "1" || str === "ยุคแรก") return "1"
+  if (str === "2" || str === "ยุคกลาง") return "2"
+  if (str === "3" || str === "ยุคฟื้นฟู") return "3"
+  if (str === "4" || str === "ยุคปัจจุบัน") return "4"
+  return str
+}
+
 export default function AdminScholars() {
   const { items, loading, error, saveItem, deleteItem, isUsingFallback } = useContentCollection("scholars", SCHOLARS)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
@@ -41,7 +51,7 @@ export default function AdminScholars() {
   const filtered = items.filter(s => {
     const matchSearch = String(s.name || "").toLowerCase().includes(search.toLowerCase())
     const matchField = fieldFilter === "all" || s.field === fieldFilter
-    const matchEra = eraFilter === "all" || s.era === eraFilter
+    const matchEra = eraFilter === "all" || mapEraValue(s.era) === mapEraValue(eraFilter)
     
     return matchSearch && matchField && matchEra
   })
@@ -223,7 +233,7 @@ export default function AdminScholars() {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {currentItems.map(scholar => {
           // หาชื่อยุคจาก ID
-          const eraLabel = (taxonomy.scholarEras || []).find(e => e.id === scholar.era)?.label || scholar.era
+          const eraLabel = (taxonomy.scholarEras || []).find(e => mapEraValue(e.id) === mapEraValue(scholar.era))?.label || scholar.era
           
           return (
             <div key={scholar.id} className="card" style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, opacity: busy ? 0.6 : 1 }}>

@@ -15,6 +15,16 @@ const ERA_COLORS = {
   4: "var(--acc)"
 }
 
+const mapEraValue = (val) => {
+  if (!val) return ""
+  const str = String(val).trim()
+  if (str === "1" || str === "ยุคแรก") return "1"
+  if (str === "2" || str === "ยุคกลาง") return "2"
+  if (str === "3" || str === "ยุคฟื้นฟู") return "3"
+  if (str === "4" || str === "ยุคปัจจุบัน") return "4"
+  return str
+}
+
 export default function Scholars() {
   const { items: scholars, loading } = useContentCollection("scholars", SCHOLARS)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
@@ -43,7 +53,7 @@ export default function Scholars() {
         (s.latin && s.latin.toLowerCase().includes(term)) ||
         (s.note && s.note.toLowerCase().includes(term))
 
-      const matchEra = era === "0" || String(s.era) === String(era)
+      const matchEra = era === "0" || mapEraValue(s.era) === mapEraValue(era)
       const matchField = field === "all" || (s.field && s.field.includes(field))
       
       const matchAq = !aqFilter || s.aq === aqFilter
@@ -206,23 +216,23 @@ export default function Scholars() {
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="card" style={{ padding: 16, borderLeft: "2px solid var(--br2)", display: "flex", flexDirection: "column", gap: 8, opacity: 0.6 }}>
+            <div key={i} className="card" style={{ padding: 16, borderLeft: "2px solid var(--br2)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ height: 14, background: "var(--bg3)", width: "50%", borderRadius: 4 }}></div>
-                <div style={{ height: 12, background: "var(--bg3)", width: "20%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 14, width: "50%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 12, width: "20%", borderRadius: 4 }}></div>
               </div>
-              <div style={{ height: 11, background: "var(--bg3)", width: "35%", borderRadius: 4 }}></div>
+              <div className="skeleton-shimmer" style={{ height: 11, width: "35%", borderRadius: 4 }}></div>
               <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ height: 11, background: "var(--bg3)", width: "25%", borderRadius: 4 }}></div>
-                <div style={{ height: 11, background: "var(--bg3)", width: "25%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 11, width: "25%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 11, width: "25%", borderRadius: 4 }}></div>
               </div>
-              <div style={{ height: 12, background: "var(--bg3)", width: "80%", borderRadius: 4, marginTop: 4 }}></div>
+              <div className="skeleton-shimmer" style={{ height: 12, width: "80%", borderRadius: 4, marginTop: 4 }}></div>
             </div>
           ))}
         </div>
       ) : (
         eras.filter(item => item !== "0").map(eraNum => {
-        const eraScholars = filtered.filter(s => String(s.era) === String(eraNum))
+        const eraScholars = filtered.filter(s => mapEraValue(s.era) === mapEraValue(eraNum))
         if (eraScholars.length === 0) return null
         const color = ERA_COLORS[eraNum] || "var(--teal)"
         const visibleScholars = eraScholars.slice(0, visibleCounts[eraNum] || 12)

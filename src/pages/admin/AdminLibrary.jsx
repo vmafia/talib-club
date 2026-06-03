@@ -13,6 +13,7 @@ const EMPTY = {
   fileUrl: "",
   coverUrl: "",
   desc: "",
+  issueNumber: "",
 }
 
 export default function AdminLibrary() {
@@ -358,6 +359,9 @@ export default function AdminLibrary() {
                 <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
                   <span className="tag tag-teal">{book.category || "ไม่มีหมวดหมู่"}</span>
                   <span className="tag" style={{ background: "var(--acc2)" }}>{book.type}</span>
+                  {book.type === "วารสาร" && book.issueNumber !== undefined && book.issueNumber !== "" && (
+                    <span className="tag" style={{ background: "rgba(45, 190, 160, 0.15)", color: "var(--teal)" }}>เล่มที่ {book.issueNumber}</span>
+                  )}
                   <span className="tag" style={{ background: "var(--acc2)", color: "var(--t2)", border: ".5px solid var(--br)" }}>{book.source}</span>
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{book.title}</div>
@@ -418,6 +422,16 @@ function LibraryForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           </select>
         </Field>
         <Field label="ปีพิมพ์ (พ.ศ.)"><input type="number" value={item.year || ""} onChange={e => set("year", e.target.value)} /></Field>
+        {item.type === "วารสาร" && (
+          <Field label="ลำดับเล่มที่ (issueNumber)">
+            <input 
+              type="number" 
+              value={item.issueNumber || ""} 
+              onChange={e => set("issueNumber", e.target.value ? Number(e.target.value) : "")} 
+              placeholder="ตัวอย่าง 1"
+            />
+          </Field>
+        )}
         <Field label="ลิงก์ไฟล์ PDF/Drive" span><input value={item.fileUrl || ""} onChange={e => set("fileUrl", e.target.value)} placeholder="https://..." /></Field>
         <Field label="ลิงก์รูปปก" span><input value={item.coverUrl || ""} onChange={e => set("coverUrl", e.target.value)} placeholder="https://..." /></Field>
         <Field label="คำอธิบาย" span><textarea value={item.desc || ""} onChange={e => set("desc", e.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติม..." style={{ lineHeight: 1.6 }} /></Field>

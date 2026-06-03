@@ -215,14 +215,12 @@ export default function Articles({ go, authState, ctx }) {
           {loading ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
               {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="card" style={{ padding: 16, height: 280, display: "flex", flexDirection: "column", justifyContent: "space-between", opacity: 0.6 }}>
-                  <div style={{ width: "100%", height: 140, background: "var(--bg3)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)" }}></i>
-                  </div>
+                <div key={i} className="card" style={{ padding: 16, height: 280, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div className="skeleton-shimmer" style={{ width: "100%", height: 140, borderRadius: 8 }}></div>
                   <div style={{ flex: 1, marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ height: 14, background: "var(--bg3)", width: "40%", borderRadius: 4 }}></div>
-                    <div style={{ height: 18, background: "var(--bg3)", width: "90%", borderRadius: 4 }}></div>
-                    <div style={{ height: 14, background: "var(--bg3)", width: "70%", borderRadius: 4 }}></div>
+                    <div className="skeleton-shimmer" style={{ height: 14, width: "40%", borderRadius: 4 }}></div>
+                    <div className="skeleton-shimmer" style={{ height: 18, width: "90%", borderRadius: 4 }}></div>
+                    <div className="skeleton-shimmer" style={{ height: 14, width: "70%", borderRadius: 4 }}></div>
                   </div>
                 </div>
               ))}

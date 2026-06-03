@@ -139,8 +139,8 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [showTutorial, setShowTutorial] = useState(false)
 
   const uid = authState?.user?.uid
-  const { items: readingSessions } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const { items: readingSessions, loading: loadingSessions } = useContentCollection("reading_sessions", [])
+  const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
   const { items: shelfItems } = useContentCollection("bookshelf", [])
 
   // เช็คว่าเคยเปิดดู Tutorial หรือยัง (Onboarding)
@@ -213,6 +213,42 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
     return list
   }, [readingSessions, streak.todayKey, streakSettings.protectedDays, uid])
 
+  // Auto-applied freeze logic for yesterday
+  useEffect(() => {
+    if (!uid || loadingSessions || loadingStreaks || !streakSettings) return
+
+    const yesterdayKey = addDaysToKey(streak.todayKey, -1)
+
+    // Check if user read yesterday
+    const readYesterday = readingSessions.some(
+      item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt || item.createdAt)) === yesterdayKey
+    )
+
+    // Check if yesterday was already protected
+    const protectedYesterday = streakSettings.protectedDays.some(
+      p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === yesterdayKey
+    )
+
+    if (!readYesterday && !protectedYesterday && streakSettings.freezeCredits > 0) {
+      const applyAutoFreeze = async () => {
+        try {
+          await saveStreakSettings({
+            ...streakSettings,
+            freezeCredits: Number(streakSettings.freezeCredits || 0) - 1,
+            protectedDays: [
+              ...streakSettings.protectedDays,
+              { date: yesterdayKey, type: "freeze", usedAt: Date.now() },
+            ],
+          })
+          toast.success("เมื่อวานนี้คุณไม่ได้เข้าอ่านหนังสือ! ระบบได้ใช้น้ำแข็งช่วยปกป้อง Streak ของคุณอัตโนมัติ 🧊", { duration: 5000 })
+        } catch (err) {
+          console.error("Auto freeze failed", err)
+        }
+      }
+      applyAutoFreeze()
+    }
+  }, [uid, loadingSessions, loadingStreaks, streakSettings, readingSessions, streak.todayKey, saveStreakSettings])
+
   async function protectToday(type) {
     if (!uid) return
     if (streak.todayVerified) {
@@ -251,9 +287,11 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
     }
 
     let completed = false
-    if (missionId === "m1") completed = shelfItems.some(i =>
-      i.uid === uid && i.status === "finished" && i.finishedAt && getWeekKey(i.finishedAt) === getWeekKey()
-    )
+    if (missionId === "m1") {
+      const weekSessions = readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey())
+      const weekSeconds = weekSessions.reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)
+      completed = weekSeconds >= 10800
+    }
     if (missionId === "m2") completed = todaySessions.some(s => s.reflection && s.reflection.length >= MISSION_REFLECT_CHARS)
     if (missionId === "m3") completed = shelfItems.some(item => {
       if (item.uid !== uid || !item.lastQuiz) return false
@@ -262,7 +300,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
 
 
     if (!completed) {
-      if (missionId === "m1") toast.error("ภารกิจยังไม่สำเร็จ: อ่านหนังสือจนจบแล้วกดเปลี่ยนสถานะเป็น 'อ่านจบ' ก่อน")
+      if (missionId === "m1") toast.error("ภารกิจยังไม่สำเร็จ: สะสมเวลาอ่านในสัปดาห์นี้ให้ครบ 3 ชั่วโมงก่อน")
       else if (missionId === "m2") toast.error("ภารกิจยังไม่สำเร็จ: เขียนข้อคิดครบ 3,000 ตัวอักษร")
       else toast.error(`ภารกิจยังไม่สำเร็จ: ทำ Quiz ได้ ${MISSION_QUIZ_MIN_SCORE}/20 ขึ้นไป`)
       return
@@ -316,53 +354,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
         onShowTutorial={() => setShowTutorial(true)}
       />
 
-      {/* 🎯 ภารกิจรับไอเทมประจำวัน (Daily Missions - Duolingo Style) */}
-      <div className="card" style={{ padding: 24, marginBottom: 20, textAlign: "left" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--teal-bg)", display: "grid", placeItems: "center" }}>
-            <i className="ti ti-target" style={{ color: "var(--teal)", fontSize: 18 }}></i>
-          </div>
-          <div>
-            <h3 style={{ fontSize: 15, fontWeight: 600 }}>ภารกิจรับไอเทมประจำวัน (Daily Missions)</h3>
-            <p style={{ fontSize: 11, color: "var(--t2)" }}>ทำภารกิจสะสมน้ำแข็ง 🧊 หรือสิทธิ์ลากิจ 📅 เพื่อใช้หยุดพักโดยไม่เสีย Streak</p>
-          </div>
-        </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <MissionRow
-            title="1. ผู้อ่านจนจบเล่ม"
-            desc="อ่านหนังสือจนจบ (กดเปลี่ยนสถานะเป็น อ่านจบ) สัปดาห์นี้"
-            progress={shelfItems.filter(i => i.uid === uid && i.status === "finished" && i.finishedAt && getWeekKey(i.finishedAt) === getWeekKey()).length}
-            target={1}
-            formatProgress={(val) => val >= 1 ? "จบแล้ว ✓" : "ยังไม่จบเล่ม"}
-            rewardText="+1 น้ำแข็ง 🧊"
-            claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m1}
-            onClaim={() => claimMission("m1")}
-          />
-
-          <MissionRow
-            title="2. บันทึกข้อคิดเชิงลึก"
-            desc="เขียนข้อคิดในเซสชันเดียว ความยาวตั้งแต่ 3,000 ตัวอักษรขึ้นไป"
-            progress={Math.min(3000, [...(todaySessions || [])].reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0))}
-            target={3000}
-            formatProgress={(val) => `${val.toLocaleString()}/3,000 ตัว`}
-            rewardText="+1 สิทธิ์ลากิจ 📅"
-            claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m2}
-            onClaim={() => claimMission("m2")}
-          />
-
-          <MissionRow
-            title="3. ผู้พิชิตแบบทดสอบ"
-            desc="ทำ Quiz หนังสือและได้คะแนนตั้งแต่ 17/20 ข้อขึ้นไป"
-            progress={(() => { const best = shelfItems.filter(i => i.uid === uid && i.lastQuiz).map(i => i.lastQuiz.score || 0); return best.length ? Math.max(...best) : 0 })()}
-            target={17}
-            formatProgress={(val) => `${val}/20 ข้อ`}
-            rewardText="+1 น้ำแข็ง 🧊"
-            claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m3}
-            onClaim={() => claimMission("m3")}
-          />
-        </div>
-      </div>
 
       {lastRead && (
         <div className="card" style={{
@@ -449,69 +441,12 @@ function ReadingStreakPanel({ streak, settings, todaySeconds, goalPercent, last7
           <button className="btn btn-teal" onClick={onRead}>
             <i className="ti ti-player-play" style={{ marginRight: 6 }}></i>เริ่มอ่าน
           </button>
-          <button className="btn btn-outline" onClick={onFreeze} disabled={streak.todayVerified || streak.todayProtected || settings.freezeCredits <= 0}>
-            <i className="ti ti-snowflake" style={{ marginRight: 6 }}></i>น้ำแข็ง {settings.freezeCredits}
-          </button>
+          <div className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6, opacity: 0.8, pointerEvents: "none", cursor: "default" }}>
+            <i className="ti ti-snowflake" style={{ color: "#64c8ff" }}></i>น้ำแข็ง {settings.freezeCredits}
+          </div>
           <button className="btn btn-outline" onClick={onLeave} disabled={streak.todayVerified || streak.todayProtected || settings.leaveCredits <= 0}>
             <i className="ti ti-calendar-pause" style={{ marginRight: 6 }}></i>ลากิจ {settings.leaveCredits}
           </button>
-        </div>
-      </div>
-
-      {/* สถิติรายวัน 7 วันล่าสุด (Duolingo Style Week View) */}
-      <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid var(--br)", width: "100%", textAlign: "left" }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--t2)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-          <i className="ti ti-calendar" style={{ color: "var(--teal)" }}></i> สถิติการอ่านรายวัน (7 วันล่าสุด)
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 4 }}>
-          {last7Days.map(day => {
-            let bg = "var(--bg3)"
-            let border = "1px solid var(--br)"
-            let color = "var(--t3)"
-            let icon = null
-
-            if (day.metGoal) {
-              bg = "var(--teal-bg)"
-              border = "1.5px solid var(--teal)"
-              color = "var(--teal)"
-              icon = <i className="ti ti-flame" style={{ fontSize: 16 }}></i>
-            } else if (day.protection) {
-              const isLeave = day.protection.type === "leave"
-              bg = isLeave ? "rgba(59, 115, 196, 0.1)" : "rgba(100, 200, 255, 0.1)"
-              border = isLeave ? "1.5px solid #3b73c4" : "1.5px solid #64c8ff"
-              color = isLeave ? "#3b73c4" : "#64c8ff"
-              icon = isLeave ? <i className="ti ti-calendar-pause" style={{ fontSize: 14 }}></i> : <i className="ti ti-snowflake" style={{ fontSize: 14 }}></i>
-            } else if (day.hasRead) {
-              bg = "var(--bg2)"
-              border = "1px dashed var(--teal)"
-              color = "var(--teal)"
-              icon = <span style={{ fontSize: 10, fontWeight: "bold" }}>{day.minutes}ม</span>
-            } else {
-              icon = <i className="ti ti-minus" style={{ opacity: 0.3 }}></i>
-            }
-
-            const isToday = day.key === streak.todayKey
-
-            return (
-              <div key={day.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1, minWidth: 44 }}>
-                <span style={{ fontSize: 11, color: isToday ? "var(--teal)" : "var(--t2)", fontWeight: isToday ? 600 : 300 }}>{day.name}</span>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: bg, border: border, color: color,
-                  position: "relative"
-                }}>
-                  {icon}
-                  {isToday && (
-                    <span style={{
-                      position: "absolute", bottom: -2, width: 6, height: 6,
-                      borderRadius: "50%", background: "var(--teal)"
-                    }} />
-                  )}
-                </div>
-              </div>
-            )
-          })}
         </div>
       </div>
     </section>
@@ -664,7 +599,7 @@ function getWeekKey(date) {
 const DAILY_READING_GOAL_MINUTES = 10
 const MISSION_READ_SECONDS = 20 * 60   // 20 นาที
 const MISSION_REFLECT_CHARS = 3000      // 3,000 ตัวอักษร
-const MISSION_QUIZ_MIN_SCORE = 17       // 17/20 ข้อ
+const MISSION_QUIZ_MIN_SCORE = 12       // 12/20 ข้อ
 const MAX_FREEZE_CREDITS = 2
 const MAX_LEAVE_CREDITS = 2
 const DEFAULT_FREEZE_CREDITS = 2
@@ -1175,7 +1110,7 @@ function BookshelfPanel({ authState, go, setView }) {
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <MissionRow title="1. ผู้อ่านจนจบเล่ม" desc="อ่านหนังสือจนจบ (กดเปลี่ยนสถานะเป็น อ่านจบ) สัปดาห์นี้" progress={shelfItems.filter(i => i.uid === uid && i.status === "finished" && i.finishedAt && getWeekKey(i.finishedAt) === getWeekKey()).length} target={1} formatProgress={(val) => val >= 1 ? "จบแล้ว ✓" : "ยังไม่จบเล่ม"} rewardText="+1 น้ำแข็ง 🧊" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m1} onClaim={() => claimMission("m1")} />
+          <MissionRow title="1. ผู้อ่านสะสมเวลา" desc="อ่านสะสมครบ 3 ชั่วโมงในสัปดาห์นี้" progress={readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey()).reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)} target={10800} formatProgress={(val) => { const hours = Math.floor(val / 3600); const mins = Math.floor((val % 3600) / 60); return `${hours} ชม. ${mins} นาที / 3 ชม.`; }} rewardText="+1 น้ำแข็ง 🧊" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m1} onClaim={() => claimMission("m1")} />
           <MissionRow title="2. บันทึกข้อคิดเชิงลึก" desc="เขียนข้อคิดในเซสชันเดียว ความยาวตั้งแต่ 3,000 ตัวอักษรขึ้นไป" progress={Math.min(3000, [...(todaySessions || [])].reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0))} target={3000} formatProgress={(val) => `${val.toLocaleString()}/3,000 ตัว`} rewardText="+1 สิทธิ์ลากิจ 📅" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m2} onClaim={() => claimMission("m2")} />
           <MissionRow title="3. ผู้พิชิตแบบทดสอบ" desc="ทำ Quiz หนังสือและได้คะแนนตั้งแต่ 17/20 ข้อขึ้นไป" progress={(() => { const best = shelfItems.filter(i => i.uid === uid && i.lastQuiz).map(i => i.lastQuiz.score || 0); return best.length ? Math.max(...best) : 0 })()} target={17} formatProgress={(val) => `${val}/20 ข้อ`} rewardText="+1 น้ำแข็ง 🧊" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m3} onClaim={() => claimMission("m3")} />
         </div>
@@ -1699,6 +1634,8 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
     newPassword: "",
   })
   const [busy, setBusy] = useState("")
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("talib_notif_enabled") === "true")
+  const [notifTime, setNotifTime] = useState(() => localStorage.getItem("talib_notif_time") || "20:00")
 
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
   const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [])
@@ -1841,6 +1778,9 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
           </button>
           <button className={`pill ${subView === "account" ? "on" : ""}`} onClick={() => setSubView("account")}>
             <i className="ti ti-settings" style={{ marginRight: 6 }}></i>ตั้งค่าบัญชี
+          </button>
+          <button className={`pill ${subView === "notifications" ? "on" : ""}`} onClick={() => setSubView("notifications")}>
+            <i className="ti ti-bell" style={{ marginRight: 6 }}></i>ตั้งค่าการแจ้งเตือน
           </button>
         </div>
 
@@ -1993,6 +1933,69 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
               </div>
             </section>
           </form>
+        )}
+
+        {subView === "notifications" && (
+          <div>
+            <section className="profile-section" style={{ borderTop: "none", padding: 0 }}>
+              <div className="profile-section-head" style={{ marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 500 }}>ตั้งค่าการแจ้งเตือนจากเบราว์เซอร์</h3>
+                  <p style={{ fontSize: 12, color: "var(--t3)" }}>เปิดแจ้งเตือนเตือนให้อ่านหนังสือตามวันและเวลาที่ชอบ</p>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gap: 14 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, marginTop: 10 }}>
+                  <input
+                    type="checkbox"
+                    checked={notifEnabled}
+                    onChange={async (e) => {
+                      const val = e.target.checked
+                      setNotifEnabled(val)
+                      localStorage.setItem("talib_notif_enabled", String(val))
+                      if (val) {
+                        const perm = await Notification.requestPermission()
+                        if (perm === "granted") {
+                          toast.success("เปิดใช้งานแจ้งเตือนแล้ว 🔔")
+                          new Notification("เปิดการแจ้งเตือนแล้ว 🔔", {
+                            body: "ระบบจะแจ้งเตือนเมื่อถึงเวลาอ่านหนังสือที่คุณตั้งค่าไว้"
+                          })
+                        } else {
+                          toast.error("เบราว์เซอร์ปฏิเสธสิทธิ์การแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าเบราว์เซอร์")
+                        }
+                      } else {
+                        toast.success("ปิดการแจ้งเตือนแล้ว")
+                      }
+                    }}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  <span>เปิดใช้งานการแจ้งเตือนจากเบราว์เซอร์</span>
+                </label>
+
+                <label style={fieldStyle}>
+                  <span>ตั้งค่าเวลาที่ต้องการให้อ่านหนังสือรายวัน</span>
+                  <input
+                    type="time"
+                    value={notifTime}
+                    disabled={!notifEnabled}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setNotifTime(val)
+                      localStorage.setItem("talib_notif_time", val)
+                      toast.success(`ตั้งเวลาแจ้งเตือนเป็น ${val} เรียบร้อยแล้ว`)
+                    }}
+                    style={{ maxWidth: 200 }}
+                  />
+                </label>
+                
+                <div style={{ background: "rgba(45,190,160,0.06)", border: "0.5px solid rgba(45,190,160,0.25)", padding: 12, borderRadius: 8, fontSize: 11, color: "var(--teal)", lineHeight: 1.5 }}>
+                  <i className="ti ti-info-circle" style={{ marginRight: 6 }}></i>
+                  ระบบจะทำการเตือนสติให้อ่านหนังสือตามเวลาที่คุณเลือก และจะแจ้งเตือนสัญญาณนับถอยหลังระหว่างเวลา 23:00 - 00:00 น. หากคุณยังไม่ผ่านเป้าหมายประจำวันเพื่อช่วยคุ้มครอง Streak ของคุณ
+                </div>
+              </div>
+            </section>
+          </div>
         )}
       </div>
     </div>
@@ -2291,14 +2294,14 @@ function TutorialModal({ onClose }) {
                 <span style={{ fontSize: 15, flexShrink: 0 }}>🧊</span>
                 <div>
                   <strong style={{ fontSize: 12, color: "var(--text)" }}>น้ำแข็ง (Freeze)</strong>
-                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ใช้วันที่ลืมอ่านหรือยุ่งกะทันหัน กด "น้ำแข็ง" ก่อนเที่ยงคืนเพื่อคุ้มครอง Streak วันนั้น ได้จากการทำภารกิจยาก</span>
+                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ระบบใช้อัตโนมัติเมื่อลืมอ่านหนังสือในวันก่อนหน้า เพื่อรักษา Streak ของคุณ ได้จากภารกิจสะสม</span>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                 <span style={{ fontSize: 15, flexShrink: 0 }}>📅</span>
                 <div>
                   <strong style={{ fontSize: 12, color: "var(--text)" }}>ลากิจ (Leave)</strong>
-                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ใช้วันที่วางแผนล่วงหน้าว่าจะไม่อ่าน เช่น เดินทาง หรือวันหยุด ได้จากการเขียนข้อคิดเชิงลึก</span>
+                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ใช้เมื่อวางแผนล่วงหน้าแล้วว่าน่าจะเรียนไม่ทันหรือไม่ว่าง สามารถกดใช้วันนี้ด้วยตัวเอง ได้จากภารกิจสะสม</span>
                 </div>
               </div>
             </div>

@@ -30,6 +30,7 @@ export default function Library({ go, authState, ctx }) {
   const filter = ctx?.filter || "all"
   const categoryFilter = ctx?.cat || "all"
   const sourceFilter = ctx?.source || "all"
+  const sortBy = ctx?.sortBy || (filter === "วารสาร" ? "issue-desc" : "newest")
   const showAdvancedFilters = ctx?.showAdv === "true"
   const currentPage = parseInt(ctx?.page, 10) || 1
   const ITEMS_PER_PAGE = 12
@@ -57,19 +58,25 @@ export default function Library({ go, authState, ctx }) {
       filter,
       cat: categoryFilter,
       source: sourceFilter,
+      sortBy,
       search: newParams.search !== undefined ? newParams.search : search,
       showAdv: showAdvancedFilters ? "true" : "false",
       page: currentPage,
       ...newParams
     }
-    if (newParams.filter !== undefined || newParams.cat !== undefined || newParams.source !== undefined || newParams.search !== undefined || newParams.showAdv !== undefined) {
+    if (newParams.filter !== undefined || newParams.cat !== undefined || newParams.source !== undefined || newParams.search !== undefined || newParams.showAdv !== undefined || newParams.sortBy !== undefined) {
       updated.page = 1
+    }
+    if (newParams.filter === "วารสาร" && newParams.sortBy === undefined) {
+      updated.sortBy = "issue-desc"
+    } else if (newParams.filter !== undefined && newParams.filter !== "วารสาร" && newParams.sortBy === undefined) {
+      updated.sortBy = "newest"
     }
     go("library", updated, { replace: true, noScroll: true })
   }
 
   const filtered = useMemo(() => {
-    return books.filter(b => {
+    const result = books.filter(b => {
       const matchType = filter === "all" || b.type === filter
       const matchCategory = categoryFilter === "all" || b.category === categoryFilter
       const matchSource = sourceFilter === "all" || b.source === sourceFilter
@@ -80,7 +87,23 @@ export default function Library({ go, authState, ctx }) {
         (b.author && b.author.toLowerCase().includes(search.toLowerCase()))
       return matchType && matchCategory && matchSource && matchSearch
     })
-  }, [books, filter, categoryFilter, sourceFilter, search])
+
+    return [...result].sort((a, b) => {
+      if (filter === "วารสาร") {
+        const issueA = Number(a.issueNumber) || 0
+        const issueB = Number(b.issueNumber) || 0
+        if (sortBy === "issue-asc") {
+          return issueA - issueB
+        } else {
+          return issueB - issueA
+        }
+      }
+      const yearA = Number(a.year) || 0
+      const yearB = Number(b.year) || 0
+      if (yearA !== yearB) return yearB - yearA
+      return String(b.id || "").localeCompare(String(a.id || ""))
+    })
+  }, [books, filter, categoryFilter, sourceFilter, search, sortBy])
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -98,12 +121,34 @@ export default function Library({ go, authState, ctx }) {
           <i className="ti ti-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 14 }}></i>
           <input placeholder="ค้นหาชื่อหนังสือ, ผู้เขียน, หรือเนื้อหา..." value={search} onChange={e => { setSearch(e.target.value); updateFilters({ search: e.target.value }) }} style={{ paddingLeft: 32 }} />
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {types.map(t => (
             <button key={t} onClick={() => updateFilters({ filter: t })} style={{ fontFamily: "'Prompt',sans-serif", fontSize: 12, fontWeight: 300, padding: "5px 12px", borderRadius: 20, border: ".5px solid var(--br)", cursor: "pointer", transition: "all .15s", background: filter === t ? "var(--acc)" : "var(--card)", color: filter === t ? "var(--bg)" : "var(--t2)" }}>
               {t === "all" ? "ทั้งหมด" : t}
             </button>
           ))}
+          {filter === "วารสาร" && (
+            <select
+              value={sortBy}
+              onChange={e => updateFilters({ sortBy: e.target.value })}
+              style={{
+                fontFamily: "'Prompt', sans-serif",
+                fontSize: 12,
+                padding: "4px 20px 4px 10px",
+                borderRadius: 20,
+                border: ".5px solid var(--br)",
+                background: "var(--card)",
+                color: "var(--t2)",
+                cursor: "pointer",
+                outline: "none",
+                height: 30,
+                lineHeight: 1
+              }}
+            >
+              <option value="issue-desc">เล่มใหม่ล่าสุด ➜ เล่มเก่า</option>
+              <option value="issue-asc">เล่มเก่าสุด ➜ เล่มใหม่</option>
+            </select>
+          )}
           <button onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })} className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"} style={{ padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             <i className="ti ti-filter"></i> ตัวกรองเพิ่มเติม
           </button>
@@ -134,15 +179,13 @@ export default function Library({ go, authState, ctx }) {
       {loading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 16 }}>
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="card" style={{ padding: 16, display: "flex", gap: 16, opacity: 0.6 }}>
-              <div style={{ width: 90, height: 120, background: "var(--bg3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <i className="ti ti-loader-2 spin" style={{ fontSize: 20, color: "var(--teal)" }}></i>
-              </div>
+            <div key={i} className="card" style={{ padding: 16, display: "flex", gap: 16 }}>
+              <div className="skeleton-shimmer" style={{ width: 90, height: 120, borderRadius: 6, flexShrink: 0 }}></div>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ height: 12, background: "var(--bg3)", width: "30%", borderRadius: 4 }}></div>
-                <div style={{ height: 16, background: "var(--bg3)", width: "90%", borderRadius: 4 }}></div>
-                <div style={{ height: 12, background: "var(--bg3)", width: "60%", borderRadius: 4 }}></div>
-                <div style={{ height: 12, background: "var(--bg3)", width: "80%", borderRadius: 4, marginTop: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 12, width: "30%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 16, width: "90%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 12, width: "60%", borderRadius: 4 }}></div>
+                <div className="skeleton-shimmer" style={{ height: 12, width: "80%", borderRadius: 4, marginTop: 4 }}></div>
               </div>
             </div>
           ))}
@@ -179,6 +222,9 @@ export default function Library({ go, authState, ctx }) {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                     <span className="tag tag-acc" style={{ fontSize: 10 }}>{b.type}</span>
+                    {b.type === "วารสาร" && b.issueNumber !== undefined && b.issueNumber !== "" && (
+                      <span className="tag" style={{ fontSize: 10, background: "rgba(45, 190, 160, 0.15)", color: "var(--teal)" }}>เล่มที่ {b.issueNumber}</span>
+                    )}
                     {b.category && <span className="tag" style={{ fontSize: 10, background: "var(--bg2)", color: "var(--t2)" }}>{b.category}</span>}
                   </div>
                   {b.isNew && <span className="tag tag-new" style={{ fontSize: 10 }}>ใหม่</span>}

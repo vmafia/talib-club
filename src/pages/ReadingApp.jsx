@@ -164,13 +164,14 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   const uid = authState?.user?.uid
   const { items: books } = useContentCollection("books", BOOKS)
   const { items: shelfItems, saveItem: saveShelfItem, deleteItem: deleteShelfItem } = useContentCollection("bookshelf", [])
-  const { items: readingSessions, saveItem: saveReadingSession } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const { items: readingSessions, loading: loadingSessions, saveItem: saveReadingSession } = useContentCollection("reading_sessions", [])
+  const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
   // Reading Mode State
   const [activeBook, setActiveBook] = useState(null)
   const [activeMobileTab, setActiveMobileTab] = useState("form") // "preview" or "form" for mobile split layout, default to form first
+  const [showTutorial, setShowTutorial] = useState(false)
   
   // External Upload States
   const [addMode, setAddMode] = useState("library")
@@ -238,7 +239,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     return shelfItems.some(item => {
       if (item.uid !== uid || !item.lastQuiz) return false
       const dateKey = getLocalDayKey(item.lastQuiz.takenAt)
-      return dateKey === streak.todayKey && item.lastQuiz.score >= 3
+      return dateKey === streak.todayKey && item.lastQuiz.score >= 12
     })
   }, [shelfItems, streak.todayKey, uid])
 
@@ -322,6 +323,42 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         : "สำเร็จ! รับรางวัล น้ำแข็งคุ้มครอง +1 🧊"
     )
   }
+
+  // Auto-applied freeze logic for yesterday
+  useEffect(() => {
+    if (!uid || loadingSessions || loadingStreaks || !streakSettings) return
+
+    const yesterdayKey = addDaysToKey(streak.todayKey, -1)
+
+    // Check if user read yesterday
+    const readYesterday = readingSessions.some(
+      item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt || item.createdAt)) === yesterdayKey
+    )
+
+    // Check if yesterday was already protected
+    const protectedYesterday = streakSettings.protectedDays.some(
+      p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === yesterdayKey
+    )
+
+    if (!readYesterday && !protectedYesterday && streakSettings.freezeCredits > 0) {
+      const applyAutoFreeze = async () => {
+        try {
+          await saveStreakSettings({
+            ...streakSettings,
+            freezeCredits: Number(streakSettings.freezeCredits || 0) - 1,
+            protectedDays: [
+              ...streakSettings.protectedDays,
+              { date: yesterdayKey, type: "freeze", usedAt: Date.now() },
+            ],
+          })
+          toast.success("เมื่อวานนี้คุณไม่ได้เข้าอ่านหนังสือ! ระบบได้ใช้น้ำแข็งช่วยปกป้อง Streak ของคุณอัตโนมัติ 🧊", { duration: 5000 })
+        } catch (err) {
+          console.error("Auto freeze failed", err)
+        }
+      }
+      applyAutoFreeze()
+    }
+  }, [uid, loadingSessions, loadingStreaks, streakSettings, readingSessions, streak.todayKey, saveStreakSettings])
 
   async function protectToday(type) {
     if (!uid) return
@@ -483,15 +520,13 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   }
 
   const exitReadingRoom = async () => {
-    if (seconds > 10) {
-      const ok = await confirmAction({
-        title: "ออกจากห้องอ่านหนังสือ?",
-        message: "เวลาที่จับอยู่จะสูญหายหากคุณไม่อัปโหลดบันทึกการอ่าน คุณแน่ใจที่จะออกหรือไม่?",
-        confirmText: "ยืนยันการออก",
-        danger: true
-      })
-      if (!ok) return
-    }
+    const ok = await confirmAction({
+      title: "ออกจากห้องอ่านหนังสือ?",
+      message: "คำเตือน: ความคืบหน้าและเวลาที่อ่านสะสมในเซสชันนี้จะสูญหายทั้งหมด และจะไม่ถูกนำไปคำนวณ Streak หรือภารกิจรายวัน คุณต้องการออกจากห้องอ่านหนังสือโดยไม่บันทึกใช่หรือไม่?",
+      confirmText: "ยืนยันการออกโดยไม่บันทึก",
+      danger: true
+    })
+    if (!ok) return
     setIsRunning(false)
     setActiveBook(null)
     setSeconds(0)
@@ -719,6 +754,20 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
               <i className="ti ti-notebook" style={{ color: "var(--teal)" }}></i> บันทึกผลการอ่าน
             </h3>
 
+            {/* Instruction/Warning Note */}
+            <div style={{
+              background: "rgba(224, 85, 85, 0.08)",
+              border: "1px solid rgba(224, 85, 85, 0.25)",
+              padding: "10px 12px",
+              borderRadius: 10,
+              fontSize: 11,
+              color: "#e05555",
+              lineHeight: 1.6
+            }}>
+              <i className="ti ti-alert-triangle" style={{ marginRight: 6 }}></i>
+              <strong>โปรดทราบ:</strong> คุณต้องสะสมเวลาให้ครบ 3 นาทีขึ้นไป, ระบุเลขหน้าให้ถูกต้อง และบันทึกข้อคิดอย่างน้อย 20 ตัวอักษร จึงจะสามารถกดบันทึกความคืบหน้าได้ หากคุณกด "ออก" ก่อนกดบันทึก เวลาและสถิติทั้งหมดในรอบนี้จะสูญหายทันที
+            </div>
+
             {/* Dynamic Checklist HUD */}
             <div style={{
               display: "flex",
@@ -821,7 +870,10 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
 
   // --- Reading App Home / Dashboard View ---
   return (
-    <div style={{ maxWidth: 840, margin: "0 auto", paddingBottom: 40, width: "100%", textAlign: "left" }}>
+    <div style={{ maxWidth: 980, margin: "0 auto", paddingBottom: 40, width: "100%", textAlign: "left" }}>
+      {/* Onboarding Tutorial Modal */}
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
+
       {/* Home Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
         <div>
@@ -829,9 +881,17 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
           <h1 style={{ fontSize: 24, marginTop: 4 }}>ห้องอ่านหนังสือส่วนตัว</h1>
           <p style={{ fontSize: 12, color: "var(--t2)" }}>Gamified Reading App - บันทึกเวลาอ่านอัตโนมัติ สะสมไอเทม และทำภารกิจรายวัน</p>
         </div>
-        <button className="btn btn-outline" onClick={() => go("member", { view: "overview" })} style={{ fontSize: 12, padding: "8px 16px" }}>
-          <i className="ti ti-layout-dashboard" style={{ marginRight: 6 }}></i>แดชบอร์ดหลัก
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setShowTutorial(true)}
+            style={{ background: "none", border: "none", color: "var(--teal)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontFamily: "'Prompt', sans-serif" }}
+          >
+            <i className="ti ti-help-circle"></i> วิธีใช้งาน
+          </button>
+          <button className="btn btn-outline" onClick={() => go("member", { view: "overview" })} style={{ fontSize: 12, padding: "8px 16px" }}>
+            <i className="ti ti-layout-dashboard" style={{ marginRight: 6 }}></i>แดชบอร์ดหลัก
+          </button>
+        </div>
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
@@ -1046,9 +1106,9 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
             </div>
 
             <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              <button className="btn btn-outline" onClick={() => protectToday("freeze")} disabled={streak.todayVerified || streak.todayProtected || streakSettings.freezeCredits <= 0} style={{ flex: 1, padding: "6px 8px", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+              <div className="btn btn-outline" style={{ flex: 1, padding: "6px 8px", fontSize: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, opacity: 0.8, pointerEvents: "none", cursor: "default" }}>
                 <i className="ti ti-snowflake" style={{ color: "#64c8ff" }}></i>น้ำแข็ง {streakSettings.freezeCredits}
-              </button>
+              </div>
               <button className="btn btn-outline" onClick={() => protectToday("leave")} disabled={streak.todayVerified || streak.todayProtected || streakSettings.leaveCredits <= 0} style={{ flex: 1, padding: "6px 8px", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
                 <i className="ti ti-calendar-pause" style={{ color: "#3b73c4" }}></i>ลากิจ {streakSettings.leaveCredits}
               </button>
@@ -1141,7 +1201,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
 
               <MissionRow 
                 title="3. สอบควิซหนังสือ"
-                desc="ทำแบบทดสอบ (Quiz) หนังสือใดๆ บนชั้นหนังสือ และสอบผ่านได้คะแนน 3/5 ข้อขึ้นไปวันนี้"
+                desc="ทำแบบทดสอบ (Quiz) หนังสือใดๆ บนชั้นหนังสือ และสอบผ่านได้คะแนน 12/20 ข้อขึ้นไปวันนี้"
                 progress={todayQuizPassed ? 1 : 0}
                 target={1}
                 formatProgress={(val) => val === 1 ? "สำเร็จ" : "ยังไม่สำเร็จ"}
@@ -1211,6 +1271,116 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
             {completed ? "รับรางวัล" : "ยังไม่เสร็จ"}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+function TutorialModal({ onClose }) {
+  return (
+    <div style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.65)",
+      backdropFilter: "blur(4px)",
+      zIndex: 99999,
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      padding: "20px 16px",
+      overflowY: "auto",
+    }}>
+      <div className="card" style={{
+        maxWidth: 500,
+        width: "100%",
+        padding: "28px 22px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        textAlign: "center",
+        animation: "pageFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+        position: "relative",
+        margin: "auto",
+      }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: -4 }}>
+          <span className="badge badge-teal" style={{ fontSize: 11, padding: "4px 10px", fontWeight: 600 }}>แนะนำการใช้งาน 🚀</span>
+        </div>
+
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", margin: 0 }}>
+          ห้องอ่านหนังสือส่วนตัวคืออะไร?
+        </h2>
+
+        <p style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6, margin: 0 }}>
+          เครื่องมือสร้างวินัยรักการอ่าน ผ่านการจับเวลาจริง บันทึกผล และสะสมสถิติความต่อเนื่อง (Streak)
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
+
+          <div style={{ display: "flex", gap: 12, background: "var(--bg2)", padding: 13, borderRadius: 12, border: "0.5px solid var(--br)" }}>
+            <div style={{ width: 34, height: 34, background: "var(--teal-bg)", color: "var(--teal)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
+              <i className="ti ti-books"></i>
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--text)", display: "block", marginBottom: 2 }}>เพิ่มหนังสือแล้วเริ่มอ่าน</strong>
+              <span style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>เลือกหนังสือจากคลังหรืออัปโหลด PDF กด <span style={{ color: "var(--teal)", fontWeight: 500 }}>เริ่มอ่าน</span> เพื่อเข้าโหมดจับเวลา ระบบบันทึกเวลาที่อ่านจริงเท่านั้น</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 12, background: "var(--bg2)", padding: 13, borderRadius: 12, border: "0.5px solid var(--br)" }}>
+            <div style={{ width: 34, height: 34, background: "rgba(248, 113, 113, 0.12)", color: "#f87171", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
+              <i className="ti ti-flame"></i>
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--text)", display: "block", marginBottom: 2 }}>รักษา Streak ต่อเนื่อง 🔥</strong>
+              <span style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>อ่านและบันทึกเซสชันทุกวัน ระบบจะนับวันต่อเนื่อง หากวันไหนอ่านไม่ได้ ใช้ไอเทมคุ้มครองแทนได้</span>
+            </div>
+          </div>
+
+          {/* ─── น้ำแข็ง & ลากิจ ─── */}
+          <div style={{ background: "rgba(96,165,250,0.07)", border: "0.5px solid rgba(96,165,250,0.2)", borderRadius: 12, padding: 13 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-shield-check" style={{ color: "#60a5fa" }}></i>
+              ไอเทมคุ้มครอง Streak (สูงสุด 2 ชิ้นต่อประเภท)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>🧊</span>
+                <div>
+                  <strong style={{ fontSize: 12, color: "var(--text)" }}>น้ำแข็ง (Freeze)</strong>
+                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ระบบใช้อัตโนมัติเมื่อลืมอ่านหนังสือในวันก่อนหน้า เพื่อรักษา Streak ของคุณ ได้จากภารกิจสะสม</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 15, flexShrink: 0 }}>📅</span>
+                <div>
+                  <strong style={{ fontSize: 12, color: "var(--text)" }}>ลากิจ (Leave)</strong>
+                  <span style={{ fontSize: 11, color: "var(--t2)", display: "block", lineHeight: 1.4 }}>ใช้เมื่อวางแผนล่วงหน้าแล้วว่าน่าจะเรียนไม่ทันหรือไม่ว่าง สามารถกดใช้วันนี้ด้วยตัวเอง ได้จากภารกิจสะสม</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 12, background: "var(--bg2)", padding: 13, borderRadius: 12, border: "0.5px solid var(--br)" }}>
+            <div style={{ width: 34, height: 34, background: "rgba(245,158,11,0.1)", color: "#f59e0b", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0 }}>
+              <i className="ti ti-target"></i>
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--text)", display: "block", marginBottom: 2 }}>ภารกิจรายวัน (ไม่ง่าย)</strong>
+              <span style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>อ่าน 10 นาที หรือเขียนข้อคิด 100 ตัวอักษร หรือผ่านแบบทดสอบ 12/20 ข้อ จึงจะได้รับไอเทม และมีสิทธิ์รับได้เพียงครั้งเดียวต่อวัน</span>
+            </div>
+          </div>
+
+        </div>
+
+        <button
+          className="btn btn-teal"
+          onClick={onClose}
+          style={{ width: "100%", padding: "12px", fontSize: 14, marginTop: 4 }}
+        >
+          เข้าใจแล้ว เริ่มต้นใช้งานเลย!
+        </button>
+
       </div>
     </div>
   )

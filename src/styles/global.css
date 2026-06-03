@@ -2250,3 +2250,20 @@ button.dashboard-card:hover {
     margin-bottom: 4px;
   }
 }
+
+/* Skeleton shimmer loading animation style rules */
+@keyframes skeleton-shimmer-loading {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer-loading 1.6s infinite linear;
+  border-radius: 4px;
+}
