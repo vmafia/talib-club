@@ -24,7 +24,7 @@ function getDownloadUrl(url) {
 }
 
 export default function Library({ go, authState, ctx }) {
-  const { items: books, loading } = useContentCollection("books", BOOKS)
+  const { items: books, loading, saveItem } = useContentCollection("books", BOOKS)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
   const filter = ctx?.filter || "all"
@@ -73,6 +73,19 @@ export default function Library({ go, authState, ctx }) {
       updated.sortBy = "newest"
     }
     go("library", updated, { replace: true, noScroll: true })
+  }
+
+  const handleDownloadClick = async (b) => {
+    if (!b || !saveItem) return
+    try {
+      const updatedItem = {
+        ...b,
+        downloads: (b.downloads || 0) + 1
+      }
+      await saveItem(updatedItem)
+    } catch (err) {
+      console.error("ไม่สามารถอัปเดตยอดดาวน์โหลดได้:", err)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -128,64 +141,119 @@ export default function Library({ go, authState, ctx }) {
       {loading && <p style={{ marginBottom: 24, fontSize: 12 }}>กำลังโหลดรายการล่าสุด...</p>}
 
       {/* SEARCH + MAIN FILTER */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 250 }}>
-          <i className="ti ti-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 14 }}></i>
-          <input placeholder="ค้นหาชื่อหนังสือ, ผู้เขียน, หรือเนื้อหา..." value={search} onChange={e => { setSearch(e.target.value); updateFilters({ search: e.target.value }) }} style={{ paddingLeft: 32 }} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 24 }}>
+        {/* Row 1: Search Bar */}
+        <div style={{ position: "relative", width: "100%" }}>
+          <i className="ti ti-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 16 }}></i>
+          <input 
+            placeholder="ค้นหาชื่อหนังสือ, ผู้เขียน, หรือเนื้อหา..." 
+            value={search} 
+            onChange={e => { setSearch(e.target.value); updateFilters({ search: e.target.value }) }} 
+            style={{ 
+              paddingLeft: 38, 
+              height: 38, 
+              borderRadius: 20, 
+              fontSize: 13,
+              width: "100%",
+              boxSizing: "border-box"
+            }} 
+          />
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {types.map(t => (
-            <button key={t} onClick={() => updateFilters({ filter: t })} style={{ fontFamily: "'Prompt',sans-serif", fontSize: 12, fontWeight: 300, padding: "5px 12px", borderRadius: 20, border: ".5px solid var(--br)", cursor: "pointer", transition: "all .15s", background: filter === t ? "var(--acc)" : "var(--card)", color: filter === t ? "var(--bg)" : "var(--t2)" }}>
-              {t === "all" ? "ทั้งหมด" : t}
+        
+        {/* Row 2: Filter Pills & Sorting Select */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {/* Left: Type pills */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {types.map(t => (
+              <button 
+                key={t} 
+                onClick={() => updateFilters({ filter: t })} 
+                style={{ 
+                  fontFamily: "'Prompt',sans-serif", 
+                  fontSize: 12, 
+                  fontWeight: filter === t ? "500" : "400", 
+                  padding: "6px 16px", 
+                  borderRadius: 20, 
+                  border: filter === t ? "1px solid var(--teal)" : ".5px solid var(--br)", 
+                  cursor: "pointer", 
+                  transition: "all .15s", 
+                  background: filter === t ? "var(--teal)" : "var(--card)", 
+                  color: filter === t ? "var(--bg)" : "var(--t2)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  height: 36
+                }}
+              >
+                {t === "all" ? "ทั้งหมด" : t}
+              </button>
+            ))}
+          </div>
+
+          {/* Right: Sort select and extra filters */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {filter === "วารสาร" ? (
+              <select
+                value={sortBy}
+                onChange={e => updateFilters({ sortBy: e.target.value })}
+                style={{
+                  fontFamily: "'Prompt', sans-serif",
+                  fontSize: 12,
+                  padding: "0 28px 0 14px",
+                  borderRadius: 20,
+                  border: ".5px solid var(--br)",
+                  background: "var(--card)",
+                  color: "var(--t2)",
+                  cursor: "pointer",
+                  outline: "none",
+                  height: 36,
+                  width: 180,
+                  boxSizing: "border-box"
+                }}
+              >
+                <option value="issue-desc">เล่มใหม่ล่าสุด ➜ เล่มเก่า</option>
+                <option value="issue-asc">เล่มเก่าสุด ➜ เล่มใหม่</option>
+              </select>
+            ) : (
+              <select
+                value={sortBy}
+                onChange={e => updateFilters({ sortBy: e.target.value })}
+                style={{
+                  fontFamily: "'Prompt', sans-serif",
+                  fontSize: 12,
+                  padding: "0 28px 0 14px",
+                  borderRadius: 20,
+                  border: ".5px solid var(--br)",
+                  background: "var(--card)",
+                  color: "var(--t2)",
+                  cursor: "pointer",
+                  outline: "none",
+                  height: 36,
+                  width: 180,
+                  boxSizing: "border-box"
+                }}
+              >
+                <option value="newest">ปีที่พิมพ์ ใหม่ ➜ เก่า</option>
+                <option value="oldest">ปีที่พิมพ์ เก่า ➜ ใหม่</option>
+              </select>
+            )}
+            
+            <button 
+              onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })} 
+              className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"} 
+              style={{ 
+                padding: "0 16px", 
+                display: "inline-flex", 
+                alignItems: "center", 
+                gap: 6, 
+                fontSize: 12, 
+                height: 36, 
+                borderRadius: 20,
+                boxSizing: "border-box"
+              }}
+            >
+              <i className="ti ti-filter"></i> ตัวกรองเพิ่มเติม
             </button>
-          ))}
-          {filter === "วารสาร" && (
-            <select
-              value={sortBy}
-              onChange={e => updateFilters({ sortBy: e.target.value })}
-              style={{
-                fontFamily: "'Prompt', sans-serif",
-                fontSize: 12,
-                padding: "4px 20px 4px 10px",
-                borderRadius: 20,
-                border: ".5px solid var(--br)",
-                background: "var(--card)",
-                color: "var(--t2)",
-                cursor: "pointer",
-                outline: "none",
-                height: 30,
-                lineHeight: 1
-              }}
-            >
-              <option value="issue-desc">เล่มใหม่ล่าสุด ➜ เล่มเก่า</option>
-              <option value="issue-asc">เล่มเก่าสุด ➜ เล่มใหม่</option>
-            </select>
-          )}
-          {filter !== "วารสาร" && (
-            <select
-              value={sortBy}
-              onChange={e => updateFilters({ sortBy: e.target.value })}
-              style={{
-                fontFamily: "'Prompt', sans-serif",
-                fontSize: 12,
-                padding: "4px 20px 4px 10px",
-                borderRadius: 20,
-                border: ".5px solid var(--br)",
-                background: "var(--card)",
-                color: "var(--t2)",
-                cursor: "pointer",
-                outline: "none",
-                height: 30,
-                lineHeight: 1
-              }}
-            >
-              <option value="newest">ปีที่พิมพ์ ใหม่ ➜ เก่า</option>
-              <option value="oldest">ปีที่พิมพ์ เก่า ➜ ใหม่</option>
-            </select>
-          )}
-          <button onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })} className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"} style={{ padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-            <i className="ti ti-filter"></i> ตัวกรองเพิ่มเติม
-          </button>
+          </div>
         </div>
       </div>
 
@@ -228,95 +296,116 @@ export default function Library({ go, authState, ctx }) {
         <div className="empty">ไม่พบรายการที่ตรงกับการค้นหา หรือตัวกรองที่เลือก</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 16 }}>
-          {currentItems.map(b => (
-            <div 
-              key={b.id} 
-              className="card" 
-              style={{ padding: 16, display: "flex", gap: 16, cursor: "pointer" }} 
-              onClick={() => {
-                if (!authState?.user) {
-                  toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
-                  go("auth")
-                  return
-                }
-                go("library-detail", b)
-              }}
-            >
-              <div style={{ width: 90, flexShrink: 0 }}>
-                {b.coverUrl ? (
-                  <img src={getDirectUrl(b.coverUrl)} alt={b.title} style={{ width: "100%", borderRadius: 6, objectFit: "cover", aspectRatio: "3/4", border: ".5px solid var(--br2)", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }} />
-                ) : (
-                  <div style={{ width: "100%", aspectRatio: "3/4", borderRadius: 6, background: "var(--acc2)", display: "flex", alignItems: "center", justifyContent: "center", border: ".5px solid var(--br2)" }}>
-                    <i className={`ti ${b.type === "วารสาร" ? "ti-news" : b.type === "PDF" ? "ti-file-text" : "ti-book"}`} style={{ fontSize: 24, color: "var(--acc)" }}></i>
+          {currentItems.map(b => {
+            const descText = b.desc || ""
+            const urlRegex = /(https?:\/\/[^\s]+)/gi
+            const match = descText.match(urlRegex)
+            let cleanDesc = descText
+            let onlineUrl = null
+
+            if (match) {
+              onlineUrl = match[0]
+              cleanDesc = descText.replace(urlRegex, "")
+              cleanDesc = cleanDesc.replace(/อ่านได้ที่\s*:\s*/gi, "")
+              cleanDesc = cleanDesc.trim()
+            }
+            if (!cleanDesc) {
+              cleanDesc = "คลิกเพื่อเปิดอ่านหนังสือออนไลน์หรือดาวน์โหลดเพื่อศึกษาเพิ่มเติม"
+            }
+
+            return (
+              <div 
+                key={b.id} 
+                className="card" 
+                style={{ padding: 16, display: "flex", gap: 16, cursor: "pointer" }} 
+                onClick={() => {
+                  if (!authState?.user) {
+                    toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
+                    go("auth")
+                    return
+                  }
+                  go("library-detail", b)
+                }}
+              >
+                <div style={{ width: 90, flexShrink: 0 }}>
+                  {b.coverUrl ? (
+                    <img src={getDirectUrl(b.coverUrl)} alt={b.title} style={{ width: "100%", borderRadius: 6, objectFit: "cover", aspectRatio: "3/4", border: ".5px solid var(--br2)", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }} />
+                  ) : (
+                    <div style={{ width: "100%", aspectRatio: "3/4", borderRadius: 6, background: "var(--acc2)", display: "flex", alignItems: "center", justifyContent: "center", border: ".5px solid var(--br2)" }}>
+                      <i className={`ti ${b.type === "วารสาร" ? "ti-news" : b.type === "PDF" ? "ti-file-text" : "ti-book"}`} style={{ fontSize: 24, color: "var(--acc)" }}></i>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      <span className="tag tag-acc" style={{ fontSize: 10 }}>{b.type}</span>
+                      {b.type === "วารสาร" && b.issueNumber !== undefined && b.issueNumber !== "" && (
+                        <span className="tag" style={{ fontSize: 10, background: "rgba(45, 190, 160, 0.15)", color: "var(--teal)" }}>เล่มที่ {b.issueNumber}</span>
+                      )}
+                      {b.category && <span className="tag" style={{ fontSize: 10, background: "var(--bg2)", color: "var(--t2)" }}>{b.category}</span>}
+                    </div>
+                    {b.isNew && <span className="tag tag-new" style={{ fontSize: 10 }}>ใหม่</span>}
                   </div>
-                )}
+
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)", lineHeight: 1.4, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {b.title}
+                  </div>
+
+                  {b.author && (
+                    <div style={{ fontSize: 11, color: "var(--teal)", marginBottom: 6, fontWeight: 400 }}>
+                      <i className="ti ti-pencil" style={{ marginRight: 4 }}></i>{b.author}
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: 11, lineHeight: 1.6, marginBottom: 8, color: "var(--t2)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {cleanDesc}
+                  </p>
+
+                  <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
+                    <a
+                      className="btn btn-teal"
+                      href={authState?.user ? getDownloadUrl(b.fileUrl) : "#"}
+                      target={authState?.user ? "_blank" : "_self"}
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!authState?.user) {
+                          e.preventDefault()
+                          toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
+                          go("auth")
+                        } else {
+                          handleDownloadClick(b)
+                        }
+                      }}
+                      style={{ flex: 1, fontSize: 11, padding: "6px 0", textDecoration: "none", textAlign: "center", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
+                    >
+                      <i className="ti ti-download" style={{ marginRight: 4, fontSize: 12 }}></i>โหลด
+                    </a>
+                    <a
+                      className="btn btn-outline"
+                      href={authState?.user ? (onlineUrl || b.fileUrl || "#") : "#"}
+                      target={authState?.user ? "_blank" : "_self"}
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!authState?.user) {
+                          e.preventDefault()
+                          toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
+                          go("auth")
+                        }
+                      }}
+                      style={{ fontSize: 11, padding: "6px 10px", textDecoration: "none", pointerEvents: (onlineUrl || b.fileUrl) ? "auto" : "none", opacity: (onlineUrl || b.fileUrl) ? 1 : 0.55, display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      <i className={`ti ${onlineUrl ? "ti-book-open" : "ti-eye"}`} style={{ fontSize: 12 }}></i>
+                      {onlineUrl && <span style={{ fontSize: 11 }}>อ่านออนไลน์</span>}
+                    </a>
+                  </div>
+                </div>
               </div>
-
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
-                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    <span className="tag tag-acc" style={{ fontSize: 10 }}>{b.type}</span>
-                    {b.type === "วารสาร" && b.issueNumber !== undefined && b.issueNumber !== "" && (
-                      <span className="tag" style={{ fontSize: 10, background: "rgba(45, 190, 160, 0.15)", color: "var(--teal)" }}>เล่มที่ {b.issueNumber}</span>
-                    )}
-                    {b.category && <span className="tag" style={{ fontSize: 10, background: "var(--bg2)", color: "var(--t2)" }}>{b.category}</span>}
-                  </div>
-                  {b.isNew && <span className="tag tag-new" style={{ fontSize: 10 }}>ใหม่</span>}
-                </div>
-
-                <div style={{ fontSize: 14, fontWeight: 500, color: "var(--text)", lineHeight: 1.4, marginBottom: 4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                  {b.title}
-                </div>
-
-                {b.author && (
-                  <div style={{ fontSize: 11, color: "var(--teal)", marginBottom: 6, fontWeight: 400 }}>
-                    <i className="ti ti-pencil" style={{ marginRight: 4 }}></i>{b.author}
-                  </div>
-                )}
-
-                <p style={{ fontSize: 11, lineHeight: 1.6, marginBottom: 8, color: "var(--t2)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                  {b.desc || "ไม่มีคำอธิบายเพิ่มเติม"}
-                </p>
-
-                <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
-                  <a
-                    className="btn btn-teal"
-                    href={authState?.user ? getDownloadUrl(b.fileUrl) : "#"}
-                    target={authState?.user ? "_blank" : "_self"}
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!authState?.user) {
-                        e.preventDefault()
-                        toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
-                        go("auth")
-                      }
-                    }}
-                    style={{ flex: 1, fontSize: 11, padding: "6px 0", textDecoration: "none", textAlign: "center", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
-                  >
-                    <i className="ti ti-download" style={{ marginRight: 4, fontSize: 12 }}></i>โหลด
-                  </a>
-                  <a
-                    className="btn btn-outline"
-                    href={authState?.user ? b.fileUrl || "#" : "#"}
-                    target={authState?.user ? "_blank" : "_self"}
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!authState?.user) {
-                        e.preventDefault()
-                        toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
-                        go("auth")
-                      }
-                    }}
-                    style={{ fontSize: 11, padding: "6px 10px", textDecoration: "none", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
-                  >
-                    <i className="ti ti-eye" style={{ fontSize: 12 }}></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

@@ -158,25 +158,58 @@ export default function LibraryDetail({ item, go, authState }) {
           </div>
         )}
 
-        <div style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text)", marginBottom: 24, fontWeight: 300 }}>
-          {displayItem.desc || "ไม่มีคำอธิบายเพิ่มเติม"}
-        </div>
+        {(() => {
+          const descText = displayItem.desc || ""
+          const urlRegex = /(https?:\/\/[^\s]+)/gi
+          const match = descText.match(urlRegex)
+          let cleanDesc = descText
+          let onlineUrl = null
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <a 
-            href={getDownloadUrl(displayItem.fileUrl)} 
-            target="_blank" 
-            rel="noreferrer" 
-            className="btn btn-teal" 
-            onClick={handleDownloadClick} // บันทึกยอดดาวน์โหลดเมื่อถูกคลิก
-            style={{ flex: 1, minWidth: 160, textAlign: "center", textDecoration: "none", pointerEvents: displayItem.fileUrl ? "auto" : "none", opacity: displayItem.fileUrl ? 1 : 0.5 }}
-          >
-            <i className="ti ti-download" style={{ marginRight: 6 }}></i>ดาวน์โหลดไฟล์
-          </a>
-          <button onClick={handleShare} className="btn btn-outline" style={{ flex: 1, minWidth: 160 }}>
-            <i className="ti ti-share" style={{ marginRight: 6 }}></i>แชร์เนื้อหานี้
-          </button>
-        </div>
+          if (match) {
+            onlineUrl = match[0]
+            cleanDesc = descText.replace(urlRegex, "")
+            cleanDesc = cleanDesc.replace(/อ่านได้ที่\s*:\s*/gi, "")
+            cleanDesc = cleanDesc.trim()
+          }
+          if (!cleanDesc) {
+            cleanDesc = "สามารถเปิดอ่านหนังสือเล่มนี้แบบออนไลน์หรือดาวน์โหลดไฟล์เพื่อศึกษาเนื้อหาเพิ่มเติม"
+          }
+
+          return (
+            <>
+              <div style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text)", marginBottom: 24, fontWeight: 300 }}>
+                {cleanDesc}
+              </div>
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {onlineUrl && (
+                  <a 
+                    href={onlineUrl} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="btn btn-teal" 
+                    style={{ flex: 1, minWidth: 160, textAlign: "center", textDecoration: "none" }}
+                  >
+                    <i className="ti ti-book-open" style={{ marginRight: 6 }}></i>อ่านออนไลน์ (Flipbook)
+                  </a>
+                )}
+                <a 
+                  href={getDownloadUrl(displayItem.fileUrl)} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className={onlineUrl ? "btn btn-outline" : "btn btn-teal"} 
+                  onClick={handleDownloadClick} // บันทึกยอดดาวน์โหลดเมื่อถูกคลิก
+                  style={{ flex: 1, minWidth: 160, textAlign: "center", textDecoration: "none", pointerEvents: displayItem.fileUrl ? "auto" : "none", opacity: displayItem.fileUrl ? 1 : 0.5 }}
+                >
+                  <i className="ti ti-download" style={{ marginRight: 6 }}></i>ดาวน์โหลดไฟล์
+                </a>
+                <button onClick={handleShare} className="btn btn-outline" style={{ flex: 1, minWidth: 160 }}>
+                  <i className="ti ti-share" style={{ marginRight: 6 }}></i>แชร์เนื้อหานี้
+                </button>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {displayItem.fileUrl && (

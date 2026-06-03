@@ -90,6 +90,7 @@ function calculateVerificationReport({ activeSeconds = 0, inactiveSeconds = 0, s
 
 function normalizeStreakSettings(settings, uid) {
   const protectedDays = Array.isArray(settings?.protectedDays) ? settings.protectedDays : []
+  const reminderTimes = Array.isArray(settings?.reminderTimes) ? settings.reminderTimes : []
   return {
     id: uid,
     uid,
@@ -98,6 +99,8 @@ function normalizeStreakSettings(settings, uid) {
     protectedDays,
     claimedMissions: settings?.claimedMissions || {},
     gems: Number(settings?.gems || 0),
+    remindersEnabled: settings?.remindersEnabled ?? false,
+    reminderTimes,
   }
 }
 
@@ -203,6 +206,10 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   const [selectedBookToAdd, setSelectedBookToAdd] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
 
+  // Reading Reminders states
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("talib_notif_enabled") === "true")
+  const [notifTime, setNotifTime] = useState(() => localStorage.getItem("talib_notif_time") || "20:00")
+
   // --- Normalized Streak & Sessions ---
   const streakSettings = useMemo(() => {
     return normalizeStreakSettings(streakRecords.find(item => item.uid === uid || item.id === uid), uid)
@@ -305,6 +312,64 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     }
     return list
   }, [readingSessions, streak.todayKey, streakSettings.protectedDays, uid])
+
+  const handleToggleReminders = async (enabled) => {
+    if (!streakSettings) return
+    if (enabled) {
+      if (typeof Notification === "undefined") {
+        toast.error("เบราว์เซอร์ของคุณไม่รองรับการแจ้งเตือน")
+        return
+      }
+      const perm = await Notification.requestPermission()
+      if (perm !== "granted") {
+        toast.error("เบราว์เซอร์ปฏิเสธสิทธิ์การแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าเบราว์เซอร์เพื่อให้แจ้งเตือนทำงานได้")
+      }
+    }
+    try {
+      await saveStreakSettings({
+        ...streakSettings,
+        remindersEnabled: enabled
+      })
+      toast.success(enabled ? "เปิดใช้งานระบบการแจ้งเตือนให้อ่านหนังสือแล้ว 🔔" : "ปิดใช้งานระบบการแจ้งเตือนแล้ว")
+    } catch (err) {
+      console.error(err)
+      toast.error("ตั้งค่าการแจ้งเตือนไม่สำเร็จ")
+    }
+  }
+
+  const handleAddReminderTime = async (timeStr) => {
+    if (!streakSettings) return
+    if (streakSettings.reminderTimes.includes(timeStr)) {
+      toast.error("คุณตั้งค่าการแจ้งเตือนเวลานี้ไว้แล้ว")
+      return
+    }
+    const updatedTimes = [...streakSettings.reminderTimes, timeStr].sort()
+    try {
+      await saveStreakSettings({
+        ...streakSettings,
+        reminderTimes: updatedTimes
+      })
+      toast.success(`เพิ่มเวลาแจ้งเตือน ${timeStr} น. สำเร็จ`)
+    } catch (err) {
+      console.error(err)
+      toast.error("เพิ่มเวลาแจ้งเตือนไม่สำเร็จ")
+    }
+  }
+
+  const handleRemoveReminderTime = async (timeStr) => {
+    if (!streakSettings) return
+    const updatedTimes = streakSettings.reminderTimes.filter(t => t !== timeStr)
+    try {
+      await saveStreakSettings({
+        ...streakSettings,
+        reminderTimes: updatedTimes
+      })
+      toast.success(`ลบเวลาแจ้งเตือน ${timeStr} น. เรียบร้อย`)
+    } catch (err) {
+      console.error(err)
+      toast.error("ลบเวลาแจ้งเตือนไม่สำเร็จ")
+    }
+  }
 
   // --- Actions ---
   async function claimMission(missionId) {
@@ -1486,6 +1551,128 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
               />
             </div>
           </div>
+
+          {/* 🔔 Daily Reading Reminders Settings */}
+          <div className="card" style={{ padding: 18, marginBottom: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <i className="ti ti-bell" style={{ color: "var(--teal)", fontSize: 16 }}></i>
+              <h3 style={{ fontSize: 13, fontWeight: 600 }}>ตั้งค่าการแจ้งเตือนอ่านหนังสือรายวัน</h3>
+            </div>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              {/* 1. Browser Notification Switch */}
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={notifEnabled}
+                  onChange={async (e) => {
+                    const val = e.target.checked
+                    setNotifEnabled(val)
+                    localStorage.setItem("talib_notif_enabled", String(val))
+                    if (val) {
+                      if (typeof Notification === "undefined") {
+                        toast.error("เบราว์เซอร์ของคุณไม่รองรับการแจ้งเตือน")
+                        setNotifEnabled(false)
+                        localStorage.setItem("talib_notif_enabled", "false")
+                        return
+                      }
+                      const perm = await Notification.requestPermission()
+                      if (perm === "granted") {
+                        toast.success("เปิดใช้งานแจ้งเตือนแล้ว 🔔")
+                        new Notification("เปิดการแจ้งเตือนแล้ว 🔔", {
+                          body: "ระบบจะแจ้งเตือนเมื่อถึงเวลาอ่านหนังสือที่คุณตั้งค่าไว้"
+                        })
+                      } else {
+                        toast.error("เบราว์เซอร์ปฏิเสธสิทธิ์การแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าเบราว์เซอร์")
+                      }
+                    } else {
+                      toast.success("ปิดการแจ้งเตือนแล้ว")
+                    }
+                  }}
+                  style={{ width: 16, height: 16 }}
+                />
+                <span style={{ color: "var(--text)" }}>เปิดแจ้งเตือนจากเบราว์เซอร์</span>
+              </label>
+
+              {/* 2. Browser Alarm Time Setting */}
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, color: "var(--t2)" }}>
+                <span>เวลาอ่านหนังสือประจำวัน (เบราว์เซอร์)</span>
+                <input
+                  type="time"
+                  value={notifTime}
+                  disabled={!notifEnabled}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setNotifTime(val)
+                    localStorage.setItem("talib_notif_time", val)
+                    toast.success(`ตั้งเวลาแจ้งเตือนเป็น ${val} เรียบร้อยแล้ว`)
+                  }}
+                  style={{ width: "100%", padding: "6px 10px", fontSize: 12, background: "var(--card)", border: "0.5px solid var(--br)", color: "var(--text)", borderRadius: 8 }}
+                />
+              </label>
+
+              <div style={{ margin: "8px 0", height: "1px", background: "var(--br2)" }} />
+
+              {/* 3. Sync Cloud Notifications (Daily Goal Streak) */}
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={streakSettings.remindersEnabled}
+                  onChange={(e) => handleToggleReminders(e.target.checked)}
+                  style={{ width: 16, height: 16 }}
+                />
+                <span style={{ fontWeight: 500, color: "var(--text)" }}>ตั้งเตือนรักษาสถิติการอ่านรายวัน (Sync คลาวด์)</span>
+              </label>
+
+              {streakSettings.remindersEnabled && (
+                <div style={{ display: "grid", gap: 10, padding: 12, background: "var(--bg2)", borderRadius: 10, border: "0.5px solid var(--br)", marginTop: 2 }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "var(--t2)" }}>ตั้งเตือนเวลาอื่น ๆ:</div>
+                  
+                  {streakSettings.reminderTimes.length === 0 ? (
+                    <div style={{ fontSize: 11, color: "var(--t3)" }}>ยังไม่มีเวลาแจ้งเตือนที่ตั้งค่าไว้</div>
+                  ) : (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {streakSettings.reminderTimes.map((timeStr) => (
+                        <div key={timeStr} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--teal-bg)", border: "0.5px solid var(--teal)", color: "var(--teal)", padding: "3px 8px", borderRadius: 12, fontSize: 11 }}>
+                          <i className="ti ti-alarm" style={{ fontSize: 10 }}></i>
+                          <span>{timeStr}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveReminderTime(timeStr)} 
+                            style={{ background: "none", border: "none", color: "red", cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}
+                          >
+                            <i className="ti ti-x" style={{ fontSize: 11 }}></i>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+                    <input 
+                      type="time" 
+                      id="new-reader-reminder-time" 
+                      defaultValue="20:00" 
+                      style={{ flex: 1, padding: "4px 8px", fontSize: 12, background: "var(--card)", border: "0.5px solid var(--br)", color: "var(--text)", borderRadius: 6, height: 28 }}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-teal" 
+                      style={{ padding: "0 10px", fontSize: 11, height: 28, borderRadius: 6 }}
+                      onClick={() => {
+                        const input = document.getElementById("new-reader-reminder-time")
+                        if (input && input.value) {
+                          handleAddReminderTime(input.value)
+                        }
+                      }}
+                    >
+                      <i className="ti ti-plus" style={{ marginRight: 4 }}></i>เพิ่ม
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1566,7 +1753,7 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
 }
 
 function TutorialModal({ onClose }) {
-  return (
+  return createPortal(
     <div style={{
       position: "fixed",
       inset: 0,
@@ -1644,7 +1831,7 @@ function TutorialModal({ onClose }) {
             </div>
             <div>
               <strong style={{ fontSize: 13, color: "var(--text)", display: "block", marginBottom: 2 }}>รักษา Streak ต่อเนื่อง 🔥</strong>
-              <span style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>อ่านและบันทึกเซสชันทุกวัน ระบบจะนับวันต่อเนื่อง หากวันไหนอ่านไม่ได้ ใช้ไอเทมคุ้มครองแทนได้</span>
+              <span style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.5 }}>อ่าน and บันทึกเซสชันทุกวัน ระบบจะนับวันต่อเนื่อง หากวันไหนอ่านไม่ได้ ใช้ไอเทมคุ้มครองแทนได้</span>
             </div>
           </div>
 
@@ -1693,6 +1880,7 @@ function TutorialModal({ onClose }) {
         </button>
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

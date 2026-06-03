@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from "react"
+import { createPortal } from "react-dom"
 import { 
   collection, onSnapshot, query, updateDoc, doc, 
   serverTimestamp, addDoc, deleteDoc, setDoc, orderBy 
@@ -372,7 +373,7 @@ export default function StaffWork({ authState, go }) {
     <div className="staff-work animate-fade-in" style={{ padding: "24px" }}>
       
       {/* ━━━ CUSTOM MODAL (แทนที่ Alert เบราว์เซอร์) ━━━ */}
-      {confirmDialog.isOpen && (
+      {confirmDialog.isOpen && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div className="card animate-fade-in" style={{ background: 'var(--bg)', padding: '24px', width: '100%', maxWidth: '420px', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#d84f4f' }}>
@@ -385,7 +386,8 @@ export default function StaffWork({ authState, go }) {
               <button className="btn" style={{ background: '#d84f4f', color: '#fff', border: 'none' }} onClick={confirmDialog.onConfirm}>ยืนยันการลบ</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ━━━ UPPER BANNER ━━━ */}

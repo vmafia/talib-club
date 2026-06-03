@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import { collection, doc, getDocs, serverTimestamp, writeBatch } from "firebase/firestore"
 import { db } from "../lib/firebase.js"
 import { useAuth } from "../hooks/useAuth.js"
@@ -29,10 +30,10 @@ function EditModal({ item, onClose, onSave }) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000
     }}>
       <div className="card" style={{ width: "min(520px,92vw)", padding: "28px" }}>
         <div style={{ marginBottom: "18px" }}>
@@ -72,7 +73,8 @@ function EditModal({ item, onClose, onSave }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -130,10 +132,13 @@ export default function StaffTranslation({ go }) {
   }
 
   async function saveWorkspace(markCompleted = false) {
+    const name = profile?.displayName || profile?.email || "ไม่ระบุ"
     const patch = {
       paragraphs: workspaceParagraphs,
       thaiTitle: workspaceThaiTitle.trim(),
       status: markCompleted ? STATUS.completed : STATUS.progress,
+      assignee: activeWorkspaceItem.assignee || name,
+      claimedAt: activeWorkspaceItem.claimedAt || serverTimestamp(),
     }
     await updateItem(activeWorkspaceItem, patch)
     setActiveWorkspaceItem(prev => ({ ...prev, ...patch }))
@@ -349,8 +354,9 @@ export default function StaffTranslation({ go }) {
                       <textarea
                         value={p.thai || ""}
                         onChange={e => {
-                          const updated = [...workspaceParagraphs]
-                          updated[p.id].thai = e.target.value
+                          const updated = workspaceParagraphs.map(item =>
+                            item.id === p.id ? { ...item, thai: e.target.value } : item
+                          )
                           setWorkspaceParagraphs(updated)
                         }}
                         placeholder="กรอกบทแปลภาษาไทย..."
@@ -534,6 +540,63 @@ export default function StaffTranslation({ go }) {
                   onClick={() => setEditItem(item)}>
                   <i className="ti ti-pencil" />
                 </button>
+              </div>
+
+              {/* Workspace Entry Button */}
+              <div style={{ marginTop: "4px" }}>
+                {item.status === STATUS.completed ? (
+                  <button 
+                    className="btn btn-outline" 
+                    style={{ 
+                      padding: "5px 12px", 
+                      fontSize: "12px", 
+                      color: "var(--teal)", 
+                      borderColor: "rgba(15,110,86,0.3)",
+                      background: "rgba(15,110,86,0.05)"
+                    }}
+                    onClick={() => {
+                      setActiveWorkspaceItem(item);
+                      setWorkspaceParagraphs(item.paragraphs || []);
+                      setWorkspaceThaiTitle(item.thaiTitle || "");
+                    }}
+                  >
+                    <i className="ti ti-eye" style={{ marginRight: "4px" }} /> ดูและแก้ไขคำแปล
+                  </button>
+                ) : item.status === STATUS.progress ? (
+                  <button 
+                    className="btn" 
+                    style={{ 
+                      padding: "5px 12px", 
+                      fontSize: "12px", 
+                      background: "#3b73c4", 
+                      color: "#fff" 
+                    }}
+                    onClick={() => {
+                      setActiveWorkspaceItem(item);
+                      setWorkspaceParagraphs(item.paragraphs || []);
+                      setWorkspaceThaiTitle(item.thaiTitle || "");
+                    }}
+                  >
+                    <i className="ti ti-pencil" style={{ marginRight: "4px" }} /> แปลต่อ / ตรวจทาน
+                  </button>
+                ) : (
+                  <button 
+                    className="btn" 
+                    style={{ 
+                      padding: "5px 12px", 
+                      fontSize: "12px", 
+                      background: "#bd7a13", 
+                      color: "#fff" 
+                    }}
+                    onClick={() => {
+                      setActiveWorkspaceItem(item);
+                      setWorkspaceParagraphs(item.paragraphs || []);
+                      setWorkspaceThaiTitle(item.thaiTitle || "");
+                    }}
+                  >
+                    <i className="ti ti-cpu" style={{ marginRight: "4px" }} /> สั่ง AI แปลบทความ
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
 import { trackingDb as db } from "../lib/trackingFirebase.js";
 
@@ -709,7 +710,7 @@ export default function Tracking() {
       {/* ========================================================= */}
       {/* ✏️ MODAL: EDIT DATA */}
       {/* ========================================================= */}
-      {(activeModal === 'edit-recipient' || activeModal === 'edit-record') && (
+      {(activeModal === 'edit-recipient' || activeModal === 'edit-record') && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
           <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "500px", padding: 0, borderRadius: "12px", overflow: "hidden" }}>
              <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--br)", background: "var(--teal)", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -742,13 +743,14 @@ export default function Tracking() {
                <button className="btn" style={{ background: "var(--teal)", color: "white" }} onClick={saveEdit}>{isLoading ? "⏳ กำลังบันทึก..." : "💾 บันทึกการแก้ไข"}</button>
              </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================= */}
       {/* 🏷️ MODAL: LABEL MANAGER */}
       {/* ========================================================= */}
-      {activeModal === "label" && (
+      {activeModal === "label" && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
           <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "700px", maxHeight: "90vh", display: "flex", flexDirection: "column", padding: 0, borderRadius: "12px", overflow: "hidden" }}>
              <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--br)", background: "var(--teal)", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -784,13 +786,14 @@ export default function Tracking() {
                <button className="btn" style={{ background: "var(--teal)", color: "white" }} onClick={printLabels}>🖨️ พิมพ์ลาเบลที่เลือก</button>
              </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================= */}
       {/* 🛎️ CUSTOM DIALOG: ALERT / CONFIRM / PROMPT */}
       {/* ========================================================= */}
-      {dialogConfig && (
+      {dialogConfig && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
            <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "400px", padding: "24px", background: "var(--card)", borderRadius: "12px", textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
               <div style={{ fontSize: "48px", marginBottom: "16px" }}>
@@ -817,7 +820,8 @@ export default function Tracking() {
                  </button>
               </div>
            </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

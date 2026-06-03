@@ -89,9 +89,14 @@ export default function MemberDashboard({ authState, go, initialView = "overview
             <h1>ยินดีต้อนรับ, {name}</h1>
             <p>พื้นที่สมาชิกสำหรับติดตามการอ่าน บันทึกหนังสือ และจัดการข้อมูลบัญชี Talib Club</p>
           </div>
-          <div className="member-actions">
-            <button className="btn btn-outline" onClick={handleLogout}>
-              <i className="ti ti-logout" style={{ marginRight: 6 }}></i>ออกจากระบบ
+          <div className="member-actions" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            {role === "staff" && (
+              <button className="btn btn-teal" onClick={() => go("staff")} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <i className="ti ti-briefcase"></i>พื้นที่ปฏิบัติงานสตาฟ
+              </button>
+            )}
+            <button className="btn btn-outline" onClick={handleLogout} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <i className="ti ti-logout"></i>ออกจากระบบ
             </button>
           </div>
         </div>
@@ -203,33 +208,14 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
         </div>
       )}
 
-      <div className="grid3">
-        <DashboardCard 
-          icon="ti-device-desktop" 
-          title="ห้องอ่านหนังสือ & สถิติสะสม" 
-          text={activeBooks.length > 0 ? `กำลังอ่านค้างอยู่ ${activeBooks.length} เล่ม · จับเวลาสะสมไฟต่อเนื่องและทำภารกิจ` : "โหมดจับเวลาอ่านหนังสือ สะสมไฟต่อเนื่อง ทำภารกิจประจำวัน และร้านค้า"} 
-          onClick={() => go("reader")} 
-        />
-        <DashboardCard 
-          icon="ti-book" 
-          title="อัลกุรอานของฉัน" 
-          text={lastRead ? `อ่านค้างไว้: ซูเราะฮ์ ${lastRead.suraName || lastRead.sura} อายะฮ์ ${lastRead.aya}` : "เปิดอ่าน แปลไทย ตัฟซีรย่อ และค้นหาคำสำคัญ"} 
-          onClick={() => onOpenQuran(lastRead?.sura || 1, lastRead?.aya || null)} 
-        />
-        <DashboardCard 
-          icon="ti-notebook" 
-          title="อายะฮ์ที่บันทึกไว้" 
-          text={userSavedVerses.length > 0 ? `บันทึกข้อคิดไว้แล้ว ${userSavedVerses.length} อายะฮ์` : "ข้อคิดและประโยชน์ที่ได้รับจากอัลกุรอาน"} 
-          onClick={onOpenSavedVerses} 
-        />
-        <DashboardCard
-          icon="ti-bookmark"
-          title="บทความที่บันทึกไว้"
-          text="เก็บบทความที่อยากกลับมาอ่านภายหลัง"
-          onClick={() => setView("saved-articles")}
-        />
-        <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชีและรหัสสมาชิก" onClick={() => setView("profile")} />
-      </div>
+      <DashboardNav 
+        setView={setView} 
+        go={go} 
+        lastRead={lastRead} 
+        onOpenQuran={onOpenQuran} 
+        activeBooksCount={activeBooks.length} 
+        userSavedVersesCount={userSavedVerses.length} 
+      />
     </div>
   )
 }
@@ -1170,7 +1156,7 @@ function QuizModal({ quizState, onAnswer, onClose, onFinish }) {
       ? "Anthropic"
       : "โหมดสำรอง"
 
-  return (
+  return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,.62)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
       <div className="card" style={{ maxWidth: 760, maxHeight: "88vh", overflowY: "auto", padding: 22 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", marginBottom: 16 }}>
@@ -1235,7 +1221,8 @@ function QuizModal({ quizState, onAnswer, onClose, onFinish }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -1503,8 +1490,7 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
     newPassword: "",
   })
   const [busy, setBusy] = useState("")
-  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("talib_notif_enabled") === "true")
-  const [notifTime, setNotifTime] = useState(() => localStorage.getItem("talib_notif_time") || "20:00")
+
 
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
   const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [])
@@ -1686,15 +1672,22 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
       </button>
 
       <div className="card profile-card" style={{ padding: 24 }}>
-        <div className="profile-head" style={{ marginBottom: 20 }}>
-          <div className="profile-avatar" style={{ overflow: "hidden" }}>
-            {photoURL ? <img src={photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(displayName, email)}
+        <div className="profile-head" style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div className="profile-avatar" style={{ overflow: "hidden", margin: 0 }}>
+              {photoURL ? <img src={photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials(displayName, email)}
+            </div>
+            <div>
+              <span className={`badge ${isStaff ? "badge-teal" : "badge-acc"}`}>{isStaff ? "Staff" : "Member"}</span>
+              <h2>{displayName}</h2>
+              <p>{email}</p>
+            </div>
           </div>
-          <div>
-            <span className={`badge ${isStaff ? "badge-teal" : "badge-acc"}`}>{isStaff ? "Staff" : "Member"}</span>
-            <h2>{displayName}</h2>
-            <p>{email}</p>
-          </div>
+          {isStaff && (
+            <button className="btn btn-teal" onClick={() => go("staff")} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+              <i className="ti ti-briefcase"></i>พื้นที่ปฏิบัติงานสตาฟ
+            </button>
+          )}
         </div>
 
         {/* Sub Navigation pills */}
@@ -1705,9 +1698,7 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
           <button className={`pill ${subView === "account" ? "on" : ""}`} onClick={() => setSubView("account")}>
             <i className="ti ti-settings" style={{ marginRight: 6 }}></i>ตั้งค่าบัญชี
           </button>
-          <button className={`pill ${subView === "notifications" ? "on" : ""}`} onClick={() => setSubView("notifications")}>
-            <i className="ti ti-bell" style={{ marginRight: 6 }}></i>ตั้งค่าการแจ้งเตือน
-          </button>
+
         </div>
 
         {subView === "stats" && (
@@ -1861,137 +1852,7 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
           </form>
         )}
 
-        {subView === "notifications" && (
-          <div>
-            <section className="profile-section" style={{ borderTop: "none", padding: 0 }}>
-              <div className="profile-section-head" style={{ marginBottom: 12 }}>
-                <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 500 }}>ตั้งค่าการแจ้งเตือนจากเบราว์เซอร์</h3>
-                  <p style={{ fontSize: 12, color: "var(--t3)" }}>เปิดแจ้งเตือนเตือนให้อ่านหนังสือตามวันและเวลาที่ชอบ</p>
-                </div>
-              </div>
 
-              <div style={{ display: "grid", gap: 14 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, marginTop: 10 }}>
-                  <input
-                    type="checkbox"
-                    checked={notifEnabled}
-                    onChange={async (e) => {
-                      const val = e.target.checked
-                      setNotifEnabled(val)
-                      localStorage.setItem("talib_notif_enabled", String(val))
-                      if (val) {
-                        const perm = await Notification.requestPermission()
-                        if (perm === "granted") {
-                          toast.success("เปิดใช้งานแจ้งเตือนแล้ว 🔔")
-                          new Notification("เปิดการแจ้งเตือนแล้ว 🔔", {
-                            body: "ระบบจะแจ้งเตือนเมื่อถึงเวลาอ่านหนังสือที่คุณตั้งค่าไว้"
-                          })
-                        } else {
-                          toast.error("เบราว์เซอร์ปฏิเสธสิทธิ์การแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าเบราว์เซอร์")
-                        }
-                      } else {
-                        toast.success("ปิดการแจ้งเตือนแล้ว")
-                      }
-                    }}
-                    style={{ width: 18, height: 18 }}
-                  />
-                  <span>เปิดใช้งานการแจ้งเตือนจากเบราว์เซอร์</span>
-                </label>
-
-                <label style={fieldStyle}>
-                  <span>ตั้งค่าเวลาที่ต้องการให้อ่านหนังสือรายวัน</span>
-                  <input
-                    type="time"
-                    value={notifTime}
-                    disabled={!notifEnabled}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setNotifTime(val)
-                      localStorage.setItem("talib_notif_time", val)
-                      toast.success(`ตั้งเวลาแจ้งเตือนเป็น ${val} เรียบร้อยแล้ว`)
-                    }}
-                    style={{ maxWidth: 200 }}
-                  />
-                </label>
-                
-                <div style={{ background: "rgba(45,190,160,0.06)", border: "0.5px solid rgba(45,190,160,0.25)", padding: 12, borderRadius: 8, fontSize: 11, color: "var(--teal)", lineHeight: 1.5 }}>
-                  <i className="ti ti-info-circle" style={{ marginRight: 6 }}></i>
-                  ระบบจะทำการเตือนสติให้อ่านหนังสือตามเวลาที่คุณเลือก และจะแจ้งเตือนสัญญาณนับถอยหลังระหว่างเวลา 23:00 - 00:00 น. หากคุณยังไม่ผ่านเป้าหมายประจำวันเพื่อช่วยคุ้มครอง Streak ของคุณ
-                </div>
-
-                <div style={{ margin: "20px 0 10px", height: "1px", background: "var(--br2)" }} />
-
-                <div style={{ marginBottom: 12 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 500 }}>ระบบแจ้งเตือนการอ่านรายวัน (Sync คลาวด์)</h3>
-                  <p style={{ fontSize: 12, color: "var(--t3)" }}>ตั้งค่าให้ระบบช่วยเตือนความจำเพื่อป้องกัน Streak ขาดหายไป</p>
-                </div>
-
-                {userSettings && (
-                  <div style={{ display: "grid", gap: 14 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13 }}>
-                      <input
-                        type="checkbox"
-                        checked={userSettings.remindersEnabled}
-                        onChange={(e) => handleToggleReminders(e.target.checked)}
-                        style={{ width: 18, height: 18 }}
-                      />
-                      <span style={{ fontWeight: 500 }}>เปิดใช้งานการแจ้งเตือนให้อ่านหนังสือรายวัน</span>
-                    </label>
-
-                    {userSettings.remindersEnabled && (
-                      <div className="card" style={{ padding: 16, background: "var(--bg2)", border: "0.5px solid var(--br)" }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ช่วงเวลาที่ต้องการรับการแจ้งเตือน:</div>
-                        
-                        {userSettings.reminderTimes.length === 0 ? (
-                          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 12 }}>ยังไม่มีการตั้งค่าเวลาแจ้งเตือนรายวัน</div>
-                        ) : (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                            {userSettings.reminderTimes.map((timeStr) => (
-                              <div key={timeStr} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--teal-bg)", border: "0.5px solid var(--teal)", color: "var(--teal)", padding: "4px 10px", borderRadius: 16, fontSize: 12 }}>
-                                <i className="ti ti-alarm"></i>
-                                <span>{timeStr} น.</span>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleRemoveReminderTime(timeStr)} 
-                                  style={{ background: "none", border: "none", color: "red", cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}
-                                >
-                                  <i className="ti ti-x" style={{ fontSize: 12 }}></i>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <input 
-                            type="time" 
-                            id="new-reminder-time" 
-                            defaultValue="20:00" 
-                            style={{ width: "auto", maxWidth: 130, padding: "4px 8px", fontSize: 13, background: "var(--card)", border: "0.5px solid var(--br)", color: "var(--text)" }}
-                          />
-                          <button 
-                            type="button" 
-                            className="btn btn-teal" 
-                            style={{ padding: "6px 14px", fontSize: 12 }}
-                            onClick={() => {
-                              const input = document.getElementById("new-reminder-time")
-                              if (input && input.value) {
-                                handleAddReminderTime(input.value)
-                              }
-                            }}
-                          >
-                            <i className="ti ti-plus" style={{ marginRight: 4 }}></i>เพิ่มเวลา
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
       </div>
     </div>
   )
