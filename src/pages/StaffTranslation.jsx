@@ -87,6 +87,12 @@ export default function StaffTranslation({ go }) {
   const [statusFilter, setStatusFilter] = useState("all")
   const [editItem, setEditItem] = useState(null)
 
+  // Workspace states for side-by-side translation
+  const [activeWorkspaceItem, setActiveWorkspaceItem] = useState(null)
+  const [workspaceParagraphs, setWorkspaceParagraphs] = useState([])
+  const [workspaceThaiTitle, setWorkspaceThaiTitle] = useState("")
+  const [translating, setTranslating] = useState(false)
+
   useEffect(() => { loadItems() }, [])
 
   async function loadItems() {
@@ -99,6 +105,39 @@ export default function StaffTranslation({ go }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function runTranslation() {
+    setTranslating(true)
+    try {
+      const res = await fetch("/api/abuiyaad-translate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: activeWorkspaceItem.url }),
+      })
+      if (!res.ok) throw new Error(`HTTP Error Status ${res.status}`)
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      
+      const newParagraphs = data.translations || []
+      setWorkspaceParagraphs(newParagraphs)
+      notifySuccess("แปลบทความด้วย AI เรียบร้อยแล้ว! คุณสามารถปรับแก้ได้ในช่องขวา")
+    } catch (err) {
+      notifyError("แปลไม่สำเร็จ: " + err.message)
+    } finally {
+      setTranslating(false)
+    }
+  }
+
+  async function saveWorkspace(markCompleted = false) {
+    const patch = {
+      paragraphs: workspaceParagraphs,
+      thaiTitle: workspaceThaiTitle.trim(),
+      status: markCompleted ? STATUS.completed : STATUS.progress,
+    }
+    await updateItem(activeWorkspaceItem, patch)
+    setActiveWorkspaceItem(prev => ({ ...prev, ...patch }))
+    notifySuccess("บันทึกข้อมูลแล้ว")
   }
 
   async function runScrape() {
@@ -174,6 +213,160 @@ export default function StaffTranslation({ go }) {
       (!q || i.title.toLowerCase().includes(q) || (i.thaiTitle || "").toLowerCase().includes(q))
     )
   }, [items, query, statusFilter])
+
+  if (activeWorkspaceItem) {
+    return (
+      <div className="translation-page">
+        {/* Print Stylesheet */}
+        <style>{`
+          @media print {
+            body * {
+              visibility: hidden !important;
+            }
+            #print-area, #print-area * {
+              visibility: visible !important;
+            }
+            #print-area {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              color: #000 !important;
+              background: #fff !important;
+              display: block !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+          }
+        `}</style>
+
+        {/* Print Area (Hidden on screen) */}
+        <div id="print-area" style={{ display: "none", padding: "20px", fontFamily: "'Prompt', sans-serif" }}>
+          <div style={{ padding: "12px", marginBottom: "20px", border: "1.5px solid #dcdcdc", borderRadius: "6px", fontSize: "12px", textAlign: "center", fontStyle: "italic", color: "#555", backgroundColor: "#f9f9f9" }}>
+            ไฟล์นี้จัดทำขึ้นโดยการแปลเบื้องต้นจาก AI หากต้องการความถูกต้องสมบูรณ์ กรุณาตรวจสอบหรือเปรียบเทียบกับเว็บไซต์ต้นฉบับโดยตรง<br/>
+            (This file is a preliminary AI translation. For absolute accuracy, please compare directly with the original website.)
+          </div>
+          
+          <div style={{ borderBottom: "2px solid #0f6e56", paddingBottom: "12px", marginBottom: "20px" }}>
+            <h1 style={{ fontSize: "20px", margin: "0 0 6px 0", color: "#111" }}>{workspaceThaiTitle || activeWorkspaceItem.title}</h1>
+            <h2 style={{ fontSize: "15px", fontWeight: "normal", color: "#666", margin: "0 0 10px 0" }}>{activeWorkspaceItem.title}</h2>
+            <div style={{ fontSize: "11px", color: "#888" }}>
+              ต้นฉบับ: <a href={activeWorkspaceItem.url} target="_blank" rel="noreferrer">{activeWorkspaceItem.url}</a>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: "16px" }}>
+            {workspaceParagraphs.map((p) => (
+              <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", borderBottom: ".5px solid #eee", paddingBottom: "12px", pageBreakInside: "avoid" }}>
+                <div style={{ fontSize: "13px", lineHeight: "1.5", color: "#333", textAlign: "justify" }}>
+                  {p.english}
+                </div>
+                <div style={{ fontSize: "13px", lineHeight: "1.5", color: "#000", textAlign: "justify", fontWeight: p.tag.startsWith("h") ? "bold" : "normal" }}>
+                  {p.thai}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Screen Area (Hidden when printing) */}
+        <div className="no-print">
+          {/* Header */}
+          <div className="staff-section-head" style={{ marginBottom: "20px" }}>
+            <div>
+              <button className="btn btn-outline" onClick={() => { setActiveWorkspaceItem(null); loadItems(); }}>
+                <i className="ti ti-arrow-left" /> กลับหน้าหลัก
+              </button>
+              <h1 style={{ marginTop: "10px" }}>พื้นที่แปลภาษา</h1>
+              <p style={{ marginTop: "4px" }}>บทความ: <a href={activeWorkspaceItem.url} target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>{activeWorkspaceItem.title} <i className="ti ti-external-link" /></a></p>
+            </div>
+            
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button className="btn btn-outline" onClick={() => saveWorkspace(false)}>
+                <i className="ti ti-device-floppy" style={{ marginRight: "4px" }} /> บันทึกร่าง
+              </button>
+              <button className="btn btn-teal" onClick={() => saveWorkspace(true)} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <i className="ti ti-checkbox" /> บันทึกเสร็จสมบูรณ์
+              </button>
+              {workspaceParagraphs.length > 0 && (
+                <button className="btn" style={{ background: "var(--acc)", color: "var(--bg)", display: "inline-flex", alignItems: "center", gap: "4px" }} onClick={() => window.print()}>
+                  <i className="ti ti-printer" /> พิมพ์ PDF (เทียบไทย-อังกฤษ)
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: "20px", marginBottom: "20px" }}>
+            <label style={{ display: "grid", gap: "6px", fontSize: "14px", fontWeight: "500", color: "var(--text)" }}>
+              หัวข้อบทความภาษาไทย
+              <input 
+                type="text" 
+                value={workspaceThaiTitle} 
+                onChange={e => setWorkspaceThaiTitle(e.target.value)} 
+                placeholder="กรอกชื่อหัวข้อภาษาไทย..."
+                style={{ fontSize: "15px", padding: "10px" }}
+              />
+            </label>
+          </div>
+
+          {translating && (
+            <div className="empty" style={{ padding: "40px" }}>
+              <i className="ti ti-loader-2 spin" style={{ fontSize: "36px", color: "var(--teal)" }} />
+              <p style={{ marginTop: "12px", fontWeight: 500 }}>ระบบ AI กำลังแปลและจัดเรียงเนื้อหาทีละประโยคแบบละเอียด...</p>
+              <p style={{ fontSize: "12px", color: "var(--t3)" }}>ขั้นตอนนี้อาจใช้เวลา 5-15 วินาที ขึ้นอยู่กับความยาวของเนื้อหา</p>
+            </div>
+          )}
+
+          {!translating && workspaceParagraphs.length === 0 && (
+            <div className="empty" style={{ padding: "50px", border: "1.5px dashed var(--br)" }}>
+              <i className="ti ti-language" style={{ fontSize: "44px", color: "var(--t3)", opacity: 0.6 }} />
+              <h3 style={{ marginTop: "16px", fontSize: "16px" }}>ยังไม่มีเนื้อหาคำแปล</h3>
+              <p style={{ color: "var(--t3)", fontSize: "13px", maxWidth: "450px", margin: "8px auto 20px" }}>
+                กดปุ่มด้านล่างเพื่อสั่งให้ AI คัดลอกย่อหน้าภาษาอังกฤษทั้งหมดจาก abuiyaad.com แล้วแปลเป็นภาษาไทยให้อัตโนมัติในรูปแบบประโยคต่อประโยค
+              </p>
+              <button className="btn btn-teal" onClick={runTranslation} style={{ padding: "10px 24px" }}>
+                <i className="ti ti-cpu" style={{ marginRight: "6px" }} /> สั่ง AI แปลบทความนี้
+              </button>
+            </div>
+          )}
+
+          {!translating && workspaceParagraphs.length > 0 && (
+            <div style={{ display: "grid", gap: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", padding: "10px 20px", fontWeight: "600", color: "var(--t2)", borderBottom: "1px solid var(--br2)" }}>
+                <div>อังกฤษ (Original)</div>
+                <div>ไทย (คำแปล AI - แก้ไขได้)</div>
+              </div>
+              
+              <div style={{ display: "grid", gap: "14px", maxHeight: "68vh", overflowY: "auto", paddingRight: "10px" }}>
+                {workspaceParagraphs.map((p) => (
+                  <div key={p.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", background: "var(--card)", padding: "14px", borderRadius: "8px", border: ".5px solid var(--br)" }}>
+                    <div style={{ fontSize: "13px", lineHeight: "1.5", color: "var(--t2)", textAlign: "justify" }}>
+                      <span style={{ fontSize: "10px", color: "var(--teal)", background: "var(--teal-bg)", padding: "2px 6px", borderRadius: "4px", marginRight: "6px", verticalAlign: "middle" }}>{p.tag.toUpperCase()}</span>
+                      {p.english}
+                    </div>
+                    <div>
+                      <textarea
+                        value={p.thai || ""}
+                        onChange={e => {
+                          const updated = [...workspaceParagraphs]
+                          updated[p.id].thai = e.target.value
+                          setWorkspaceParagraphs(updated)
+                        }}
+                        placeholder="กรอกบทแปลภาษาไทย..."
+                        rows={Math.max(3, Math.ceil(p.english.length / 70))}
+                        style={{ width: "100%", fontSize: "13px", lineHeight: "1.5", fontFamily: "'Prompt', sans-serif", padding: "8px", resize: "vertical", background: "var(--bg)", border: ".5px solid var(--br)", color: "var(--text)" }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="translation-page">

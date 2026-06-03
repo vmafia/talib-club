@@ -449,6 +449,7 @@ const DEFAULT_LEAVE_CREDITS = 1
 
 function normalizeStreakSettings(settings, uid) {
   const protectedDays = Array.isArray(settings?.protectedDays) ? settings.protectedDays : []
+  const reminderTimes = Array.isArray(settings?.reminderTimes) ? settings.reminderTimes : []
   return {
     id: uid,
     uid,
@@ -457,6 +458,8 @@ function normalizeStreakSettings(settings, uid) {
     protectedDays,
     claimedMissions: settings?.claimedMissions || {},
     gems: Number(settings?.gems || 0),
+    remindersEnabled: settings?.remindersEnabled ?? false,
+    reminderTimes,
   }
 }
 
@@ -1507,7 +1510,7 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
   const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [])
   const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
   const { items: readingSessions } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords } = useContentCollection("reading_streaks", [])
+  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
 
   const history = useMemo(() => {
     if (!user?.uid) return [];
@@ -1534,6 +1537,63 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
   // ลบโค้ด useEffect ดั้งเดิมที่ดึงประวัติจาก localStorage ออกแล้ว เพราะเปลี่ยนไปดึงจาก Firestore ด้านบนแล้ว
 
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+
+  const userSettings = useMemo(() => {
+    if (!user?.uid) return null
+    const found = streakRecords.find(item => item.uid === user.uid || item.id === user.uid)
+    return normalizeStreakSettings(found, user.uid)
+  }, [streakRecords, user?.uid])
+
+  const handleToggleReminders = async (enabled) => {
+    if (!userSettings) return
+    if (enabled) {
+      const perm = await Notification.requestPermission()
+      if (perm !== "granted") {
+        toast.error("เบราว์เซอร์ปฏิเสธสิทธิ์การแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าเบราว์เซอร์เพื่อให้แจ้งเตือนทำงานได้")
+      }
+    }
+    try {
+      await saveStreakSettings({
+        ...userSettings,
+        remindersEnabled: enabled
+      })
+      toast.success(enabled ? "เปิดใช้งานระบบการแจ้งเตือนให้อ่านหนังสือแล้ว 🔔" : "ปิดใช้งานระบบการแจ้งเตือนแล้ว")
+    } catch (err) {
+      toast.error("บันทึกข้อมูลไม่สำเร็จ")
+    }
+  }
+
+  const handleAddReminderTime = async (timeStr) => {
+    if (!userSettings || !timeStr) return
+    if (userSettings.reminderTimes.includes(timeStr)) {
+      toast.error("มีเวลานี้ในการตั้งค่าแล้ว")
+      return
+    }
+    const updatedTimes = [...userSettings.reminderTimes, timeStr].sort()
+    try {
+      await saveStreakSettings({
+        ...userSettings,
+        reminderTimes: updatedTimes
+      })
+      toast.success(`เพิ่มเวลาแจ้งเตือน ${timeStr} สำเร็จ`)
+    } catch (err) {
+      toast.error("บันทึกข้อมูลไม่สำเร็จ")
+    }
+  }
+
+  const handleRemoveReminderTime = async (timeStr) => {
+    if (!userSettings) return
+    const updatedTimes = userSettings.reminderTimes.filter(t => t !== timeStr)
+    try {
+      await saveStreakSettings({
+        ...userSettings,
+        reminderTimes: updatedTimes
+      })
+      toast.success(`ลบเวลาแจ้งเตือน ${timeStr} สำเร็จ`)
+    } catch (err) {
+      toast.error("บันทึกข้อมูลไม่สำเร็จ")
+    }
+  }
 
   const stats = useMemo(() => {
     const articlesRead = history.filter(h => h.type === "article").length;
@@ -1859,6 +1919,75 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
                   <i className="ti ti-info-circle" style={{ marginRight: 6 }}></i>
                   ระบบจะทำการเตือนสติให้อ่านหนังสือตามเวลาที่คุณเลือก และจะแจ้งเตือนสัญญาณนับถอยหลังระหว่างเวลา 23:00 - 00:00 น. หากคุณยังไม่ผ่านเป้าหมายประจำวันเพื่อช่วยคุ้มครอง Streak ของคุณ
                 </div>
+
+                <div style={{ margin: "20px 0 10px", height: "1px", background: "var(--br2)" }} />
+
+                <div style={{ marginBottom: 12 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 500 }}>ระบบแจ้งเตือนการอ่านรายวัน (Sync คลาวด์)</h3>
+                  <p style={{ fontSize: 12, color: "var(--t3)" }}>ตั้งค่าให้ระบบช่วยเตือนความจำเพื่อป้องกัน Streak ขาดหายไป</p>
+                </div>
+
+                {userSettings && (
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={userSettings.remindersEnabled}
+                        onChange={(e) => handleToggleReminders(e.target.checked)}
+                        style={{ width: 18, height: 18 }}
+                      />
+                      <span style={{ fontWeight: 500 }}>เปิดใช้งานการแจ้งเตือนให้อ่านหนังสือรายวัน</span>
+                    </label>
+
+                    {userSettings.remindersEnabled && (
+                      <div className="card" style={{ padding: 16, background: "var(--bg2)", border: "0.5px solid var(--br)" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>ช่วงเวลาที่ต้องการรับการแจ้งเตือน:</div>
+                        
+                        {userSettings.reminderTimes.length === 0 ? (
+                          <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 12 }}>ยังไม่มีการตั้งค่าเวลาแจ้งเตือนรายวัน</div>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                            {userSettings.reminderTimes.map((timeStr) => (
+                              <div key={timeStr} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--teal-bg)", border: "0.5px solid var(--teal)", color: "var(--teal)", padding: "4px 10px", borderRadius: 16, fontSize: 12 }}>
+                                <i className="ti ti-alarm"></i>
+                                <span>{timeStr} น.</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleRemoveReminderTime(timeStr)} 
+                                  style={{ background: "none", border: "none", color: "red", cursor: "pointer", display: "grid", placeItems: "center", padding: 0 }}
+                                >
+                                  <i className="ti ti-x" style={{ fontSize: 12 }}></i>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <input 
+                            type="time" 
+                            id="new-reminder-time" 
+                            defaultValue="20:00" 
+                            style={{ width: "auto", maxWidth: 130, padding: "4px 8px", fontSize: 13, background: "var(--card)", border: "0.5px solid var(--br)", color: "var(--text)" }}
+                          />
+                          <button 
+                            type="button" 
+                            className="btn btn-teal" 
+                            style={{ padding: "6px 14px", fontSize: 12 }}
+                            onClick={() => {
+                              const input = document.getElementById("new-reminder-time")
+                              if (input && input.value) {
+                                handleAddReminderTime(input.value)
+                              }
+                            }}
+                          >
+                            <i className="ti ti-plus" style={{ marginRight: 4 }}></i>เพิ่มเวลา
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </section>
           </div>

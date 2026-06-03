@@ -39,6 +39,7 @@ export default function AdminArticles() {
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [seriesFilter, setSeriesFilter] = useState("all") // ✅ เพิ่ม State สำหรับกรองซีรีส์
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [sortOrder, setSortOrder] = useState("newest")
 
   const [selected, setSelected] = useState([])
   const [busy, setBusy] = useState(false)
@@ -61,7 +62,7 @@ export default function AdminArticles() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, typeFilter, categoryFilter, seriesFilter])
+  }, [search, typeFilter, categoryFilter, seriesFilter, sortOrder])
 
   const filtered = items.filter(a => {
     const matchSearch = String(a.title || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -77,8 +78,13 @@ export default function AdminArticles() {
   const sorted = [...filtered].sort((a, b) => {
     const dateA = a.date || ""
     const dateB = b.date || ""
-    if (dateA !== dateB) return dateB.localeCompare(dateA)
-    return String(b.id || "").localeCompare(String(a.id || ""))
+    if (sortOrder === "newest") {
+      if (dateA !== dateB) return dateB.localeCompare(dateA)
+      return String(b.id || "").localeCompare(String(a.id || ""))
+    } else {
+      if (dateA !== dateB) return dateA.localeCompare(dateB)
+      return String(a.id || "").localeCompare(String(b.id || ""))
+    }
   })
 
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE)
@@ -269,6 +275,11 @@ export default function AdminArticles() {
             ))}
           </select>
         )}
+
+        <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} style={{ width: "auto", height: 38, borderRadius: 24, padding: "0 16px", background: "var(--bg2)", border: "none", color: "var(--text)" }}>
+          <option value="newest">ใหม่ไปเก่า</option>
+          <option value="oldest">เก่าไปใหม่</option>
+        </select>
 
         <button
           className={`btn ${showAdvanced ? "btn-teal" : "btn-outline"}`}

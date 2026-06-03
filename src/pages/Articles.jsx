@@ -8,6 +8,7 @@ export default function Articles({ go, authState, ctx }) {
   
   const cat = ctx?.cat || "all"
   const type = ctx?.type || "all"
+  const sortOrder = ctx?.sort || "newest"
   const showAllBrowse = ctx?.showAllBrowse === "true" || ctx?.showAllBrowse === true || false
   const requestedPage = parseInt(ctx?.page, 10) || 1
 
@@ -29,19 +30,34 @@ export default function Articles({ go, authState, ctx }) {
     return matchCat && matchType && matchSearch
   })
 
+  const sortedFiltered = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const dateA = a.date || ""
+      const dateB = b.date || ""
+      if (sortOrder === "newest") {
+        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        return String(b.id || "").localeCompare(String(a.id || ""))
+      } else {
+        if (dateA !== dateB) return dateA.localeCompare(dateB)
+        return String(a.id || "").localeCompare(String(b.id || ""))
+      }
+    })
+  }, [filtered, sortOrder])
+
   const ITEMS_PER_PAGE = 12
 
   const updateFilters = (newParams) => {
     const updated = {
       cat,
       type,
+      sort: sortOrder,
       search: newParams.search !== undefined ? newParams.search : search,
       showAllBrowse,
       selectedSeriesId: ctx?.selectedSeriesId || "",
       page: requestedPage,
       ...newParams
     }
-    if (newParams.cat !== undefined || newParams.type !== undefined || newParams.search !== undefined || newParams.showAllBrowse !== undefined || newParams.selectedSeriesId !== undefined) {
+    if (newParams.cat !== undefined || newParams.type !== undefined || newParams.search !== undefined || newParams.showAllBrowse !== undefined || newParams.selectedSeriesId !== undefined || newParams.sort !== undefined) {
       updated.page = 1
     }
     go("articles", updated, { replace: true, noScroll: true })
@@ -61,13 +77,13 @@ export default function Articles({ go, authState, ctx }) {
     })
   }
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(sortedFiltered.length / ITEMS_PER_PAGE)
   const currentPage = totalPages > 0 ? Math.min(Math.max(requestedPage, 1), totalPages) : 1
 
   const paginatedFiltered = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-  }, [filtered, currentPage])
+    return sortedFiltered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [sortedFiltered, currentPage])
 
   useEffect(() => {
     if (totalPages > 0 && requestedPage !== currentPage) {
@@ -93,7 +109,7 @@ export default function Articles({ go, authState, ctx }) {
 
   const filteredSeries = useMemo(() => {
     const seriesIds = new Set(
-      filtered
+      sortedFiltered
         .filter(a => String(a.type).toLowerCase() === "series" && a.seriesId)
         .map(a => String(a.seriesId).toLowerCase())
     );
@@ -106,11 +122,11 @@ export default function Articles({ go, authState, ctx }) {
         articles: sorted
       };
     }).filter(s => seriesIds.has(String(s.id).toLowerCase()));
-  }, [taxonomy.articleSeries, filtered, articles]);
+  }, [taxonomy.articleSeries, sortedFiltered, articles]);
 
   const filteredGeneral = useMemo(() => {
-    return filtered.filter(a => String(a.type).toLowerCase() !== "series");
-  }, [filtered]);
+    return sortedFiltered.filter(a => String(a.type).toLowerCase() !== "series");
+  }, [sortedFiltered]);
 
   const paginatedGeneral = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -120,7 +136,7 @@ export default function Articles({ go, authState, ctx }) {
   const totalGeneralPages = Math.ceil(filteredGeneral.length / ITEMS_PER_PAGE);
 
   const isDefaultView = !search && cat === "all" && type === "all" && !showAllBrowse
-  const recentArticles = filtered.slice(0, 6)
+  const recentArticles = sortedFiltered.slice(0, 6)
 
   return (
     <div>
@@ -202,6 +218,10 @@ export default function Articles({ go, authState, ctx }) {
             </div>
             <select value={type} onChange={e => updateFilters({ type: e.target.value, showAllBrowse: e.target.value !== "all" ? true : showAllBrowse })} style={{ width: "auto", flex: "0 0 auto" }}>
               {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+            <select value={sortOrder} onChange={e => updateFilters({ sort: e.target.value })} style={{ width: "auto", flex: "0 0 auto" }}>
+              <option value="newest">ใหม่ไปเก่า</option>
+              <option value="oldest">เก่าไปใหม่</option>
             </select>
           </div>
 
@@ -305,9 +325,9 @@ export default function Articles({ go, authState, ctx }) {
                     </div>
                   ))}
                 </div>
-                {filtered.length > 6 && (
+                {sortedFiltered.length > 6 && (
                   <button className="btn btn-outline" onClick={() => updateFilters({ showAllBrowse: true })} style={{ margin: "28px auto 0", display: "block", fontSize: 12 }}>
-                    ดูบทความทั้งหมด ({filtered.length} บทความ)
+                    ดูบทความทั้งหมด ({sortedFiltered.length} บทความ)
                   </button>
                 )}
               </div>
@@ -315,12 +335,12 @@ export default function Articles({ go, authState, ctx }) {
           ) : (
             <div>
               <div className="sec-hd" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span className="sec-title">{filtered.length} บทความที่พบ</span>
+                <span className="sec-title">{sortedFiltered.length} บทความที่พบ</span>
                 {!search && cat === "all" && type === "all" && (
                   <button className="sec-link" onClick={() => updateFilters({ showAllBrowse: false })} style={{ fontSize: 12 }}>กลับหน้าสารบัญซีรีส์</button>
                 )}
               </div>
-              {filtered.length === 0 ? (
+              {sortedFiltered.length === 0 ? (
                 <div className="empty">ไม่พบบทความที่ตรงกับการค้นหา</div>
               ) : (
                 <>

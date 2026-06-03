@@ -100,8 +100,13 @@ export default function Library({ go, authState, ctx }) {
       }
       const yearA = Number(a.year) || 0
       const yearB = Number(b.year) || 0
-      if (yearA !== yearB) return yearB - yearA
-      return String(b.id || "").localeCompare(String(a.id || ""))
+      if (sortBy === "oldest") {
+        if (yearA !== yearB) return yearA - yearB
+        return String(a.id || "").localeCompare(String(b.id || ""))
+      } else {
+        if (yearA !== yearB) return yearB - yearA
+        return String(b.id || "").localeCompare(String(a.id || ""))
+      }
     })
   }, [books, filter, categoryFilter, sourceFilter, search, sortBy])
 
@@ -154,6 +159,28 @@ export default function Library({ go, authState, ctx }) {
             >
               <option value="issue-desc">เล่มใหม่ล่าสุด ➜ เล่มเก่า</option>
               <option value="issue-asc">เล่มเก่าสุด ➜ เล่มใหม่</option>
+            </select>
+          )}
+          {filter !== "วารสาร" && (
+            <select
+              value={sortBy}
+              onChange={e => updateFilters({ sortBy: e.target.value })}
+              style={{
+                fontFamily: "'Prompt', sans-serif",
+                fontSize: 12,
+                padding: "4px 20px 4px 10px",
+                borderRadius: 20,
+                border: ".5px solid var(--br)",
+                background: "var(--card)",
+                color: "var(--t2)",
+                cursor: "pointer",
+                outline: "none",
+                height: 30,
+                lineHeight: 1
+              }}
+            >
+              <option value="newest">ปีที่พิมพ์ ใหม่ ➜ เก่า</option>
+              <option value="oldest">ปีที่พิมพ์ เก่า ➜ ใหม่</option>
             </select>
           )}
           <button onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })} className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"} style={{ padding: "5px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>

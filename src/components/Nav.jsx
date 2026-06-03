@@ -6,6 +6,39 @@ import { useContentCollection } from "../lib/contentStore.js"
 import { ARTICLES, BOOKS } from "../data/index.js"
 import { usePWA } from "../hooks/usePWA.js"
 
+function getTimeMs(value) {
+  if (!value) return 0
+  if (typeof value.toDate === "function") return value.toDate().getTime()
+  if (value.seconds) return value.seconds * 1000
+  if (typeof value === "number") return value
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function getLocalDayKey(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const ms = getTimeMs(value)
+  if (!ms) return ""
+  const date = new Date(ms)
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-")
+}
+
+function normalizeStreakSettings(settings, uid) {
+  const protectedDays = Array.isArray(settings?.protectedDays) ? settings.protectedDays : []
+  const reminderTimes = Array.isArray(settings?.reminderTimes) ? settings.reminderTimes : []
+  return {
+    id: uid,
+    uid,
+    protectedDays,
+    remindersEnabled: settings?.remindersEnabled ?? false,
+    reminderTimes,
+  }
+}
+
 
 const NAV_LINKS = [
   { id: "home", label: "หน้าหลัก", icon: "ti-home" },
@@ -34,6 +67,8 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
 
   const { items: articles } = useContentCollection("articles", ARTICLES)
   const { items: books } = useContentCollection("books", BOOKS)
+  const { items: readingSessions } = useContentCollection("reading_sessions", [])
+  const { items: streakRecords } = useContentCollection("reading_streaks", [])
 
 
   const notifications = useMemo(() => {
@@ -89,8 +124,44 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
       onClick: () => nav("member", { view: "profile" })
     })
 
+    // 5. Daily Reading Reminders
+    if (uid && userSettings?.remindersEnabled && !hasReadToday) {
+      // Add countdown warning if between 23:00 - 00:00
+      const now = new Date()
+      if (now.getHours() === 23) {
+        list.unshift({ // Make it first (high priority)
+          id: "streak-countdown",
+          title: "⚠️ วันนี้คุณยังไม่ได้อ่านหนังสือ!",
+          desc: `กรุณาเข้ามาอ่านหนังสือเพื่อรักษา Streak ของคุณ! เวลาคงเหลือ: ${timeRemaining || "59:59"} นาที`,
+          time: "ด่วนที่สุด",
+          icon: "ti-alert-triangle",
+          color: "#ff4444",
+          onClick: () => nav("library")
+        })
+      }
+
+      // Add passed custom reminder times
+      userSettings.reminderTimes.forEach(timeStr => {
+        const [h, m] = timeStr.split(":").map(Number)
+        const remDate = new Date()
+        remDate.setHours(h, m, 0, 0)
+        
+        if (Date.now() >= remDate.getTime()) {
+          list.push({
+            id: `reminder-${timeStr}`,
+            title: "🔔 แจ้งเตือนเวลาอ่านหนังสือ",
+            desc: `ถึงเวลาที่คุณตั้งค่าไว้เพื่ออ่านหนังสือแล้ว (${timeStr} น.) เข้ามาอ่านเพื่อรักษา Streak กันเถอะ`,
+            time: `${timeStr} น.`,
+            icon: "ti-alarm",
+            color: "var(--teal)",
+            onClick: () => nav("library")
+          })
+        }
+      })
+    }
+
     return list
-  }, [articles, books, authState?.user, authState?.profile])
+  }, [articles, books, authState?.user, authState?.profile, uid, userSettings, hasReadToday, timeRemaining])
 
   const [seenIds, setSeenIds] = useState(() => {
     try {
@@ -109,6 +180,84 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
   })
 
   const [unreadCount, setUnreadCount] = useState(0)
+
+  const uid = authState?.user?.uid
+
+  const userSettings = useMemo(() => {
+    if (!uid || !streakRecords) return null
+    const found = streakRecords.find(item => item.uid === uid || item.id === uid)
+    return normalizeStreakSettings(found, uid)
+  }, [streakRecords, uid])
+
+  const hasReadToday = useMemo(() => {
+    if (!uid || !readingSessions) return false
+    const today = getLocalDayKey(Date.now())
+    return readingSessions.some(
+      session => session.uid === uid && 
+      session.verified && 
+      (session.dayKey || getLocalDayKey(session.completedAt || session.createdAt)) === today
+    )
+  }, [readingSessions, uid])
+
+  const [currentHM, setCurrentHM] = useState("")
+  const [timeRemaining, setTimeRemaining] = useState("") // Countdown timer for 23:00 - 00:00
+
+  // We keep a record of times we've alerted today to prevent duplicate alerts in the same minute
+  const alertedTimesRef = useRef({ date: "", times: new Set() })
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date()
+      const todayStr = getLocalDayKey(now.getTime())
+      
+      // Reset alerted times if day changed
+      if (alertedTimesRef.current.date !== todayStr) {
+        alertedTimesRef.current = { date: todayStr, times: new Set() }
+      }
+
+      // Check current time
+      const currentHours = String(now.getHours()).padStart(2, "0")
+      const currentMinutes = String(now.getMinutes()).padStart(2, "0")
+      const hm = `${currentHours}:${currentMinutes}`
+      setCurrentHM(hm)
+
+      // Calculate countdown time if it's 23:00-00:00
+      if (now.getHours() === 23) {
+        const secondsRemaining = 3600 - (now.getMinutes() * 60 + now.getSeconds())
+        const m = Math.floor(secondsRemaining / 60)
+        const s = secondsRemaining % 60
+        setTimeRemaining(`${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`)
+      } else {
+        setTimeRemaining("")
+      }
+
+      // Check custom reminder matching
+      if (
+        userSettings?.remindersEnabled && 
+        userSettings.reminderTimes.includes(hm) && 
+        !hasReadToday && 
+        !alertedTimesRef.current.times.has(hm)
+      ) {
+        alertedTimesRef.current.times.add(hm)
+        
+        // Show Toast
+        toast("📚 ได้เวลาอ่านหนังสือรายวันแล้ว! ช่วยรักษา Streak ของคุณด้วยการอ่านหนังสือสักนิด", {
+          icon: "🔔",
+          duration: 6000
+        })
+
+        // Trigger PWA/OS Alert if supported & permitted
+        if (Notification.permission === "granted") {
+          new Notification("📚 ได้เวลาอ่านหนังสือแล้ว!", {
+            body: "รักษา Streak ต่อเนื่องของท่านด้วยการอ่านบทความหรือหนังสืออย่างน้อย 10 นาทีวันนี้",
+            icon: "/icon-192.png"
+          })
+        }
+      }
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [userSettings, hasReadToday])
 
   // Filter visible (non-dismissed) notifications
   const visibleNotifications = useMemo(() => {

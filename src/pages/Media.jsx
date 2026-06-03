@@ -8,6 +8,7 @@ export default function Media({ go, ctx }) {
   const { site } = useSiteSettings(SITE)
   
   const filter = ctx?.filter || "all"
+  const sortOrder = ctx?.sort || "newest"
   const page = parseInt(ctx?.page, 10) || 1
 
   const [searchPlaylist, setSearchPlaylist] = useState(() => ctx?.searchPlaylist || "")
@@ -66,10 +67,11 @@ export default function Media({ go, ctx }) {
       searchPlaylist,
       playlist: ctx?.playlist || "",
       searchClip,
+      sort: sortOrder,
       page,
       ...newParams
     }
-    if (newParams.filter !== undefined || newParams.searchPlaylist !== undefined || newParams.playlist !== undefined) {
+    if (newParams.filter !== undefined || newParams.searchPlaylist !== undefined || newParams.playlist !== undefined || newParams.sort !== undefined) {
       updated.page = 1
       updated.searchClip = ""
     } else if (newParams.searchClip !== undefined) {
@@ -79,23 +81,56 @@ export default function Media({ go, ctx }) {
   }
 
   // 2. กรองเพลย์ลิสต์หน้าแรก (ค้นหา + ประเภท)
-  const filteredPlaylists = playlists.filter(pl => {
-    const matchType = filter === "all" || String(pl.type).toLowerCase() === String(filter).toLowerCase();
-    const matchSearch = String(pl.name).toLowerCase().includes(searchPlaylist.toLowerCase()) || 
-                        String(pl.teacher).toLowerCase().includes(searchPlaylist.toLowerCase());
-    return matchType && matchSearch;
-  })
+  const filteredPlaylists = useMemo(() => {
+    return playlists.filter(pl => {
+      const matchType = filter === "all" || String(pl.type).toLowerCase() === String(filter).toLowerCase();
+      const matchSearch = String(pl.name).toLowerCase().includes(searchPlaylist.toLowerCase()) || 
+                          String(pl.teacher).toLowerCase().includes(searchPlaylist.toLowerCase());
+      return matchType && matchSearch;
+    })
+  }, [playlists, filter, searchPlaylist])
+
+  // จัดเรียงเพลย์ลิสต์หน้าแรกตามวันล่าสุด/เก่าสุดของคลิปที่อยู่ในเพลย์ลิสต์
+  const sortedPlaylists = useMemo(() => {
+    return [...filteredPlaylists].sort((a, b) => {
+      const datesA = a.items.map(item => item.date || "").filter(Boolean)
+      const datesB = b.items.map(item => item.date || "").filter(Boolean)
+      
+      const maxDateA = datesA.length > 0 ? (sortOrder === "newest" ? datesA.reduce((x, y) => x > y ? x : y) : datesA.reduce((x, y) => x < y ? x : y)) : ""
+      const maxDateB = datesB.length > 0 ? (sortOrder === "newest" ? datesB.reduce((x, y) => x > y ? x : y) : datesB.reduce((x, y) => x < y ? x : y)) : ""
+
+      if (sortOrder === "newest") {
+        if (maxDateA !== maxDateB) return maxDateB.localeCompare(maxDateA)
+        return String(b.name).localeCompare(String(a.name))
+      } else {
+        if (maxDateA !== maxDateB) return maxDateA.localeCompare(maxDateB)
+        return String(a.name).localeCompare(String(b.name))
+      }
+    })
+  }, [filteredPlaylists, sortOrder])
 
   // 3. กรองคลิปเมื่ออยู่ด้านใน Playlist (ค้นหาชื่อคลิป)
   const filteredClips = useMemo(() => {
     if (!selectedPlaylist) return []
-    if (!searchClip.trim()) return selectedPlaylist.items
+    const items = [...selectedPlaylist.items]
     
-    return selectedPlaylist.items.filter(item => 
+    const matched = !searchClip.trim() ? items : items.filter(item => 
       String(item.title).toLowerCase().includes(searchClip.toLowerCase()) ||
       String(item.channel).toLowerCase().includes(searchClip.toLowerCase())
     )
-  }, [selectedPlaylist, searchClip])
+
+    return matched.sort((a, b) => {
+      const dateA = a.date || ""
+      const dateB = b.date || ""
+      if (sortOrder === "newest") {
+        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        return String(b.id || "").localeCompare(String(a.id || ""))
+      } else {
+        if (dateA !== dateB) return dateA.localeCompare(dateB)
+        return String(a.id || "").localeCompare(String(b.id || ""))
+      }
+    })
+  }, [selectedPlaylist, searchClip, sortOrder])
 
   // จัดการข้อมูลหน้า Pagination สำหรับคลิปที่กรองแล้ว
   const currentItems = useMemo(() => {
@@ -127,7 +162,7 @@ export default function Media({ go, ctx }) {
               />
             </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
               {filters.map(item => (
                 <button
                   key={item.id}
@@ -137,6 +172,10 @@ export default function Media({ go, ctx }) {
                   <i className={`ti ${item.icon}`} style={{ marginRight: 6 }}></i>{item.label}
                 </button>
               ))}
+              <select value={sortOrder} onChange={e => updateFilters({ sort: e.target.value })} style={{ width: "auto", height: 36, borderRadius: 24, padding: "0 16px", background: "var(--bg2)", border: "none", color: "var(--text)" }}>
+                <option value="newest">ใหม่ไปเก่า</option>
+                <option value="oldest">เก่าไปใหม่</option>
+              </select>
             </div>
           </div>
 
@@ -155,11 +194,11 @@ export default function Media({ go, ctx }) {
                 </div>
               ))}
             </div>
-          ) : filteredPlaylists.length === 0 ? (
+          ) : sortedPlaylists.length === 0 ? (
             <div className="empty">ไม่พบเพลย์ลิสต์ที่ตรงกับการค้นหา</div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 14 }}>
-              {filteredPlaylists.map((pl, idx) => (
+              {sortedPlaylists.map((pl, idx) => (
                 <div key={idx} className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden", padding: 0 }}>
                   <div style={{ display: "flex", height: 130, borderBottom: ".5px solid var(--br2)" }}>
                     <div style={{ flex: 1, background: pl.type === "youtube" ? "rgba(255,50,50,.05)" : pl.type === "spotify" ? "rgba(30,215,96,.05)" : "rgba(15,110,86,.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -206,14 +245,20 @@ export default function Media({ go, ctx }) {
           </div>
 
           {/* แถบค้นหาคลิปภายในเพลย์ลิสต์ */}
-          <div style={{ marginBottom: 24, position: "relative", maxWidth: 400 }}>
-            <i className="ti ti-search" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 16 }}></i>
-            <input 
-              value={searchClip} 
-              onChange={e => { setSearchClip(e.target.value); updateFilters({ searchClip: e.target.value }) }} 
-              placeholder={`ค้นหาคลิปใน ${selectedPlaylist.name}...`} 
-              style={{ width: "100%", paddingLeft: 42, borderRadius: 24, padding: "10px 16px 10px 42px", background: "var(--bg2)", border: ".5px solid var(--br)" }} 
-            />
+          <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 400 }}>
+              <i className="ti ti-search" style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--t3)", fontSize: 16 }}></i>
+              <input 
+                value={searchClip} 
+                onChange={e => { setSearchClip(e.target.value); updateFilters({ searchClip: e.target.value }) }} 
+                placeholder={`ค้นหาคลิปใน ${selectedPlaylist.name}...`} 
+                style={{ width: "100%", paddingLeft: 42, borderRadius: 24, padding: "10px 16px 10px 42px", background: "var(--bg2)", border: ".5px solid var(--br)" }} 
+              />
+            </div>
+            <select value={sortOrder} onChange={e => updateFilters({ sort: e.target.value })} style={{ width: "auto", height: 38, borderRadius: 24, padding: "0 16px", background: "var(--bg2)", border: ".5px solid var(--br)", color: "var(--text)" }}>
+              <option value="newest">ใหม่ไปเก่า</option>
+              <option value="oldest">เก่าไปใหม่</option>
+            </select>
           </div>
 
           {loading ? (

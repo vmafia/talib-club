@@ -27,6 +27,7 @@ export default function AdminLibrary() {
   const [categoryFilter, setCategoryFilter] = useState("all") 
   const [sourceFilter, setSourceFilter] = useState("all") 
   const [showAdvanced, setShowAdvanced] = useState(false) 
+  const [sortOrder, setSortOrder] = useState("newest")
 
   const [selected, setSelected] = useState([]) 
   const [busy, setBusy] = useState(false)
@@ -42,7 +43,7 @@ export default function AdminLibrary() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, typeFilter, categoryFilter, sourceFilter])
+  }, [search, typeFilter, categoryFilter, sourceFilter, sortOrder])
 
   const filtered = items.filter(b => {
     const matchSearch = String(b.title || "").toLowerCase().includes(search.toLowerCase()) || 
@@ -55,24 +56,37 @@ export default function AdminLibrary() {
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    const getMs = (val) => {
-      if (!val) return 0
-      if (typeof val.toDate === "function") return val.toDate().getTime()
-      if (val.seconds) return val.seconds * 1000
-      if (typeof val === "number") return val
-      const parsed = Date.parse(val)
-      return isNaN(parsed) ? 0 : parsed
-    }
-    const timeA = getMs(a.createdAt || a.updatedAt)
-    const timeB = getMs(b.createdAt || b.updatedAt)
-    if (timeA || timeB) {
-      if (timeA && timeB) return timeB - timeA
-      return timeA ? -1 : 1
-    }
     const yearA = Number(a.year) || 0
     const yearB = Number(b.year) || 0
-    if (yearA !== yearB) return yearB - yearA
-    return String(b.id || "").localeCompare(String(a.id || ""))
+    if (sortOrder === "newest") {
+      if (yearA !== yearB) return yearB - yearA
+      const getMs = (val) => {
+        if (!val) return 0
+        if (typeof val.toDate === "function") return val.toDate().getTime()
+        if (val.seconds) return val.seconds * 1000
+        if (typeof val === "number") return val
+        const parsed = Date.parse(val)
+        return isNaN(parsed) ? 0 : parsed
+      }
+      const timeA = getMs(a.createdAt || a.updatedAt)
+      const timeB = getMs(b.createdAt || b.updatedAt)
+      if (timeA !== timeB) return timeB - timeA
+      return String(b.id || "").localeCompare(String(a.id || ""))
+    } else {
+      if (yearA !== yearB) return yearA - yearB
+      const getMs = (val) => {
+        if (!val) return 0
+        if (typeof val.toDate === "function") return val.toDate().getTime()
+        if (val.seconds) return val.seconds * 1000
+        if (typeof val === "number") return val
+        const parsed = Date.parse(val)
+        return isNaN(parsed) ? 0 : parsed
+      }
+      const timeA = getMs(a.createdAt || a.updatedAt)
+      const timeB = getMs(b.createdAt || b.updatedAt)
+      if (timeA !== timeB) return timeA - timeB
+      return String(a.id || "").localeCompare(String(a.id || ""))
+    }
   })
 
   const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE)
@@ -227,13 +241,17 @@ export default function AdminLibrary() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={() => setTypeFilter("all")} className={`pill ${typeFilter === "all" ? "on-acc" : ""}`} style={{ padding: "8px 16px" }}>ทั้งหมด</button>
           {(taxonomy.bookTypes || []).map(type => (
             <button key={type} onClick={() => setTypeFilter(type)} className={`pill ${typeFilter === type ? "on-acc" : ""}`} style={{ padding: "8px 16px" }}>
               {type}
             </button>
           ))}
+          <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} style={{ width: "auto", height: 36, borderRadius: 24, padding: "0 16px", background: "var(--bg2)", border: "none", color: "var(--text)" }}>
+            <option value="newest">ปีที่พิมพ์ ใหม่ ➜ เก่า</option>
+            <option value="oldest">ปีที่พิมพ์ เก่า ➜ ใหม่</option>
+          </select>
         </div>
 
         <button 
