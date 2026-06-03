@@ -142,6 +142,10 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const { items: readingSessions, loading: loadingSessions } = useContentCollection("reading_sessions", [])
   const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
   const { items: shelfItems } = useContentCollection("bookshelf", [])
+  const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
+  
+  const userSavedVerses = useMemo(() => savedVerses.filter(item => item.uid === uid), [savedVerses, uid])
+  const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && !item.finished), [shelfItems, uid])
 
   // เช็คว่าเคยเปิดดู Tutorial หรือยัง (Onboarding)
   useEffect(() => {
@@ -390,9 +394,24 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
 
       <div className="grid3">
         <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชี" onClick={() => setView("profile")} />
-        <DashboardCard icon="ti-book" title="อัลกุรอานของฉัน" text="เปิดอ่าน แปลไทย ตัฟซีรย่อ และค้นหาคำสำคัญ" onClick={() => onOpenQuran(1, null)} />
-        <DashboardCard icon="ti-notebook" title="อายะฮ์ที่บันทึกไว้" text="ข้อคิดและประโยชน์ที่ได้รับจากอัลกุรอาน" onClick={onOpenSavedVerses} />
-        <DashboardCard icon="ti-device-desktop" title="ห้องอ่านหนังสือส่วนตัว" text="โหมดแอปจับเวลาอ่านหนังสือ สะสมไอเทม และทำภารกิจรายวัน" onClick={() => go("reader")} />
+        <DashboardCard 
+          icon="ti-book" 
+          title="อัลกุรอานของฉัน" 
+          text={lastRead ? `อ่านค้างไว้: ซูเราะฮ์ ${lastRead.suraName || lastRead.sura} อายะฮ์ ${lastRead.aya}` : "เปิดอ่าน แปลไทย ตัฟซีรย่อ และค้นหาคำสำคัญ"} 
+          onClick={() => onOpenQuran(lastRead?.sura || 1, lastRead?.aya || null)} 
+        />
+        <DashboardCard 
+          icon="ti-notebook" 
+          title="อายะฮ์ที่บันทึกไว้" 
+          text={userSavedVerses.length > 0 ? `บันทึกข้อคิดไว้แล้ว ${userSavedVerses.length} อายะฮ์` : "ข้อคิดและประโยชน์ที่ได้รับจากอัลกุรอาน"} 
+          onClick={onOpenSavedVerses} 
+        />
+        <DashboardCard 
+          icon="ti-device-desktop" 
+          title="ห้องอ่านหนังสือส่วนตัว" 
+          text={activeBooks.length > 0 ? `กำลังอ่านค้างอยู่ ${activeBooks.length} เล่ม · เข้าสู่โหมดจับเวลา` : "โหมดแอปจับเวลาอ่านหนังสือ สะสมไอเทม และทำภารกิจรายวัน"} 
+          onClick={() => go("reader")} 
+        />
         <DashboardCard icon="ti-flame" title={`${streak.current} วันต่อเนื่อง`} text={`ดีที่สุด ${streak.best} วัน · อ่านจริง ${streak.totalDays} วัน · คุ้มครอง ${streak.protectedTotal} วัน`} onClick={() => setView("bookshelf")} />
         <DashboardCard
           icon="ti-bookmark"
@@ -457,17 +476,30 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
   const completed = progress >= target
   const percent = Math.min(100, Math.round((progress / target) * 100))
 
+  const containerBg = claimed 
+    ? "rgba(45, 190, 160, 0.04)" 
+    : completed 
+      ? "rgba(45, 190, 160, 0.08)" 
+      : "var(--bg2)"
+  const borderColor = claimed 
+    ? "rgba(45, 190, 160, 0.15)" 
+    : completed 
+      ? "rgba(45, 190, 160, 0.35)" 
+      : "var(--br)"
+
   return (
     <div style={{
       padding: "12px 14px",
-      background: "var(--bg2)",
+      background: containerBg,
+      border: `1px solid ${borderColor}`,
       borderRadius: 12,
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
       flexWrap: "wrap",
-      textAlign: "left"
+      textAlign: "left",
+      transition: "all 0.2s ease"
     }}>
       <div style={{ flex: 1, minWidth: 200 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
@@ -489,7 +521,7 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
 
       <div>
         {claimed ? (
-          <button className="btn btn-outline" disabled style={{ padding: "6px 12px", fontSize: 11, opacity: 0.6, cursor: "not-allowed" }}>
+          <button className="btn btn-outline" disabled style={{ padding: "6px 12px", fontSize: 11, opacity: 0.6, cursor: "not-allowed", color: "var(--teal)", borderColor: "rgba(45, 190, 160, 0.2)" }}>
             <i className="ti ti-check" style={{ marginRight: 4 }}></i>รับแล้ว
           </button>
         ) : (

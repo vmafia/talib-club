@@ -49,12 +49,45 @@ export default function Admin({ go, authState, initialTab = "articles" }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => go("admin", { tab: t.id }, { replace: true, noScroll: true })} className={`pill ${tab === t.id ? "on" : ""}`}>
-            <i className={`ti ${t.icon}`} style={{ marginRight: 6 }}></i>{t.label}
-          </button>
-        ))}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media (max-width: 600px) {
+          .admin-mobile-select-wrapper {
+            display: block !important;
+          }
+          .admin-desktop-pills {
+            display: none !important;
+          }
+        }
+      `}} />
+
+      <div className="admin-nav-container" style={{ marginBottom: 24 }}>
+        <div className="admin-mobile-select-wrapper" style={{ display: "none" }}>
+          <select 
+            value={tab} 
+            onChange={(e) => go("admin", { tab: e.target.value }, { replace: true, noScroll: true })}
+            style={{ 
+              width: "100%", 
+              fontSize: 14, 
+              padding: "10px 14px", 
+              borderRadius: 8, 
+              border: "1px solid var(--br)", 
+              background: "var(--card)", 
+              fontFamily: "'Prompt', sans-serif" 
+            }}
+          >
+            {TABS.map(t => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="admin-desktop-pills" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => go("admin", { tab: t.id }, { replace: true, noScroll: true })} className={`pill ${tab === t.id ? "on" : ""}`}>
+              <i className={`ti ${t.icon}`} style={{ marginRight: 6 }}></i>{t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === "articles" && <AdminArticles />}

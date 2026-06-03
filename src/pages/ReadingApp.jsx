@@ -1046,7 +1046,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
                 {myActiveBooks.map(item => (
-                  <div key={item.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div key={item.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between", maxWidth: 320, width: "100%" }}>
                     <div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
                         <span className="tag tag-teal" style={{ fontSize: 9, padding: "1px 6px" }}>{item.book.category || "หนังสือ"}</span>
@@ -1221,17 +1221,30 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
   const completed = progress >= target
   const percent = Math.min(100, Math.round((progress / target) * 100))
   
+  const containerBg = claimed 
+    ? "rgba(45, 190, 160, 0.04)" 
+    : completed 
+      ? "rgba(45, 190, 160, 0.08)" 
+      : "var(--bg2)"
+  const borderColor = claimed 
+    ? "rgba(45, 190, 160, 0.15)" 
+    : completed 
+      ? "rgba(45, 190, 160, 0.35)" 
+      : "var(--br)"
+  
   return (
     <div style={{ 
       padding: "10px 12px", 
-      background: "var(--bg2)", 
+      background: containerBg, 
+      border: `1px solid ${borderColor}`,
       borderRadius: 12, 
       display: "flex", 
       alignItems: "center", 
       justifyContent: "space-between", 
       gap: 12,
       flexWrap: "wrap",
-      textAlign: "left"
+      textAlign: "left",
+      transition: "all 0.2s ease"
     }}>
       <div style={{ flex: 1, minWidth: 200 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
@@ -1253,7 +1266,7 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
       
       <div>
         {claimed ? (
-          <button className="btn btn-outline" disabled style={{ padding: "4px 8px", fontSize: 10, opacity: 0.6, cursor: "not-allowed" }}>
+          <button className="btn btn-outline" disabled style={{ padding: "4px 8px", fontSize: 10, opacity: 0.6, cursor: "not-allowed", color: "var(--teal)", borderColor: "rgba(45, 190, 160, 0.2)" }}>
             <i className="ti ti-check" style={{ marginRight: 2 }}></i>รับแล้ว
           </button>
         ) : (
@@ -1265,7 +1278,8 @@ function MissionRow({ title, desc, progress, target, formatProgress, rewardText,
               padding: "4px 10px", 
               fontSize: 10, 
               opacity: completed ? 1 : 0.6, 
-              cursor: completed ? "pointer" : "not-allowed"
+              cursor: completed ? "pointer" : "not-allowed",
+              boxShadow: completed ? "0 4px 10px rgba(45,190,160,0.15)" : "none"
             }}
           >
             {completed ? "รับรางวัล" : "ยังไม่เสร็จ"}

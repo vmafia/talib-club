@@ -801,11 +801,14 @@ input[type="range"] {
 }
 
 button.dashboard-card {
-  cursor: pointer
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 
 button.dashboard-card:hover {
-  transform: translateY(-2px)
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(45, 190, 160, 0.08);
+  border-color: rgba(45, 190, 160, 0.35);
 }
 
 .dashboard-card i {
