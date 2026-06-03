@@ -2063,7 +2063,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             </div>
           </div>
         </div>,
-        document.body
+        document.querySelector(".app") || document.body
       )}
 
       {/* MOBILE BOTTOM SHEET NAVIGATION DRAWER */}
@@ -2402,7 +2402,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             </div>
           </div>
         </div>,
-        document.body
+        document.querySelector(".app") || document.body
       )}
     </div>
   )

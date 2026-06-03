@@ -174,6 +174,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   const [activeBook, setActiveBook] = useState(null)
   const [activeMobileTab, setActiveMobileTab] = useState("form") // "preview" or "form" for mobile split layout, default to form first
   const [showTutorial, setShowTutorial] = useState(false)
+  const [readingTab, setReadingTab] = useState("reading") // "reading" | "finished" | "stats"
   
   // External Upload States
   const [addMode, setAddMode] = useState("library")
@@ -231,6 +232,36 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       }))
       .filter(item => item.book)
   }, [shelfItems, books, uid])
+
+  const myFinishedBooks = useMemo(() => {
+    return shelfItems
+      .filter(item => item.uid === uid && item.status === "finished")
+      .map(item => ({
+        ...item,
+        book: getShelfBook(item, books),
+      }))
+      .filter(item => item.book)
+  }, [shelfItems, books, uid])
+
+  const stats = useMemo(() => {
+    const userShelf = shelfItems.filter(item => item.uid === uid)
+    const finished = userShelf.filter(item => item.status === "finished").length
+    const reading = userShelf.filter(item => item.status === "reading" || !item.status).length
+    
+    const progressSum = userShelf.reduce((sum, item) => sum + Number(item.progress || 0), 0)
+    const avgProgress = userShelf.length ? Math.round(progressSum / userShelf.length) : 0
+    
+    const verifiedSessions = userShelf.reduce((sum, item) => sum + Number(item.verifiedSessions || 0), 0)
+    const totalSeconds = userShelf.reduce((sum, item) => sum + Number(item.totalReadSeconds || 0), 0)
+    
+    return {
+      reading,
+      finished,
+      avgProgress,
+      verifiedSessions,
+      totalSeconds
+    }
+  }, [shelfItems, uid])
 
   const availableBooks = useMemo(() => {
     const savedIds = new Set(shelfItems.filter(item => item.uid === uid).map(item => String(item.bookId)))
@@ -299,10 +330,11 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       return
     }
     
-    let nextFreeze = streakSettings.freezeCredits
-    let nextLeave = streakSettings.leaveCredits
-    if (isM1 || isM3) nextFreeze += 1
-    if (isM2) nextLeave += 1
+    let expReward = 0
+    let gemsReward = 0
+    if (isM1) { expReward = 10; gemsReward = 5; }
+    else if (isM2) { expReward = 15; gemsReward = 8; }
+    else if (isM3) { expReward = 20; gemsReward = 10; }
     
     const nextClaimed = {
       ...streakSettings.claimedMissions,
@@ -314,16 +346,48 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     
     await saveStreakSettings({
       ...streakSettings,
-      freezeCredits: nextFreeze,
-      leaveCredits: nextLeave,
+      exp: Number(streakSettings.exp || 0) + expReward,
+      gems: Number(streakSettings.gems || 0) + gemsReward,
       claimedMissions: nextClaimed
     })
     
-    toast.success(
-      isM2
-        ? "สำเร็จ! รับรางวัล สิทธิ์ลากิจ +1 📅"
-        : "สำเร็จ! รับรางวัล น้ำแข็งคุ้มครอง +1 🧊"
-    )
+    toast.success(`สำเร็จ! รับรางวัล +${expReward} EXP, +${gemsReward} 💎`)
+  }
+
+  async function buyItem(itemType) {
+    if (!uid) return
+    const isFreeze = itemType === "freeze"
+    const cost = isFreeze ? 50 : 80
+    const currentGems = Number(streakSettings.gems || 0)
+    
+    if (currentGems < cost) {
+      toast.error("เพชรของคุณไม่เพียงพอ")
+      return
+    }
+    
+    if (isFreeze) {
+      if (streakSettings.freezeCredits >= 2) {
+        toast.error("คุณมีน้ำแข็งเต็มจำนวนจำกัดแล้ว (สูงสุด 2 ชิ้น)")
+        return
+      }
+      await saveStreakSettings({
+        ...streakSettings,
+        gems: currentGems - cost,
+        freezeCredits: Number(streakSettings.freezeCredits || 0) + 1,
+      })
+      toast.success("ซื้อน้ำแข็งสำเร็จ! 🧊")
+    } else {
+      if (streakSettings.leaveCredits >= 2) {
+        toast.error("คุณมีสิทธิ์ลากิจเต็มจำนวนจำกัดแล้ว (สูงสุด 2 ชิ้น)")
+        return
+      }
+      await saveStreakSettings({
+        ...streakSettings,
+        gems: currentGems - cost,
+        leaveCredits: Number(streakSettings.leaveCredits || 0) + 1,
+      })
+      toast.success("ซื้อสิทธิ์ลากิจสำเร็จ! 📅")
+    }
   }
 
   // Auto-applied freeze logic for yesterday
@@ -589,6 +653,17 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         return
       }
 
+      // Calculate session rewards
+      const sessionExp = Math.round(seconds / 60) // 1 EXP per minute
+      const sessionGems = Math.min(10, Math.floor(seconds / 120)) // 1 Gem per 2 mins, max 10
+
+      // Update user's streak document with exp and gems
+      await saveStreakSettings({
+        ...streakSettings,
+        exp: Number(streakSettings.exp || 0) + sessionExp,
+        gems: Number(streakSettings.gems || 0) + sessionGems,
+      })
+
       const nextProgress = getProgressFromSession(activeBook, end, report.pagesRead)
       
       const cleanItem = { ...activeBook }
@@ -605,7 +680,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         lastVerificationScore: report.score,
       })
 
-      toast.success(`บันทึกการอ่านเสร็จสมบูรณ์! คะแนนยืนยันการเรียนรู้: ${report.score}/100`)
+      toast.success(`บันทึกการอ่านเสร็จสมบูรณ์! (+${sessionExp} EXP, +${sessionGems} 💎) คะแนนยืนยันการเรียนรู้: ${report.score}/100`)
       setIsRunning(false)
       setActiveBook(null)
       setSeconds(0)
@@ -916,16 +991,34 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Active Bookshelf Shelf Section */}
           <div style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <i className="ti ti-books" style={{ color: "var(--teal)", fontSize: 18 }}></i>
-                <h3 style={{ fontSize: 14, fontWeight: 600 }}>หนังสือที่กำลังอ่านค้างไว้ ({myActiveBooks.length})</h3>
-              </div>
-              
+            {/* Tab navigation */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 16, borderBottom: "1px solid var(--br2)", paddingBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <button 
+                onClick={() => setReadingTab("reading")} 
+                className={`reader-btn ${readingTab === "reading" ? "on" : ""}`}
+                style={{ fontSize: 11, padding: "5px 12px", border: "none", cursor: "pointer", borderRadius: 20 }}
+              >
+                กำลังอ่าน ({myActiveBooks.length})
+              </button>
+              <button 
+                onClick={() => setReadingTab("finished")} 
+                className={`reader-btn ${readingTab === "finished" ? "on" : ""}`}
+                style={{ fontSize: 11, padding: "5px 12px", border: "none", cursor: "pointer", borderRadius: 20 }}
+              >
+                อ่านจบแล้ว ({myFinishedBooks.length})
+              </button>
+              <button 
+                onClick={() => setReadingTab("stats")} 
+                className={`reader-btn ${readingTab === "stats" ? "on" : ""}`}
+                style={{ fontSize: 11, padding: "5px 12px", border: "none", cursor: "pointer", borderRadius: 20 }}
+              >
+                สถิติสะสม 📊
+              </button>
+
               <button 
                 onClick={() => setShowAddForm(!showAddForm)} 
                 className="btn btn-outline" 
-                style={{ fontSize: 11, padding: "6px 14px", borderRadius: 20 }}
+                style={{ fontSize: 11, padding: "6px 14px", borderRadius: 20, marginLeft: "auto" }}
               >
                 <i className={`ti ${showAddForm ? "ti-minus" : "ti-plus"}`}></i> {showAddForm ? "ปิดช่องเพิ่มหนังสือ" : "เพิ่มหนังสือเข้าชั้น"}
               </button>
@@ -954,12 +1047,12 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                   <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <select 
                       value={selectedBookToAdd} 
-                      onChange={e => setSelectedBookToAdd(e.target.value)} 
-                      style={{ fontSize: 13, padding: "8px 12px", borderRadius: 8, background: "var(--card)", border: "1px solid var(--br)", flex: 1, minWidth: 180 }}
+                      onChange={event => setSelectedBookToAdd(event.target.value)} 
+                      style={{ fontSize: 12, padding: "8px 10px", flex: 1, minWidth: 200 }}
                     >
-                      <option value="">-- เลือกหนังสือจากคลังของเว็บ --</option>
-                      {availableBooks.map(b => (
-                        <option key={b.id} value={b.id}>{b.title}</option>
+                      <option value="">-- เลือกหนังสือจากคลัง --</option>
+                      {availableBooks.map(book => (
+                        <option key={book.id} value={book.id}>{book.title} ({book.author})</option>
                       ))}
                     </select>
                     <button 
@@ -1039,47 +1132,133 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
               </div>
             )}
 
-            {myActiveBooks.length === 0 ? (
-              <div className="card" style={{ padding: "32px 16px", textAlign: "center", color: "var(--t3)" }}>
-                <i className="ti ti-book-2" style={{ fontSize: 36, marginBottom: 8, opacity: 0.5 }}></i>
-                <p style={{ fontSize: 13 }}>ไม่มีหนังสืออยู่ในหน้าอ่านค้างไว้ในขณะนี้</p>
-                <p style={{ fontSize: 11, marginTop: 4 }}>กรุณาเลือกหนังสือจากกล่องเลือกด้านบนเพื่อเพิ่มเข้าชั้นหนังสือและเริ่มเซสชันจับเวลาอ่านจริงครับ</p>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-                {myActiveBooks.map(item => (
-                  <div key={item.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-                        <span className="tag tag-teal" style={{ fontSize: 9, padding: "1px 6px" }}>{item.book.category || "หนังสือ"}</span>
-                        <span className="tag" style={{ fontSize: 9, padding: "1px 6px", background: "var(--acc2)" }}>{item.book.type}</span>
-                      </div>
-                      <strong style={{ fontSize: 13, color: "var(--text)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.4 }}>{item.book.title}</strong>
-                      <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 4, marginBottom: 12 }}>{item.book.author}</div>
-                      
-                      {/* Progress bar */}
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--t2)", marginBottom: 4 }}>
-                          <span>ความคืบหน้า</span>
-                          <span>{item.progress || 0}%</span>
+            {readingTab === "reading" && (
+              myActiveBooks.length === 0 ? (
+                <div className="card" style={{ padding: "32px 16px", textAlign: "center", color: "var(--t3)" }}>
+                  <i className="ti ti-book-2" style={{ fontSize: 36, marginBottom: 8, opacity: 0.5 }}></i>
+                  <p style={{ fontSize: 13 }}>ไม่มีหนังสืออยู่ในหน้าอ่านค้างไว้ในขณะนี้</p>
+                  <p style={{ fontSize: 11, marginTop: 4 }}>กรุณาเลือกหนังสือจากกล่องเลือกด้านบนเพื่อเพิ่มเข้าชั้นหนังสือและเริ่มเซสชันจับเวลาอ่านจริงครับ</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+                  {myActiveBooks.map(item => (
+                    <div key={item.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                          <span className="tag tag-teal" style={{ fontSize: 9, padding: "1px 6px" }}>{item.book.category || "หนังสือ"}</span>
+                          <span className="tag" style={{ fontSize: 9, padding: "1px 6px", background: "var(--acc2)" }}>{item.book.type}</span>
                         </div>
-                        <div style={{ height: 6, background: "var(--bg3)", borderRadius: 3, overflow: "hidden" }}>
-                          <div style={{ width: `${item.progress || 0}%`, height: "100%", background: "var(--teal)", borderRadius: 3 }}></div>
+                        <strong style={{ fontSize: 13, color: "var(--text)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.4 }}>{item.book.title}</strong>
+                        <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 4, marginBottom: 12 }}>{item.book.author}</div>
+                        
+                        {/* Progress bar */}
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--t2)", marginBottom: 4 }}>
+                            <span>ความคืบหน้า</span>
+                            <span>{item.progress || 0}%</span>
+                          </div>
+                          <div style={{ height: 6, background: "var(--bg3)", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${item.progress || 0}%`, height: "100%", background: "var(--teal)", borderRadius: 3 }}></div>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button 
-                        onClick={() => startReading(item)} 
-                        className="btn btn-teal" 
-                        style={{ flex: 1, padding: "6px 0", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
-                      >
-                        <i className="ti ti-device-desktop"></i> เปิดห้องอ่าน (จับเวลา)
-                      </button>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button 
+                          onClick={() => startReading(item)} 
+                          className="btn btn-teal" 
+                          style={{ flex: 1, padding: "6px 0", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                        >
+                          <i className="ti ti-device-desktop"></i> เปิดห้องอ่าน (จับเวลา)
+                        </button>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {readingTab === "finished" && (
+              myFinishedBooks.length === 0 ? (
+                <div className="card" style={{ padding: "32px 16px", textAlign: "center", color: "var(--t3)" }}>
+                  <i className="ti ti-book" style={{ fontSize: 36, marginBottom: 8, opacity: 0.5 }}></i>
+                  <p style={{ fontSize: 13 }}>ยังไม่มีหนังสือที่อ่านจบแล้วในคลัง</p>
+                  <p style={{ fontSize: 11, marginTop: 4 }}>สู้ๆ ครับ! เมื่อคุณอ่านหนังสือได้ครบ 100% หนังสือจะย้ายมาอยู่ตู้นี้โดยอัตโนมัติ</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+                  {myFinishedBooks.map(item => (
+                    <div key={item.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between", opacity: 0.9 }}>
+                      <div>
+                        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                          <span className="tag tag-teal" style={{ fontSize: 9, padding: "1px 6px" }}>{item.book.category || "หนังสือ"}</span>
+                          <span className="tag" style={{ fontSize: 9, padding: "1px 6px", background: "var(--teal-bg)", color: "var(--teal)" }}>อ่านจบแล้ว ✨</span>
+                        </div>
+                        <strong style={{ fontSize: 13, color: "var(--text)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.4 }}>{item.book.title}</strong>
+                        <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 4, marginBottom: 12 }}>{item.book.author}</div>
+                        
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--t2)", marginBottom: 4 }}>
+                            <span>ความคืบหน้า</span>
+                            <span>100%</span>
+                          </div>
+                          <div style={{ height: 6, background: "var(--bg3)", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: "100%", height: "100%", background: "var(--teal)", borderRadius: 3 }}></div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--t2)", display: "flex", flexDirection: "column", gap: 2, borderTop: "1px solid var(--br2)", paddingTop: 8, marginTop: 8 }}>
+                          <span>อ่านสะสม: {formatReadingMinutes(item.totalReadSeconds || 0)}</span>
+                          <span>ยืนยันข้อมูล: {item.verifiedSessions || 0} ครั้ง</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {readingTab === "stats" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+                <div className="card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--teal-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <i className="ti ti-book-2" style={{ color: "var(--teal)", fontSize: 20 }}></i>
                   </div>
-                ))}
+                  <div>
+                    <span style={{ fontSize: 11, color: "var(--t3)", display: "block" }}>กำลังอ่าน</span>
+                    <strong style={{ fontSize: 16, color: "var(--text)" }}>{stats.reading} เล่ม</strong>
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(255,179,0,.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <i className="ti ti-check" style={{ color: "rgb(255,179,0)", fontSize: 20 }}></i>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 11, color: "var(--t3)", display: "block" }}>อ่านจบแล้ว</span>
+                    <strong style={{ fontSize: 16, color: "var(--text)" }}>{stats.finished} เล่ม</strong>
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(59,115,196,.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <i className="ti ti-chart-dots" style={{ color: "#6ba0ff", fontSize: 20 }}></i>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 11, color: "var(--t3)", display: "block" }}>ความคืบหน้าเฉลี่ย</span>
+                    <strong style={{ fontSize: 16, color: "var(--text)" }}>{stats.avgProgress}%</strong>
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(167,139,250,.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <i className="ti ti-shield-check" style={{ color: "#a78bfa", fontSize: 20 }}></i>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 11, color: "var(--t3)", display: "block" }}>อ่านจริงที่ยืนยันแล้ว</span>
+                    <strong style={{ fontSize: 14, color: "var(--text)", display: "block" }}>{stats.verifiedSessions} ครั้ง</strong>
+                    <span style={{ fontSize: 9, color: "var(--t2)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>สะสม: {formatReadingMinutes(stats.totalSeconds)}</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1171,6 +1350,65 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
             </div>
           </section>
 
+          {/* 💎 Item Shop & Currency Card */}
+          <div className="card" style={{ padding: 18, marginBottom: 0, display: "flex", flexDirection: "column", gap: 12, textAlign: "left" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="ti ti-shopping-cart" style={{ color: "var(--teal)", fontSize: 16 }}></i>
+                <h3 style={{ fontSize: 13, fontWeight: 600 }}>ร้านค้าไอเทม (Item Shop)</h3>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(245,158,11,0.08)", padding: "4px 8px", borderRadius: 20, border: "0.5px solid rgba(245,158,11,0.2)" }}>
+                <span style={{ fontSize: 13 }}>💎</span>
+                <strong style={{ fontSize: 13, color: "#f59e0b" }}>{streakSettings.gems || 0}</strong>
+              </div>
+            </div>
+            
+            <div style={{ fontSize: 11, color: "var(--t2)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg2)", padding: "8px 12px", borderRadius: 8 }}>
+              <span>พลังสะสม:</span>
+              <strong style={{ color: "var(--teal)" }}>{streakSettings.exp || 0} EXP</strong>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {/* Item 1: Freeze Ice */}
+              <div style={{ display: "flex", flex: 1, minWidth: 200, alignItems: "center", justifyContent: "space-between", background: "var(--bg2)", padding: 10, borderRadius: 10, border: "0.5px solid var(--br)" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 18 }}>🧊</span>
+                  <div>
+                    <strong style={{ fontSize: 11, color: "var(--text)", display: "block" }}>น้ำแข็ง (Freeze)</strong>
+                    <span style={{ fontSize: 9, color: "var(--t3)", display: "block" }}>คุ้มครอง Streak อัตโนมัติ</span>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-teal"
+                  onClick={() => buyItem("freeze")}
+                  disabled={Number(streakSettings.gems || 0) < 50 || Number(streakSettings.freezeCredits || 0) >= 2}
+                  style={{ padding: "6px 10px", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <span>50 💎</span>
+                </button>
+              </div>
+
+              {/* Item 2: Leave Day */}
+              <div style={{ display: "flex", flex: 1, minWidth: 200, alignItems: "center", justifyContent: "space-between", background: "var(--bg2)", padding: 10, borderRadius: 10, border: "0.5px solid var(--br)" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 18 }}>📅</span>
+                  <div>
+                    <strong style={{ fontSize: 11, color: "var(--text)", display: "block" }}>ลากิจ (Leave)</strong>
+                    <span style={{ fontSize: 9, color: "var(--t3)", display: "block" }}>กดใช้วันนี้ด้วยตัวเอง</span>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-teal"
+                  onClick={() => buyItem("leave")}
+                  disabled={Number(streakSettings.gems || 0) < 80 || Number(streakSettings.leaveCredits || 0) >= 2}
+                  style={{ padding: "6px 10px", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}
+                >
+                  <span>80 💎</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* 🎯 Daily Missions Checklist */}
           <div className="card" style={{ padding: 18, marginBottom: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -1185,7 +1423,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todaySeconds}
                 target={600}
                 formatProgress={(val) => `${Math.round(val / 60)}/10 นาที`}
-                rewardText="+1 น้ำแข็ง 🧊"
+                rewardText="+10 EXP, +5 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m1}
                 onClaim={() => claimMission("m1")}
               />
@@ -1196,7 +1434,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todaySessions.reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0)}
                 target={100}
                 formatProgress={(val) => `${val}/100 ตัวอักษร`}
-                rewardText="+1 สิทธิ์ลากิจ 📅"
+                rewardText="+15 EXP, +8 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m2}
                 onClaim={() => claimMission("m2")}
               />
@@ -1207,7 +1445,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todayQuizPassed ? 1 : 0}
                 target={1}
                 formatProgress={(val) => val === 1 ? "สำเร็จ" : "ยังไม่สำเร็จ"}
-                rewardText="+1 น้ำแข็ง 🧊"
+                rewardText="+20 EXP, +10 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m3}
                 onClaim={() => claimMission("m3")}
               />

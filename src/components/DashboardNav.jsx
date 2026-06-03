@@ -55,6 +55,8 @@ export default function DashboardNav({ setView, go }) {
   function handleClick(view) {
     if (view === "quran") {
       go("quran", { sura: 1, ayah: null })
+    } else if (view === "bookshelf" || view === "streak") {
+      go("reader")
     } else {
       setView(view)
     }
