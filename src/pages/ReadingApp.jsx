@@ -462,6 +462,22 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     toast.success(isLeave ? "บันทึกวันลากิจแล้ว" : "ใช้น้ำแข็งคุ้มครอง streak วันนี้แล้ว")
   }
 
+  async function removeShelfItem(id) {
+    const ok = await confirmAction({
+      title: "ลบออกจากชั้นหนังสือ?",
+      message: "ข้อมูลความคืบหน้าและประวัติการอ่านของเล่มนี้จะถูกลบออกจากชั้นของคุณ",
+      confirmText: "ยืนยันการลบ",
+      danger: true
+    })
+    if (!ok) return
+    try {
+      await deleteShelfItem(id)
+      toast.success("ลบหนังสือออกจากชั้นเรียบร้อยแล้ว")
+    } catch (err) {
+      toast.error("ลบไม่สำเร็จ กรุณาตรวจสอบสิทธิ์")
+    }
+  }
+
   async function addNewBookToShelf() {
     if (!selectedBookToAdd || !uid) return
     const book = books.find(item => String(item.id) === String(selectedBookToAdd))
@@ -1178,6 +1194,14 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                         >
                           <i className="ti ti-device-desktop"></i> เปิดห้องอ่าน (จับเวลา)
                         </button>
+                        <button 
+                          onClick={() => removeShelfItem(item.id)} 
+                          className="btn btn-outline" 
+                          style={{ padding: "6px 10px", fontSize: 11, color: "#e05555", borderColor: "rgba(224,85,85,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          title="ลบหนังสือออกจากชั้น"
+                        >
+                          <i className="ti ti-trash"></i>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1216,6 +1240,15 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                         <div style={{ fontSize: 10, color: "var(--t2)", display: "flex", flexDirection: "column", gap: 2, borderTop: "1px solid var(--br2)", paddingTop: 8, marginTop: 8 }}>
                           <span>อ่านสะสม: {formatReadingMinutes(item.totalReadSeconds || 0)}</span>
                           <span>ยืนยันข้อมูล: {item.verifiedSessions || 0} ครั้ง</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                          <button 
+                            onClick={() => removeShelfItem(item.id)} 
+                            className="btn btn-outline" 
+                            style={{ flex: 1, padding: "6px 0", fontSize: 11, color: "#e05555", borderColor: "rgba(224,85,85,0.3)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                          >
+                            <i className="ti ti-trash"></i> ลบหนังสือออกจากชั้น
+                          </button>
                         </div>
                       </div>
                     </div>
