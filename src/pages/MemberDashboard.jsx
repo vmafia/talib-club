@@ -9,7 +9,7 @@ import { confirmAction } from "../utils/feedback.jsx"
 import Quran from "./Quran.jsx"
 import DashboardNav from "../components/DashboardNav.jsx"
 
-export default function MemberDashboard({ authState, go, initialView = "overview", ctx }) {
+export default function MemberDashboard({ authState, go, initialView = "overview", ctx, theme }) {
   const [view, setCurrentView] = useState("overview")
   const [copied, setCopied] = useState("")
   const [quranSura, setQuranSura] = useState(1)
@@ -21,7 +21,13 @@ export default function MemberDashboard({ authState, go, initialView = "overview
   const role = profile.role || "member"
 
   useEffect(() => {
-    if (initialView) setCurrentView(initialView)
+    if (initialView) {
+      if (initialView === "bookshelf" || initialView === "streak") {
+        go("reader")
+      } else {
+        setCurrentView(initialView)
+      }
+    }
 
     const searchParams = new URLSearchParams(window.location.search)
     const sura = searchParams.get("sura") || ctx?.sura
@@ -29,11 +35,13 @@ export default function MemberDashboard({ authState, go, initialView = "overview
     if (sura) setQuranSura(Number(sura))
     if (ayah) setQuranAyah(Number(ayah))
     else setQuranAyah(null)
-  }, [initialView, ctx])
+  }, [initialView, ctx, go])
 
   const setView = (newView) => {
     if (newView === "quran") {
       go("quran", { sura: quranSura, ayah: quranAyah })
+    } else if (newView === "bookshelf" || newView === "streak") {
+      go("reader")
     } else {
       go("member", { view: newView })
     }
@@ -136,240 +144,13 @@ export default function MemberDashboard({ authState, go, initialView = "overview
 
 function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
-  const [showTutorial, setShowTutorial] = useState(false)
 
   const uid = authState?.user?.uid
-  const { items: readingSessions, loading: loadingSessions } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
   const { items: shelfItems } = useContentCollection("bookshelf", [])
   const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
   
   const userSavedVerses = useMemo(() => savedVerses.filter(item => item.uid === uid), [savedVerses, uid])
-  const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && !item.finished), [shelfItems, uid])
-
-  // เช็คว่าเคยเปิดดู Tutorial หรือยัง (Onboarding)
-  useEffect(() => {
-    const hasSeenTutorial = localStorage.getItem("talib_has_seen_onboarding")
-    if (!hasSeenTutorial) {
-      setShowTutorial(true)
-    }
-  }, [])
-
-  const handleCloseTutorial = () => {
-    localStorage.setItem("talib_has_seen_onboarding", "true")
-    setShowTutorial(false)
-  }
-
-  const streakSettings = useMemo(() => {
-    return normalizeStreakSettings(streakRecords.find(item => item.uid === uid || item.id === uid), uid)
-  }, [streakRecords, uid])
-
-  const streak = useMemo(() => {
-    const verifiedDays = readingSessions
-      .filter(item => item.uid === uid && item.verified)
-      .map(item => item.dayKey || item.completedAt || item.createdAt)
-    return calculateReadingStreak(verifiedDays, streakSettings.protectedDays)
-  }, [readingSessions, streakSettings.protectedDays, uid])
-
-  const todaySessions = useMemo(() => {
-    return readingSessions.filter(item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt)) === streak.todayKey)
-  }, [readingSessions, streak.todayKey, uid])
-
-  const todaySeconds = todaySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
-  const goalPercent = Math.min(100, Math.round((todaySeconds / (DAILY_READING_GOAL_MINUTES * 60)) * 100))
-
-  const todayQuizPassed = useMemo(() => {
-    return shelfItems.some(item => {
-      if (item.uid !== uid || !item.lastQuiz) return false
-      const dateKey = getLocalDayKey(item.lastQuiz.takenAt)
-      return dateKey === streak.todayKey && item.lastQuiz.score >= 3
-    })
-  }, [shelfItems, streak.todayKey, uid])
-
-  const last7Days = useMemo(() => {
-    const list = []
-    const dayNames = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]
-    for (let i = 6; i >= 0; i--) {
-      const key = addDaysToKey(streak.todayKey, -i)
-      const dateObj = new Date(`${key}T00:00:00`)
-      const name = dayNames[dateObj.getDay()]
-
-      const daySessions = readingSessions.filter(
-        item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt)) === key
-      )
-      const secs = daySessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0)
-      const minutes = Math.round(secs / 60)
-      const metGoal = secs >= DAILY_READING_GOAL_MINUTES * 60
-
-      const protection = streakSettings.protectedDays.find(
-        p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === key
-      )
-
-      list.push({
-        key,
-        name,
-        minutes,
-        metGoal,
-        protection,
-        hasRead: daySessions.length > 0
-      })
-    }
-    return list
-  }, [readingSessions, streak.todayKey, streakSettings.protectedDays, uid])
-
-  // Auto-applied freeze logic for yesterday
-  useEffect(() => {
-    if (!uid || loadingSessions || loadingStreaks || !streakSettings) return
-
-    const yesterdayKey = addDaysToKey(streak.todayKey, -1)
-
-    // Check if user read yesterday
-    const readYesterday = readingSessions.some(
-      item => item.uid === uid && item.verified && (item.dayKey || getLocalDayKey(item.completedAt || item.createdAt)) === yesterdayKey
-    )
-
-    // Check if yesterday was already protected
-    const protectedYesterday = streakSettings.protectedDays.some(
-      p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === yesterdayKey
-    )
-
-    if (!readYesterday && !protectedYesterday && streakSettings.freezeCredits > 0) {
-      const applyAutoFreeze = async () => {
-        try {
-          await saveStreakSettings({
-            ...streakSettings,
-            freezeCredits: Number(streakSettings.freezeCredits || 0) - 1,
-            protectedDays: [
-              ...streakSettings.protectedDays,
-              { date: yesterdayKey, type: "freeze", usedAt: Date.now() },
-            ],
-          })
-          toast.success("เมื่อวานนี้คุณไม่ได้เข้าอ่านหนังสือ! ระบบได้ใช้น้ำแข็งช่วยปกป้อง Streak ของคุณอัตโนมัติ 🧊", { duration: 5000 })
-        } catch (err) {
-          console.error("Auto freeze failed", err)
-        }
-      }
-      applyAutoFreeze()
-    }
-  }, [uid, loadingSessions, loadingStreaks, streakSettings, readingSessions, streak.todayKey, saveStreakSettings])
-
-  async function protectToday(type) {
-    if (!uid) return
-    if (streak.todayVerified) {
-      toast.success("วันนี้ต่อไฟด้วยการอ่านจริงแล้ว")
-      return
-    }
-    if (streak.todayProtected) {
-      toast.success("วันนี้ได้รับการคุ้มครอง streak แล้ว")
-      return
-    }
-    const key = streak.todayKey
-    const isLeave = type === "leave"
-    const creditKey = isLeave ? "leaveCredits" : "freezeCredits"
-    if (Number(streakSettings[creditKey] || 0) <= 0) {
-      toast.error(isLeave ? "สิทธิ์ลากิจหมดแล้ว" : "น้ำแข็งหมดแล้ว")
-      return
-    }
-    await saveStreakSettings({
-      ...streakSettings,
-      [creditKey]: Number(streakSettings[creditKey] || 0) - 1,
-      protectedDays: [
-        ...streakSettings.protectedDays,
-        { date: key, type, usedAt: Date.now() },
-      ],
-    })
-    toast.success(isLeave ? "บันทึกวันลากิจแล้ว streak ยังปลอดภัย" : "ใช้น้ำแข็งคุ้มครอง streak วันนี้แล้ว")
-  }
-
-  async function claimMission(missionId) {
-    if (!uid) return
-    const weekKey = getWeekKey()
-    const weekClaims = streakSettings.claimedMissions?.[weekKey] || {}
-    if (weekClaims[missionId]) {
-      toast.success("คุณรับรางวัลภารกิจนี้แล้วในสัปดาห์นี้")
-      return
-    }
-
-    let completed = false
-    const weekSessions = readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey())
-
-    if (missionId === "m1") {
-      const weekSeconds = weekSessions.reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)
-      completed = weekSeconds >= 10800
-    }
-    if (missionId === "m2") {
-      completed = weekSessions.some(s => s.reflection && s.reflection.length >= 3000)
-    }
-    if (missionId === "m3") {
-      completed = shelfItems.some(item => {
-        if (item.uid !== uid || !item.lastQuiz) return false
-        return item.lastQuiz.score >= 17
-      })
-    }
-
-    if (!completed) {
-      if (missionId === "m1") toast.error("ภารกิจยังไม่สำเร็จ: สะสมเวลาอ่านในสัปดาห์นี้ให้ครบ 3 ชั่วโมงก่อน")
-      else if (missionId === "m2") toast.error("ภารกิจยังไม่สำเร็จ: เขียนข้อคิดครบ 3,000 ตัวอักษร ในสัปดาห์นี้")
-      else toast.error("ภารกิจยังไม่สำเร็จ: ทำ Quiz ได้ 17/20 ขึ้นไป")
-      return
-    }
-
-    let expReward = 0
-    let gemsReward = 0
-    if (missionId === "m1") { expReward = 100; gemsReward = 50; }
-    else if (missionId === "m2") { expReward = 120; gemsReward = 60; }
-    else if (missionId === "m3") { expReward = 150; gemsReward = 80; }
-
-    const nextClaimed = {
-      ...streakSettings.claimedMissions,
-      [weekKey]: { ...(streakSettings.claimedMissions?.[weekKey] || {}), [missionId]: true }
-    }
-
-    await saveStreakSettings({
-      ...streakSettings,
-      exp: Number(streakSettings.exp || 0) + expReward,
-      gems: Number(streakSettings.gems || 0) + gemsReward,
-      claimedMissions: nextClaimed
-    })
-
-    toast.success(`สำเร็จ! รับรางวัล +${expReward} EXP, +${gemsReward} 💎`)
-  }
-
-  async function buyItem(itemType) {
-    if (!uid) return
-    const isFreeze = itemType === "freeze"
-    const cost = isFreeze ? 50 : 80
-    const currentGems = Number(streakSettings.gems || 0)
-    
-    if (currentGems < cost) {
-      toast.error("เพชรของคุณไม่เพียงพอ")
-      return
-    }
-    
-    if (isFreeze) {
-      if (streakSettings.freezeCredits >= 2) {
-        toast.error("คุณมีน้ำแข็งเต็มจำนวนจำกัดแล้ว (สูงสุด 2 ชิ้น)")
-        return
-      }
-      await saveStreakSettings({
-        ...streakSettings,
-        gems: currentGems - cost,
-        freezeCredits: Number(streakSettings.freezeCredits || 0) + 1,
-      })
-      toast.success("ซื้อน้ำแข็งสำเร็จ! 🧊")
-    } else {
-      if (streakSettings.leaveCredits >= 2) {
-        toast.error("คุณมีสิทธิ์ลากิจเต็มจำนวนจำกัดแล้ว (สูงสุด 2 ชิ้น)")
-        return
-      }
-      await saveStreakSettings({
-        ...streakSettings,
-        gems: currentGems - cost,
-        leaveCredits: Number(streakSettings.leaveCredits || 0) + 1,
-      })
-      toast.success("ซื้อสิทธิ์ลากิจสำเร็จ! 📅")
-    }
-  }
+  const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && item.status !== "finished"), [shelfItems, uid])
 
   useEffect(() => {
     try {
@@ -384,82 +165,6 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
 
   return (
     <div>
-      {/* Onboarding Tutorial Modal */}
-      {showTutorial && <TutorialModal onClose={handleCloseTutorial} />}
-
-      <ReadingStreakPanel
-        streak={streak}
-        settings={streakSettings}
-        todaySeconds={todaySeconds}
-        goalPercent={goalPercent}
-        last7Days={last7Days}
-        onRead={() => go("reader")}
-        onFreeze={() => protectToday("freeze")}
-        onLeave={() => protectToday("leave")}
-        onShowTutorial={() => setShowTutorial(true)}
-      />
-
-      {/* 💎 Item Shop & Currency Card */}
-      <div className="card" style={{ padding: 18, marginBottom: 20, display: "flex", flexDirection: "column", gap: 12, textAlign: "left" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <i className="ti ti-shopping-cart" style={{ color: "var(--teal)", fontSize: 16 }}></i>
-            <h3 style={{ fontSize: 13, fontWeight: 600 }}>ร้านค้าไอเทม (Item Shop)</h3>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(245,158,11,0.08)", padding: "4px 8px", borderRadius: 20, border: "0.5px solid rgba(245,158,11,0.2)" }}>
-            <span style={{ fontSize: 13 }}>💎</span>
-            <strong style={{ fontSize: 13, color: "#f59e0b" }}>{streakSettings.gems || 0}</strong>
-          </div>
-        </div>
-        
-        <div style={{ fontSize: 11, color: "var(--t2)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg2)", padding: "8px 12px", borderRadius: 8 }}>
-          <span>พลังสะสม:</span>
-          <strong style={{ color: "var(--teal)" }}>{streakSettings.exp || 0} EXP</strong>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {/* Item 1: Freeze Ice */}
-          <div style={{ display: "flex", flex: 1, minWidth: 200, alignItems: "center", justifyContent: "space-between", background: "var(--bg2)", padding: 10, borderRadius: 10, border: "0.5px solid var(--br)" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 18 }}>🧊</span>
-              <div>
-                <strong style={{ fontSize: 11, color: "var(--text)", display: "block" }}>น้ำแข็ง (Freeze)</strong>
-                <span style={{ fontSize: 9, color: "var(--t3)", display: "block" }}>คุ้มครอง Streak อัตโนมัติ</span>
-              </div>
-            </div>
-            <button
-              className="btn btn-teal"
-              onClick={() => buyItem("freeze")}
-              disabled={streakSettings.gems < 50 || streakSettings.freezeCredits >= 2}
-              style={{ padding: "6px 10px", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}
-            >
-              <span>50 💎</span>
-            </button>
-          </div>
-
-          {/* Item 2: Leave Day */}
-          <div style={{ display: "flex", flex: 1, minWidth: 200, alignItems: "center", justifyContent: "space-between", background: "var(--bg2)", padding: 10, borderRadius: 10, border: "0.5px solid var(--br)" }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 18 }}>📅</span>
-              <div>
-                <strong style={{ fontSize: 11, color: "var(--text)", display: "block" }}>ลากิจ (Leave)</strong>
-                <span style={{ fontSize: 9, color: "var(--t3)", display: "block" }}>กดใช้วันนี้ด้วยตัวเอง</span>
-              </div>
-            </div>
-            <button
-              className="btn btn-teal"
-              onClick={() => buyItem("leave")}
-              disabled={streakSettings.gems < 80 || streakSettings.leaveCredits >= 2}
-              style={{ padding: "6px 10px", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}
-            >
-              <span>80 💎</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-
-
       {lastRead && (
         <div className="card" style={{
           padding: "16px 20px",
@@ -478,15 +183,11 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
               <i className="ti ti-flag-2" style={{ color: "var(--teal)", fontSize: 16 }}></i>
             </div>
             <div>
-              <span style={{ fontSize: 11, color: "var(--t2)", display: "block" }}>อ่านอัลกุรอานค้างไว้ล่าสุด</span>
-              <strong style={{ fontSize: 13, color: "var(--text)" }}>ซูเราะฮ์ {lastRead.suraName} ({lastRead.suraThaiName}) อายะฮ์ที่ {lastRead.aya}</strong>
+              <strong style={{ fontSize: 13, color: "var(--text)", display: "block" }}>อ่านต่อล่าสุด</strong>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>ซูเราะฮ์ {lastRead.suraName || lastRead.sura} อายะฮ์ {lastRead.aya}</span>
             </div>
           </div>
-          <button
-            className="btn btn-teal"
-            style={{ padding: "6px 16px", fontSize: 12 }}
-            onClick={() => onOpenQuran(lastRead.sura, lastRead.aya)}
-          >
+          <button className="btn btn-teal" onClick={() => onOpenQuran(lastRead.sura, lastRead.aya)} style={{ padding: "6px 14px", fontSize: 11 }}>
             อ่านต่อล่าสุด <i className="ti ti-arrow-right" style={{ marginLeft: 4 }}></i>
           </button>
         </div>
@@ -512,7 +213,7 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
           text={activeBooks.length > 0 ? `กำลังอ่านค้างอยู่ ${activeBooks.length} เล่ม · เข้าสู่โหมดจับเวลา` : "โหมดแอปจับเวลาอ่านหนังสือ สะสมไอเทม และทำภารกิจรายวัน"} 
           onClick={() => go("reader")} 
         />
-        <DashboardCard icon="ti-flame" title={`${streak.current} วันต่อเนื่อง`} text={`ดีที่สุด ${streak.best} วัน · อ่านจริง ${streak.totalDays} วัน · คุ้มครอง ${streak.protectedTotal} วัน`} onClick={() => go("reader")} />
+        <DashboardCard icon="ti-flame" title="สถิติ Streak" text="ดูสถิติ Streak, ภารกิจประจำวัน และร้านค้าไอเทม" onClick={() => go("reader")} />
         <DashboardCard
           icon="ti-bookmark"
           title="บทความที่บันทึกไว้"
@@ -1143,6 +844,14 @@ function BookshelfPanel({ authState, go, setView }) {
     if (!uid) return
     if (streak.todayVerified) { toast.success("วันนี้ต่อไฟด้วยการอ่านจริงแล้ว"); return }
     if (streak.todayProtected) { toast.success("วันนี้ได้รับการคุ้มครอง streak แล้ว"); return }
+
+    // Check if streak is 0 (i.e. yesterday was not read/protected)
+    const yesterdayKey = addDaysToKey(streak.todayKey, -1)
+    if (!streak.coveredDays || !streak.coveredDays.has(yesterdayKey)) {
+      toast.error("คุณไม่มีวันสะสมต่อเนื่อง (Streak เป็น 0) จึงไม่สามารถใช้สิทธิ์คุ้มครองได้")
+      return
+    }
+
     const key = streak.todayKey
     const isLeave = type === "leave"
     const creditKey = isLeave ? "leaveCredits" : "freezeCredits"
@@ -1156,6 +865,52 @@ function BookshelfPanel({ authState, go, setView }) {
   }
 
 
+  async function claimMission(missionId) {
+    if (!uid) return
+    const currentWeekKey = getWeekKey()
+    if (streakSettings.claimedMissions?.[currentWeekKey]?.[missionId]) {
+      toast.success("คุณรับรางวัลภารกิจนี้ไปแล้วในสัปดาห์นี้")
+      return
+    }
+
+    // Check if mission is actually completed
+    const weekSessions = readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === currentWeekKey)
+    let completed = false
+    if (missionId === "m1") {
+      const totalSecs = weekSessions.reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)
+      completed = totalSecs >= 10800
+    } else if (missionId === "m2") {
+      const maxLen = weekSessions.reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0)
+      completed = maxLen >= 3000
+    } else if (missionId === "m3") {
+      const best = shelfItems.filter(i => i.uid === uid && i.lastQuiz).map(i => i.lastQuiz.score || 0)
+      completed = best.length > 0 && Math.max(...best) >= 17
+    }
+
+    if (!completed) {
+      toast.error("ภารกิจยังไม่เสร็จสมบูรณ์")
+      return
+    }
+
+    let gemsReward = 0
+    if (missionId === "m1") gemsReward = 50
+    else if (missionId === "m2") gemsReward = 60
+    else if (missionId === "m3") gemsReward = 80
+
+    const nextClaimed = {
+      ...streakSettings.claimedMissions,
+      [currentWeekKey]: {
+        ...(streakSettings.claimedMissions?.[currentWeekKey] || {}),
+        [missionId]: true
+      }
+    }
+    await saveStreakSettings({
+      ...streakSettings,
+      gems: Number(streakSettings.gems || 0) + gemsReward,
+      claimedMissions: nextClaimed
+    })
+    toast.success(`สำเร็จ! รับรางวัล +${gemsReward} 💎`)
+  }
 
   // ─── Onboarding ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1171,7 +926,7 @@ function BookshelfPanel({ authState, go, setView }) {
 
   return (
     <div className="profile-layout" style={{ maxWidth: 980, margin: "0 auto" }}>
-      {showTutorial && <TutorialModal onClose={() => { localStorage.setItem("talib_has_seen_onboarding", "true"); setShowTutorial(false) }} />}
+      {showTutorial && <TutorialModal onClose={() => { localStorage.setItem("talib_has_seen_onboarding", "true"); setShowTutorial(false) }} theme={theme} />}
       <button
         onClick={() => setView("overview")}
         className="sec-link"
@@ -1200,14 +955,14 @@ function BookshelfPanel({ authState, go, setView }) {
             <i className="ti ti-target" style={{ color: "var(--teal)", fontSize: 18 }}></i>
           </div>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 600 }}>ภารกิจสะสม EXP และเพชรรายสัปดาห์</h3>
-            <p style={{ fontSize: 11, color: "var(--t2)" }}>ทำครั้งเดียวต่อสัปดาห์ · สะสม EXP และ Gems เพื่อนำไปใช้แลกเปลี่ยนไอเทม</p>
+            <h3 style={{ fontSize: 15, fontWeight: 600 }}>ภารกิจสะสมเพชรรายสัปดาห์</h3>
+            <p style={{ fontSize: 11, color: "var(--t2)" }}>ทำครั้งเดียวต่อสัปดาห์ · สะสม Gems เพื่อนำไปใช้แลกเปลี่ยนไอเทม</p>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <MissionRow title="1. ผู้อ่านสะสมเวลา" desc="อ่านสะสมครบ 3 ชั่วโมงในสัปดาห์นี้" progress={readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey()).reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)} target={10800} formatProgress={(val) => { const hours = Math.floor(val / 3600); const mins = Math.floor((val % 3600) / 60); return `${hours} ชม. ${mins} นาที / 3 ชม.`; }} rewardText="+100 EXP, +50 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m1} onClaim={() => claimMission("m1")} />
-          <MissionRow title="2. บันทึกข้อคิดเชิงลึก" desc="เขียนข้อคิดในเซสชันเดียว ความยาวตั้งแต่ 3,000 ตัวอักษรขึ้นไป" progress={Math.min(3000, readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey()).reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0))} target={3000} formatProgress={(val) => `${val.toLocaleString()}/3,000 ตัว`} rewardText="+120 EXP, +60 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m2} onClaim={() => claimMission("m2")} />
-          <MissionRow title="3. ผู้พิชิตแบบทดสอบ" desc="ทำ Quiz หนังสือและได้คะแนนตั้งแต่ 17/20 ข้อขึ้นไป" progress={(() => { const best = shelfItems.filter(i => i.uid === uid && i.lastQuiz).map(i => i.lastQuiz.score || 0); return best.length ? Math.max(...best) : 0 })()} target={17} formatProgress={(val) => `${val}/20 ข้อ`} rewardText="+150 EXP, +80 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m3} onClaim={() => claimMission("m3")} />
+          <MissionRow title="1. ผู้อ่านสะสมเวลา" desc="อ่านสะสมครบ 3 ชั่วโมงในสัปดาห์นี้" progress={readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey()).reduce((sum, s) => sum + Number(s.activeSeconds || 0), 0)} target={10800} formatProgress={(val) => { const hours = Math.floor(val / 3600); const mins = Math.floor((val % 3600) / 60); return `${hours} ชม. ${mins} นาที / 3 ชม.`; }} rewardText="+50 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m1} onClaim={() => claimMission("m1")} />
+          <MissionRow title="2. บันทึกข้อคิดเชิงลึก" desc="เขียนข้อคิดในเซสชันเดียว ความยาวตั้งแต่ 3,000 ตัวอักษรขึ้นไป" progress={Math.min(3000, readingSessions.filter(s => s.uid === uid && s.verified && getWeekKey(s.completedAt || s.createdAt || s.startedAt) === getWeekKey()).reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0))} target={3000} formatProgress={(val) => `${val.toLocaleString()}/3,000 ตัว`} rewardText="+60 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m2} onClaim={() => claimMission("m2")} />
+          <MissionRow title="3. ผู้พิชิตแบบทดสอบ" desc="ทำ Quiz หนังสือและได้คะแนนตั้งแต่ 17/20 ข้อขึ้นไป" progress={(() => { const best = shelfItems.filter(i => i.uid === uid && i.lastQuiz).map(i => i.lastQuiz.score || 0); return best.length ? Math.max(...best) : 0 })()} target={17} formatProgress={(val) => `${val}/20 ข้อ`} rewardText="+80 💎" claimed={streakSettings.claimedMissions?.[getWeekKey()]?.m3} onClaim={() => claimMission("m3")} />
         </div>
       </div>
 
@@ -2325,9 +2080,9 @@ function SavedVersesPanel({ authState, go, setView, setQuranSura, setQuranAyah }
   )
 }
 
-function TutorialModal({ onClose }) {
-  return (
-    <div style={{
+function TutorialModal({ onClose, theme }) {
+  return createPortal(
+    <div className={`app ${theme || "light"}`} style={{
       position: "fixed",
       inset: 0,
       background: "rgba(0,0,0,0.65)",
@@ -2356,7 +2111,7 @@ function TutorialModal({ onClose }) {
       <div className="card" style={{
         maxWidth: 500,
         width: "100%",
-        maxHeight: "calc(100dvh - 40px)",
+        maxHeight: "calc(100vh - 40px)",
         padding: "24px 20px 20px 20px",
         display: "flex",
         flexDirection: "column",
@@ -2460,6 +2215,7 @@ function TutorialModal({ onClose }) {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -260,7 +260,7 @@ export default function App() {
             
             {page === "member" && (
               <RequireLogin authState={authState} go={go}>
-                <MemberDashboard authState={authState} go={go} initialView={ctx?.view} ctx={ctx} />
+                <MemberDashboard authState={authState} go={go} initialView={ctx?.view} ctx={ctx} theme={theme} />
               </RequireLogin>
             )}
             {page === "staff" && (

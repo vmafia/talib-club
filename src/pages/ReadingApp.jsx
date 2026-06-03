@@ -330,11 +330,10 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       return
     }
     
-    let expReward = 0
     let gemsReward = 0
-    if (isM1) { expReward = 10; gemsReward = 5; }
-    else if (isM2) { expReward = 15; gemsReward = 8; }
-    else if (isM3) { expReward = 20; gemsReward = 10; }
+    if (isM1) gemsReward = 5
+    else if (isM2) gemsReward = 8
+    else if (isM3) gemsReward = 10
     
     const nextClaimed = {
       ...streakSettings.claimedMissions,
@@ -346,12 +345,11 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     
     await saveStreakSettings({
       ...streakSettings,
-      exp: Number(streakSettings.exp || 0) + expReward,
       gems: Number(streakSettings.gems || 0) + gemsReward,
       claimedMissions: nextClaimed
     })
     
-    toast.success(`สำเร็จ! รับรางวัล +${expReward} EXP, +${gemsReward} 💎`)
+    toast.success(`สำเร็จ! รับรางวัล +${gemsReward} 💎`)
   }
 
   async function buyItem(itemType) {
@@ -406,7 +404,10 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       p => (p.date || p.dayKey || getLocalDayKey(p.createdAt || p.usedAt)) === yesterdayKey
     )
 
-    if (!readYesterday && !protectedYesterday && streakSettings.freezeCredits > 0) {
+    // Check if user actually had an active streak of at least 1 day before yesterday
+    const hadStreakBeforeYesterday = streak.coveredDays && streak.coveredDays.has(addDaysToKey(yesterdayKey, -1))
+
+    if (!readYesterday && !protectedYesterday && streakSettings.freezeCredits > 0 && hadStreakBeforeYesterday) {
       const applyAutoFreeze = async () => {
         try {
           await saveStreakSettings({
@@ -424,7 +425,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       }
       applyAutoFreeze()
     }
-  }, [uid, loadingSessions, loadingStreaks, streakSettings, readingSessions, streak.todayKey, saveStreakSettings])
+  }, [uid, loadingSessions, loadingStreaks, streakSettings, readingSessions, streak.todayKey, streak.coveredDays, saveStreakSettings])
 
   async function protectToday(type) {
     if (!uid) return
@@ -436,6 +437,14 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       toast.success("วันนี้ได้รับการคุ้มครอง streak แล้ว")
       return
     }
+
+    // Check if streak is 0 (i.e. yesterday was not read/protected)
+    const yesterdayKey = addDaysToKey(streak.todayKey, -1)
+    if (!streak.coveredDays || !streak.coveredDays.has(yesterdayKey)) {
+      toast.error("คุณไม่มีวันสะสมต่อเนื่อง (Streak เป็น 0) จึงไม่สามารถใช้สิทธิ์คุ้มครองได้")
+      return
+    }
+
     const key = streak.todayKey
     const isLeave = type === "leave"
     const creditKey = isLeave ? "leaveCredits" : "freezeCredits"
@@ -654,13 +663,11 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       }
 
       // Calculate session rewards
-      const sessionExp = Math.round(seconds / 60) // 1 EXP per minute
       const sessionGems = Math.min(10, Math.floor(seconds / 120)) // 1 Gem per 2 mins, max 10
 
-      // Update user's streak document with exp and gems
+      // Update user's streak document with gems
       await saveStreakSettings({
         ...streakSettings,
-        exp: Number(streakSettings.exp || 0) + sessionExp,
         gems: Number(streakSettings.gems || 0) + sessionGems,
       })
 
@@ -680,7 +687,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         lastVerificationScore: report.score,
       })
 
-      toast.success(`บันทึกการอ่านเสร็จสมบูรณ์! (+${sessionExp} EXP, +${sessionGems} 💎) คะแนนยืนยันการเรียนรู้: ${report.score}/100`)
+      toast.success(`บันทึกการอ่านเสร็จสมบูรณ์! (+${sessionGems} 💎) คะแนนยืนยันการเรียนรู้: ${report.score}/100`)
       setIsRunning(false)
       setActiveBook(null)
       setSeconds(0)
@@ -1362,11 +1369,6 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 <strong style={{ fontSize: 13, color: "#f59e0b" }}>{streakSettings.gems || 0}</strong>
               </div>
             </div>
-            
-            <div style={{ fontSize: 11, color: "var(--t2)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg2)", padding: "8px 12px", borderRadius: 8 }}>
-              <span>พลังสะสม:</span>
-              <strong style={{ color: "var(--teal)" }}>{streakSettings.exp || 0} EXP</strong>
-            </div>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {/* Item 1: Freeze Ice */}
@@ -1423,7 +1425,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todaySeconds}
                 target={600}
                 formatProgress={(val) => `${Math.round(val / 60)}/10 นาที`}
-                rewardText="+10 EXP, +5 💎"
+                rewardText="+5 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m1}
                 onClaim={() => claimMission("m1")}
               />
@@ -1434,7 +1436,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todaySessions.reduce((max, s) => Math.max(max, s.reflection?.length || 0), 0)}
                 target={100}
                 formatProgress={(val) => `${val}/100 ตัวอักษร`}
-                rewardText="+15 EXP, +8 💎"
+                rewardText="+8 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m2}
                 onClaim={() => claimMission("m2")}
               />
@@ -1445,7 +1447,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 progress={todayQuizPassed ? 1 : 0}
                 target={1}
                 formatProgress={(val) => val === 1 ? "สำเร็จ" : "ยังไม่สำเร็จ"}
-                rewardText="+20 EXP, +10 💎"
+                rewardText="+10 💎"
                 claimed={streakSettings.claimedMissions?.[streak.todayKey]?.m3}
                 onClaim={() => claimMission("m3")}
               />
