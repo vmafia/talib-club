@@ -194,7 +194,12 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
       )}
 
       <div className="grid3">
-        <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชี" onClick={() => setView("profile")} />
+        <DashboardCard 
+          icon="ti-device-desktop" 
+          title="ห้องอ่านหนังสือ & สถิติสะสม" 
+          text={activeBooks.length > 0 ? `กำลังอ่านค้างอยู่ ${activeBooks.length} เล่ม · จับเวลาสะสมไฟต่อเนื่องและทำภารกิจ` : "โหมดจับเวลาอ่านหนังสือ สะสมไฟต่อเนื่อง ทำภารกิจประจำวัน และร้านค้า"} 
+          onClick={() => go("reader")} 
+        />
         <DashboardCard 
           icon="ti-book" 
           title="อัลกุรอานของฉัน" 
@@ -207,19 +212,13 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
           text={userSavedVerses.length > 0 ? `บันทึกข้อคิดไว้แล้ว ${userSavedVerses.length} อายะฮ์` : "ข้อคิดและประโยชน์ที่ได้รับจากอัลกุรอาน"} 
           onClick={onOpenSavedVerses} 
         />
-        <DashboardCard 
-          icon="ti-device-desktop" 
-          title="ห้องอ่านหนังสือส่วนตัว" 
-          text={activeBooks.length > 0 ? `กำลังอ่านค้างอยู่ ${activeBooks.length} เล่ม · เข้าสู่โหมดจับเวลา` : "โหมดแอปจับเวลาอ่านหนังสือ สะสมไอเทม และทำภารกิจรายวัน"} 
-          onClick={() => go("reader")} 
-        />
-        <DashboardCard icon="ti-flame" title="สถิติ Streak" text="ดูสถิติ Streak, ภารกิจประจำวัน และร้านค้าไอเทม" onClick={() => go("reader")} />
         <DashboardCard
           icon="ti-bookmark"
           title="บทความที่บันทึกไว้"
           text="เก็บบทความที่อยากกลับมาอ่านภายหลัง"
           onClick={() => setView("saved-articles")}
         />
+        <DashboardCard icon="ti-user-circle" title="โปรไฟล์ของฉัน" text="จัดการข้อมูลบัญชีและรหัสสมาชิก" onClick={() => setView("profile")} />
       </div>
     </div>
   )

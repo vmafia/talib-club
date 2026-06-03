@@ -212,11 +212,16 @@ export default function App() {
     // Embed context parameters automatically into the URL query string
     if (data) {
       const qParams = new URLSearchParams()
-      Object.entries(data).forEach(([key, val]) => {
-        if (val !== null && val !== undefined) {
-          qParams.set(key, val)
-        }
-      })
+      if (["article", "library-detail", "media-detail"].includes(p) && data.id) {
+        // For detail pages, only serialize 'id' to keep URLs clean, short, and shareable!
+        qParams.set("id", String(data.id))
+      } else {
+        Object.entries(data).forEach(([key, val]) => {
+          if (val !== null && val !== undefined && typeof val !== "object") {
+            qParams.set(key, String(val))
+          }
+        })
+      }
       const queryString = qParams.toString()
       if (queryString) {
         urlPath += `?${queryString}`
