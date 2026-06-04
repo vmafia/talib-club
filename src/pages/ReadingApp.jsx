@@ -176,9 +176,9 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
     go("reader", Object.keys(next).length ? next : null, { replace: true, noScroll: true })
   }
   const { items: books } = useContentCollection("books", BOOKS)
-  const { items: shelfItems, saveItem: saveShelfItem, deleteItem: deleteShelfItem } = useContentCollection("bookshelf", [])
-  const { items: readingSessions, loading: loadingSessions, saveItem: saveReadingSession } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const { items: shelfItems, saveItem: saveShelfItem, deleteItem: deleteShelfItem } = useContentCollection("bookshelf", [], uid)
+  const { items: readingSessions, loading: loadingSessions, saveItem: saveReadingSession } = useContentCollection("reading_sessions", [], uid)
+  const { items: streakRecords, loading: loadingStreaks, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [], uid)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
   // Reading Mode State

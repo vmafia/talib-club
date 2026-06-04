@@ -70,7 +70,7 @@ export default function App() {
   const [countdownText, setCountdownText] = useState("")
 
   const uid = authState?.user?.uid
-  const { items: readingSessions } = useContentCollection("reading_sessions", [])
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid)
   const countdownNotifRef = useRef(null)
 
   // --- Preferred Time Notification (60s interval, gated by user toggle) ---

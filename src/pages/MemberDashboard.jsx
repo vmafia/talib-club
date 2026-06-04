@@ -151,9 +151,9 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
 
   const uid = authState?.user?.uid
-  const { items: shelfItems } = useContentCollection("bookshelf", [])
-  const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
-  const { items: lastReadPos } = useContentCollection("quran_last_read", [])
+  const { items: shelfItems } = useContentCollection("bookshelf", [], uid)
+  const { items: savedVerses } = useContentCollection("quran_bookmarks", [], uid)
+  const { items: lastReadPos } = useContentCollection("quran_last_read", [], uid)
   
   const userSavedVerses = useMemo(() => savedVerses.filter(item => item.uid === uid), [savedVerses, uid])
   const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && item.status !== "finished"), [shelfItems, uid])
@@ -335,10 +335,9 @@ function calculateReadingStreak(values, protections = []) {
 }
 
 function SavedArticlesPanel({ authState, go, setView }) {
-  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES)
-  const { items: bookmarks, loading: loadingBookmarks } = useContentCollection("bookmarks", [])
-
   const uid = authState?.user?.uid;
+  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES)
+  const { items: bookmarks, loading: loadingBookmarks } = useContentCollection("bookmarks", [], uid)
 
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -601,10 +600,10 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
 
 
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [])
-  const { items: savedVerses } = useContentCollection("quran_bookmarks", [])
-  const { items: readingSessions } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [])
+  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [], user?.uid)
+  const { items: savedVerses } = useContentCollection("quran_bookmarks", [], user?.uid)
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], user?.uid)
+  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [], user?.uid)
 
   const history = useMemo(() => {
     if (!user?.uid) return [];
@@ -995,8 +994,8 @@ function formEmailChanged(nextEmail, currentEmail) {
 const fieldStyle = { display: "grid", gap: 6, marginTop: 12, fontSize: 12, color: "var(--t2)" }
 
 function SavedVersesPanel({ authState, go, setView, setQuranSura, setQuranAyah }) {
-  const { items: savedVerses, loading, deleteItem, saveItem } = useContentCollection("quran_bookmarks", [])
   const uid = authState?.user?.uid;
+  const { items: savedVerses, loading, deleteItem, saveItem } = useContentCollection("quran_bookmarks", [], uid)
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editNote, setEditNote] = useState("");

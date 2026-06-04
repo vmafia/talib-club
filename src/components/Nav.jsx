@@ -65,12 +65,11 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
     togglePushSubscription
   } = usePWA(authState?.user, authState?.isStaff)
 
+  const uid = authState?.user?.uid
   const { items: articles } = useContentCollection("articles", ARTICLES)
   const { items: books } = useContentCollection("books", BOOKS)
-  const { items: readingSessions } = useContentCollection("reading_sessions", [])
-  const { items: streakRecords } = useContentCollection("reading_streaks", [])
-
-  const uid = authState?.user?.uid
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid)
+  const { items: streakRecords } = useContentCollection("reading_streaks", [], uid)
 
   const userSettings = useMemo(() => {
     if (!uid || !streakRecords) return null

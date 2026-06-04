@@ -26,11 +26,12 @@ function getPreviewUrl(url) {
 }
 
 export default function LibraryDetail({ item, go, authState }) {
+  const uid = authState?.user?.uid;
   // ดึง saveItem ออกมาจากคอลเล็กชันเพื่อใช้อัปเดตข้อมูลขึ้น Firebase
   const { items: books, loading, saveItem } = useContentCollection("books", BOOKS)
   
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { saveItem: saveHistory } = useContentCollection("history", [])
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
   
   const urlId = new URLSearchParams(window.location.search).get("id")
   const hasIncrementedView = useRef(null) // ตัวรั้งสำหรับป้องกันการบวกยอดวิวซ้ำตอนเรนเดอร์

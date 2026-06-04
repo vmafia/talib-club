@@ -3,8 +3,9 @@ import { useContentCollection } from "../lib/contentStore.js"
 import { MEDIA } from "../data/index.js"
 
 export default function MediaDetail({ item: initialItem, go, authState }) {
+  const uid = authState?.user?.uid;
   const { items: mediaList, loading } = useContentCollection("media", MEDIA)
-  const { saveItem: saveHistory } = useContentCollection("history", [])
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
 
   const urlId = new URLSearchParams(window.location.search).get("id")
 

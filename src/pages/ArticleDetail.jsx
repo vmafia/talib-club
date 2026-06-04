@@ -19,13 +19,14 @@ function sanitizeArticleForStore(article) {
 }
 
 export default function ArticleDetail({ item, go, authState }) {
+  const uid = authState?.user?.uid;
   const { items: articles, loading: loadingArticles, saveItem } = useContentCollection("articles", ARTICLES)
   
   // 💡 เชื่อมต่อกับคอลเลกชัน bookmarks ใน Firestore
-  const { items: bookmarks, saveItem: saveBookmark, deleteItem: deleteBookmark } = useContentCollection("bookmarks", [])
+  const { items: bookmarks, saveItem: saveBookmark, deleteItem: deleteBookmark } = useContentCollection("bookmarks", [], uid)
   
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { saveItem: saveHistory } = useContentCollection("history", [])
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
   
   const urlId = new URLSearchParams(window.location.search).get("id")
   const hasIncrementedView = useRef(null)
@@ -96,7 +97,6 @@ export default function ArticleDetail({ item, go, authState }) {
   }, [readerPrefs])
 
   // --- ระบบเช็คสถานะการบันทึกจาก Firestore (อิงตาม UID) ---
-  const uid = authState?.user?.uid;
   
   const savedList = useMemo(() => {
     if (!uid) return [];

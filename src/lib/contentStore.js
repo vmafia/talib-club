@@ -5,6 +5,8 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
+  query,
+  where,
 } from "firebase/firestore"
 import { db } from "./firebase.js"
 
@@ -18,6 +20,7 @@ export const CONTENT_COLLECTIONS = {
   reading_sessions: "content_reading_sessions",
   reading_streaks: "content_reading_streaks",
   quran_bookmarks: "content_quran_bookmarks",
+  quran_last_read: "content_quran_last_read",
   history: "content_history",
 }
 
@@ -94,11 +97,22 @@ function mergeWithFallback(fallbackItems, remoteItems) {
   return [...byId.values()]
 }
 
-export function useContentCollection(name, fallbackItems = []) {
+const USER_SPECIFIC_COLLECTIONS = [
+  "bookmarks",
+  "bookshelf",
+  "reading_sessions",
+  "reading_streaks",
+  "quran_bookmarks",
+  "quran_last_read",
+  "history",
+]
+
+export function useContentCollection(name, fallbackItems = [], uid = null) {
   const [remoteItems, setRemoteItems] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const collectionName = CONTENT_COLLECTIONS[name]
+  const isUserSpecific = USER_SPECIFIC_COLLECTIONS.includes(name)
 
   useEffect(() => {
     if (!collectionName) {
@@ -107,8 +121,21 @@ export function useContentCollection(name, fallbackItems = []) {
       return undefined
     }
 
+    if (isUserSpecific && !uid) {
+      setRemoteItems([])
+      setLoading(false)
+      return undefined
+    }
+
+    setLoading(true)
+
+    let q = collection(db, collectionName)
+    if (isUserSpecific && uid) {
+      q = query(q, where("uid", "==", uid))
+    }
+
     const unsubscribe = onSnapshot(
-      collection(db, collectionName),
+      q,
       snapshot => {
         const next = snapshot.docs.map(item => {
           const data = item.data()
@@ -127,7 +154,7 @@ export function useContentCollection(name, fallbackItems = []) {
     )
 
     return unsubscribe
-  }, [collectionName, name])
+  }, [collectionName, name, uid, isUserSpecific])
 
   const serializedFallback = JSON.stringify(fallbackItems)
   const stableFallbackItems = useMemo(() => fallbackItems, [serializedFallback])
@@ -147,6 +174,9 @@ export function useContentCollection(name, fallbackItems = []) {
       id,
       deleted: false,
       updatedAt: serverTimestamp(),
+    }
+    if (isUserSpecific && uid && !payload.uid) {
+      payload.uid = uid
     }
     if (!payload.createdAt && !item.createdAt) {
       payload.createdAt = serverTimestamp()

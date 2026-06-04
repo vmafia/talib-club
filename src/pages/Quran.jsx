@@ -281,12 +281,12 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   const [searchResults, setSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(null)
-  // Bookmarks (Reflection notes) from Firestore
-  const { items: savedVerses, saveItem, deleteItem } = useContentCollection("quran_bookmarks", [])
   const uid = authState?.user?.uid
+  // Bookmarks (Reflection notes) from Firestore
+  const { items: savedVerses, saveItem, deleteItem } = useContentCollection("quran_bookmarks", [], uid)
 
   // Last Read Position from Firestore & local storage
-  const { items: lastReadPos, saveItem: saveLastRead, deleteItem: deleteLastRead } = useContentCollection("quran_last_read", [])
+  const { items: lastReadPos, saveItem: saveLastRead, deleteItem: deleteLastRead } = useContentCollection("quran_last_read", [], uid)
   const [lastRead, setLastRead] = useState(() => {
     try {
       const local = localStorage.getItem("quran-last-read")
