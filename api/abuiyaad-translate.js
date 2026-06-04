@@ -180,6 +180,62 @@ async function translateWithGemini(elements, apiKey) {
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}"
   const jsonText = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim()
   return JSON.parse(jsonText)
+}function repairParagraphs(html) {
+  const tokens = html.split(/(<\/?[a-zA-Z0-9]+(?:\s+[^>]*)?>)/g)
+  let result = []
+  let pOpen = false
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]
+    if (i % 2 === 1) { // It is a tag
+      const isStartTag = token.startsWith("<") && !token.startsWith("</") && !token.endsWith("/>")
+      const isEndTag = token.startsWith("</")
+      const tagName = token.replace(/[<>\/]/g, "").split(/\s+/)[0].toLowerCase()
+
+      if (isStartTag) {
+        if (tagName === "p") {
+          if (pOpen) {
+            result.push("</p>")
+          }
+          pOpen = true
+          result.push("<p>")
+        } else if (["div", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "hr", "br"].includes(tagName)) {
+          if (pOpen) {
+            result.push("</p>")
+            pOpen = false
+          }
+          result.push(token)
+        } else {
+          result.push(token)
+        }
+      } else if (isEndTag) {
+        if (tagName === "p") {
+          if (pOpen) {
+            result.push("</p>")
+            pOpen = false
+          }
+        } else if (["div", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li"].includes(tagName)) {
+          if (pOpen) {
+            result.push("</p>")
+            pOpen = false
+          }
+          result.push(token)
+        } else {
+          result.push(token)
+        }
+      } else {
+        result.push(token)
+      }
+    } else { // It is text
+      result.push(token)
+    }
+  }
+
+  if (pOpen) {
+    result.push("</p>")
+  }
+
+  return result.join("")
 }
 
 export default async function handler(req, res) {
@@ -212,12 +268,14 @@ export default async function handler(req, res) {
       return send(res, 404, { error: "Article content wrapper (.articleContent) not found on the page." })
     }
 
+    const repairedHtml = repairParagraphs(contentHtml)
+
     // 3. Extract text elements
     const elements = []
     const regex = /<(p|h1|h2|h3|h4|h5|li|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi
     let match
     let index = 0
-    while ((match = regex.exec(contentHtml))) {
+    while ((match = regex.exec(repairedHtml))) {
       const tag = match[1].toLowerCase()
       const text = cleanText(match[2])
       

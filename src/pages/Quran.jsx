@@ -266,16 +266,10 @@ export default function Quran({ initialSura, initialAyah, authState }) {
 
   const [arabicSize, setArabicSize] = useState(32) // px
   const [thaiSize, setThaiSize] = useState(15) // px
-  const [quranFont, setQuranFont] = useState(() => {
-    return localStorage.getItem("quran-font-family") || "UthmanicHafs"
-  })
+  const quranFont = "UthmanicHafs"
   const [tajweedEnabled, setTajweedEnabled] = useState(() => {
     return localStorage.getItem("quran-tajweed-enabled") !== "false"
   })
-
-  useEffect(() => {
-    localStorage.setItem("quran-font-family", quranFont)
-  }, [quranFont])
 
   useEffect(() => {
     localStorage.setItem("quran-tajweed-enabled", tajweedEnabled)
@@ -2019,27 +2013,6 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               gap: 12,
               textAlign: "left"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                <span style={{ fontSize: 11, color: "var(--t2)", fontWeight: 500, whiteSpace: "nowrap" }}>ฟอนต์อาหรับ:</span>
-                <select
-                  value={quranFont}
-                  onChange={e => setQuranFont(e.target.value)}
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: 11,
-                    borderRadius: 8,
-                    border: "0.5px solid var(--quran-br)",
-                    background: "var(--quran-card-bg)",
-                    color: "var(--quran-text)",
-                    cursor: "pointer",
-                    outline: "none"
-                  }}
-                >
-                  <option value="UthmanicHafs">Uthmanic Hafs (แนะนำ - ตามต้นฉบับ)</option>
-                  <option value="Amiri">Amiri (อามิรี)</option>
-                  <option value="NotoNaskh">Noto Naskh Arabic (คลาสสิก)</option>
-                </select>
-              </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
