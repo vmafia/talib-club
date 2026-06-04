@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   serverTimestamp,
   setDoc,
@@ -200,6 +201,88 @@ export function useContentCollection(name, fallbackItems = [], uid = null) {
     saveItem,
     deleteItem,
   }
+}
+
+/**
+ * Lightweight ONE-TIME fetch hook (getDocs, not onSnapshot).
+ * Use this for user-specific data that doesn't need live updates
+ * (e.g. Quran bookmarks, last-read) to minimise Firestore read counts.
+ */
+export function useUserCollection(name, uid) {
+  const collectionName = CONTENT_COLLECTIONS[name]
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const fetchedRef = useRef(false)
+
+  const fetchItems = useCallback(async () => {
+    if (!collectionName || !uid) {
+      setItems([])
+      return
+    }
+    setLoading(true)
+    try {
+      const q = query(collection(db, collectionName), where("uid", "==", uid))
+      const snapshot = await getDocs(q)
+      const docs = snapshot.docs
+        .map(d => ({ ...d.data(), id: d.data().id ?? d.id }))
+        .filter(d => !d.deleted)
+      setItems(docs)
+    } catch (err) {
+      console.error(`useUserCollection fetch error (${name}):`, err)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [collectionName, uid, name])
+
+  useEffect(() => {
+    if (!uid || fetchedRef.current) return
+    fetchedRef.current = true
+    fetchItems()
+  }, [uid, fetchItems])
+
+  // Re-fetch when uid changes (login/logout)
+  const prevUidRef = useRef(uid)
+  useEffect(() => {
+    if (prevUidRef.current !== uid) {
+      prevUidRef.current = uid
+      fetchedRef.current = false
+      if (uid) fetchItems()
+      else setItems([])
+    }
+  }, [uid, fetchItems])
+
+  const saveItem = useCallback(async (item) => {
+    if (!collectionName) return
+    const id = String(item.id || crypto.randomUUID())
+    const payload = {
+      ...cleanForFirestore(item),
+      id,
+      uid,
+      deleted: false,
+      updatedAt: serverTimestamp(),
+    }
+    if (!payload.createdAt && !item.createdAt) {
+      payload.createdAt = serverTimestamp()
+    }
+    await setDoc(doc(db, collectionName, id), payload, { merge: true })
+    // Update local state optimistically
+    setItems(prev => {
+      const idx = prev.findIndex(d => String(d.id) === id)
+      const next = { ...payload, id }
+      return idx >= 0 ? prev.map((d, i) => i === idx ? next : d) : [...prev, next]
+    })
+  }, [collectionName, uid])
+
+  const deleteItem = useCallback(async (id) => {
+    if (!collectionName) return
+    await setDoc(doc(db, collectionName, String(id)), {
+      id: String(id), deleted: true, updatedAt: serverTimestamp()
+    }, { merge: true })
+    setItems(prev => prev.filter(d => String(d.id) !== String(id)))
+  }, [collectionName])
+
+  return { items, loading, saveItem, deleteItem, refetch: fetchItems }
 }
 
 export function useSiteSettings(fallbackSite) {

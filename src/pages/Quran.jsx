@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { SURA_LIST } from "../data/surahs.js"
 import { getSurahTheme } from "../data/quranThemes.js"
-import { useContentCollection } from "../lib/contentStore.js"
+import { useUserCollection } from "../lib/contentStore.js"
 import toast from "react-hot-toast"
 import { confirmAction } from "../utils/feedback.jsx"
 
@@ -296,11 +296,11 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(null)
   const uid = authState?.user?.uid
-  // Bookmarks (Reflection notes) from Firestore
-  const { items: savedVerses, saveItem, deleteItem } = useContentCollection("quran_bookmarks", [], uid)
+  // Bookmarks (Reflection notes) — one-time fetch, not real-time, to avoid excessive Firestore reads
+  const { items: savedVerses, saveItem, deleteItem } = useUserCollection("quran_bookmarks", uid)
 
-  // Last Read Position from Firestore & local storage
-  const { items: lastReadPos, saveItem: saveLastRead, deleteItem: deleteLastRead } = useContentCollection("quran_last_read", [], uid)
+  // Last Read Position — one-time fetch
+  const { items: lastReadPos, saveItem: saveLastRead, deleteItem: deleteLastRead } = useUserCollection("quran_last_read", uid)
   const [lastRead, setLastRead] = useState(() => {
     try {
       const local = localStorage.getItem("quran-last-read")
