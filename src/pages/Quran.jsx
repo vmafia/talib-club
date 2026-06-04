@@ -2511,7 +2511,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                              {tajweedEnabled ? (
                                <span dangerouslySetInnerHTML={{ __html: v.arabic_text_tajweed || v.arabic_text }} />
                              ) : (
-                               <span>{stripTajweedTags(v.arabic_text_tajweed || v.arabic_text)}</span>
+                               <span dangerouslySetInnerHTML={{ __html: stripTajweedTags(v.arabic_text_tajweed || v.arabic_text) }} />
                              )}
                            </div>
 
@@ -3461,3 +3461,4 @@ export default function Quran({ initialSura, initialAyah, authState }) {
     </div>
   )
 }
+
