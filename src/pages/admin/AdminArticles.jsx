@@ -4,6 +4,7 @@ import { useContentCollection, useTaxonomySettings } from "../../lib/contentStor
 import { confirmAction, notifyError, notifySuccess } from "../../utils/feedback.jsx"
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import { storage } from "../../lib/firebase.js"
+import { compressImage } from "../../utils/image.js"
 
 const EMPTY = {
   type: "general",
@@ -453,9 +454,10 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
 
     setUploadingImage(true)
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+      const compressedFile = await compressImage(file, { maxWidth: 1000, maxHeight: 1000, quality: 0.75 })
+      const safeName = compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")
       const storageRef = ref(storage, `article_covers/${Date.now()}_${safeName}`)
-      await uploadBytes(storageRef, file)
+      await uploadBytes(storageRef, compressedFile)
       const url = await getDownloadURL(storageRef)
       set("coverUrl", url)
       notifySuccess("อัปโหลดรูปภาพปกเรียบร้อยแล้ว")

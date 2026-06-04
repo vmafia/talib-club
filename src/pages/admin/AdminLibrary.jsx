@@ -2,6 +2,9 @@ import { useState, useEffect } from "react"
 import { BOOKS, DEFAULT_TAXONOMY } from "../../data/index.js"
 import { useContentCollection, useTaxonomySettings } from "../../lib/contentStore.js"
 import { confirmAction, notifyError, notifySuccess } from "../../utils/feedback.jsx"
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
+import { storage } from "../../lib/firebase.js"
+import { compressImage } from "../../utils/image.js"
 
 const EMPTY = {
   title: "",
@@ -415,6 +418,28 @@ export default function AdminLibrary() {
 
 function LibraryForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const set = (key, value) => setItem(prev => ({ ...prev, [key]: value }))
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const handleUploadImage = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingImage(true)
+    try {
+      const compressedFile = await compressImage(file, { maxWidth: 1000, maxHeight: 1000, quality: 0.75 })
+      const safeName = compressedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+      const storageRef = ref(storage, `library_covers/${Date.now()}_${safeName}`)
+      await uploadBytes(storageRef, compressedFile)
+      const url = await getDownloadURL(storageRef)
+      set("coverUrl", url)
+      notifySuccess("อัปโหลดรูปภาพปกเรียบร้อยแล้ว")
+    } catch (err) {
+      console.error(err)
+      notifyError("อัปโหลดรูปภาพล้มเหลว")
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -451,7 +476,51 @@ function LibraryForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           </Field>
         )}
         <Field label="ลิงก์ไฟล์ PDF/Drive" span><input value={item.fileUrl || ""} onChange={e => set("fileUrl", e.target.value)} placeholder="https://..." /></Field>
-        <Field label="ลิงก์รูปปก" span><input value={item.coverUrl || ""} onChange={e => set("coverUrl", e.target.value)} placeholder="https://..." /></Field>
+        <Field label="รูปภาพปกหนังสือ (URL)" span>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              value={item.coverUrl || ""}
+              onChange={e => set("coverUrl", e.target.value)}
+              placeholder="https://example.com/image.jpg หรืออัปโหลดไฟล์..."
+              style={{ flex: 1 }}
+            />
+            <label className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", flexShrink: 0, padding: "10px 16px" }}>
+              <i className={uploadingImage ? "ti ti-loader-2 spin" : "ti ti-upload"}></i>
+              {uploadingImage ? "กำลังอัปโหลด..." : "อัปโหลดรูปภาพ"}
+              <input type="file" accept="image/*" onChange={handleUploadImage} disabled={uploadingImage} style={{ display: "none" }} />
+            </label>
+          </div>
+          {item.coverUrl && (
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative", width: 120, height: 75, borderRadius: 8, overflow: "hidden", border: "1px solid var(--br2)", flexShrink: 0 }}>
+                <img src={item.coverUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <button
+                  type="button"
+                  onClick={() => set("coverUrl", "")}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    background: "rgba(0,0,0,0.6)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: 20,
+                    height: 20,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: 10
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <span style={{ fontSize: 12, color: "var(--t3)" }}>ตัวอย่างรูปภาพปก</span>
+            </div>
+          )}
+        </Field>
         <Field label="คำอธิบาย" span><textarea value={item.desc || ""} onChange={e => set("desc", e.target.value)} rows={4} placeholder="รายละเอียดเพิ่มเติม..." style={{ lineHeight: 1.6 }} /></Field>
       </div>
 

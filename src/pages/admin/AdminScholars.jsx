@@ -11,6 +11,9 @@ const EMPTY = {
   field: "",
   note: "",
   refs: "",
+  aq: "",
+  mh: "",
+  mz: "",
 }
 
 const mapEraValue = (val) => {
@@ -326,6 +329,39 @@ function ScholarForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           <select value={item.field || ""} onChange={e => set("field", e.target.value)}>
              <option value="">-- ไม่ระบุ --</option>
             {(taxonomy.scholarFields || []).map(field => <option key={field} value={field}>{field}</option>)}
+          </select>
+        </Field>
+        
+        <Field label="อากีดะฮฺ (Aqidah)">
+          <select value={item.aq || ""} onChange={e => set("aq", e.target.value)}>
+            <option value="">-- ไม่ระบุ --</option>
+            <option value="สะลัฟ">สะลัฟ / อะฮฺลุสสุนนะฮฺ</option>
+            <option value="อะชะอะรี">อะชะอะรี</option>
+            <option value="มาตุรีดี">มาตุรีดี</option>
+          </select>
+        </Field>
+        
+        <Field label="มันฮัจญ์ (Manhaj)">
+          <select value={item.mh || ""} onChange={e => set("mh", e.target.value)}>
+            <option value="">-- ไม่ระบุ --</option>
+            <option value="สะลัฟี">สะลัฟี</option>
+            <option value="ศูฟี">ศูฟี / ตะเซาวุฟ</option>
+            <option value="เดโอบันดี">เดโอบันดี</option>
+            <option value="บะเรลวี">บะเรลวี</option>
+            <option value="ตับลีฆ">ตับลีฆ</option>
+            <option value="อิควาน">อิควาน</option>
+            <option value="กลาสสิก">กลาสสิก / อะชะอะรี</option>
+          </select>
+        </Field>
+
+        <Field label="มัซฮับ (Madhhab)">
+          <select value={item.mz || ""} onChange={e => set("mz", e.target.value)}>
+            <option value="">-- ไม่ระบุ --</option>
+            <option value="หัมบะลี">หัมบะลี</option>
+            <option value="ชาฟิอี">ชาฟิอี</option>
+            <option value="มาลิกี">มาลิกี</option>
+            <option value="หะนะฟี">หะนะฟี</option>
+            <option value="ซอฮิรี">ซอฮิรี</option>
           </select>
         </Field>
         

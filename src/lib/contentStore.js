@@ -94,37 +94,211 @@ function mergeWithFallback(fallbackItems, remoteItems) {
   return [...byId.values()]
 }
 
-export function useContentCollection(name, fallbackItems = []) {
-  const [remoteItems, setRemoteItems] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const collectionName = CONTENT_COLLECTIONS[name]
+// ============================================================
+//  Global Connection Cache for Firestore Reads Optimization
+// ============================================================
 
-  useEffect(() => {
-    if (!collectionName) {
-      setError(new Error(`Unknown content collection: ${name}`))
-      setLoading(false)
-      return undefined
+const collectionStoreCache = {}
+
+function getOrCreateCollectionCache(collectionName) {
+  if (!collectionStoreCache[collectionName]) {
+    collectionStoreCache[collectionName] = {
+      collectionName,
+      remoteItems: null,
+      loading: true,
+      error: null,
+      subscribers: new Set(),
+      unsubscribeFirestore: null,
+      cleanupTimeout: null,
     }
+  }
+  return collectionStoreCache[collectionName]
+}
 
-    const unsubscribe = onSnapshot(
+function subscribeToCollection(collectionName, callback) {
+  const cache = getOrCreateCollectionCache(collectionName)
+  
+  cache.subscribers.add(callback)
+  
+  if (cache.cleanupTimeout) {
+    clearTimeout(cache.cleanupTimeout)
+    cache.cleanupTimeout = null
+  }
+  
+  // Call callback with current cached state immediately
+  callback({
+    remoteItems: cache.remoteItems,
+    loading: cache.loading,
+    error: cache.error
+  })
+  
+  if (!cache.unsubscribeFirestore) {
+    cache.unsubscribeFirestore = onSnapshot(
       collection(db, collectionName),
       snapshot => {
         const next = snapshot.docs.map(item => {
           const data = item.data()
           return { ...data, id: data.id ?? item.id }
         })
-        setRemoteItems(next)
-        setError(null)
-        setLoading(false)
+        cache.remoteItems = next
+        cache.loading = false
+        cache.error = null
+        
+        cache.subscribers.forEach(cb => cb({
+          remoteItems: cache.remoteItems,
+          loading: cache.loading,
+          error: cache.error
+        }))
       },
       err => {
         console.error(`Cannot load ${collectionName}`, err)
-        setError(err)
-        setRemoteItems(null)
-        setLoading(false)
+        cache.error = err
+        cache.loading = false
+        cache.remoteItems = null
+        
+        cache.subscribers.forEach(cb => cb({
+          remoteItems: cache.remoteItems,
+          loading: cache.loading,
+          error: cache.error
+        }))
       }
     )
+  }
+  
+  return () => {
+    cache.subscribers.delete(callback)
+    if (cache.subscribers.size === 0) {
+      if (cache.cleanupTimeout) clearTimeout(cache.cleanupTimeout)
+      cache.cleanupTimeout = setTimeout(() => {
+        if (cache.subscribers.size === 0 && cache.unsubscribeFirestore) {
+          cache.unsubscribeFirestore()
+          cache.unsubscribeFirestore = null
+          cache.remoteItems = null
+          cache.loading = true
+          cache.error = null
+        }
+        cache.cleanupTimeout = null
+      }, 5000) // 5s grace period
+    }
+  }
+}
+
+const documentStoreCache = {}
+
+function getOrCreateDocumentCache(collectionPath, docId) {
+  const cacheKey = `${collectionPath}/${docId}`
+  if (!documentStoreCache[cacheKey]) {
+    documentStoreCache[cacheKey] = {
+      collectionPath,
+      docId,
+      data: null,
+      exists: false,
+      loading: true,
+      error: null,
+      subscribers: new Set(),
+      unsubscribeFirestore: null,
+      cleanupTimeout: null
+    }
+  }
+  return documentStoreCache[cacheKey]
+}
+
+function subscribeToDocument(collectionPath, docId, callback) {
+  const cache = getOrCreateDocumentCache(collectionPath, docId)
+  
+  cache.subscribers.add(callback)
+  
+  if (cache.cleanupTimeout) {
+    clearTimeout(cache.cleanupTimeout)
+    cache.cleanupTimeout = null
+  }
+  
+  callback({
+    data: cache.data,
+    exists: cache.exists,
+    loading: cache.loading,
+    error: cache.error
+  })
+  
+  if (!cache.unsubscribeFirestore) {
+    cache.unsubscribeFirestore = onSnapshot(
+      doc(db, collectionPath, docId),
+      snapshot => {
+        cache.data = snapshot.exists() ? snapshot.data() : null
+        cache.exists = snapshot.exists()
+        cache.loading = false
+        cache.error = null
+        
+        cache.subscribers.forEach(cb => cb({
+          data: cache.data,
+          exists: cache.exists,
+          loading: cache.loading,
+          error: cache.error
+        }))
+      },
+      err => {
+        console.error(`Cannot load document ${collectionPath}/${docId}`, err)
+        cache.error = err
+        cache.loading = false
+        cache.data = null
+        cache.exists = false
+        
+        cache.subscribers.forEach(cb => cb({
+          data: cache.data,
+          exists: cache.exists,
+          loading: cache.loading,
+          error: cache.error
+        }))
+      }
+    )
+  }
+  
+  return () => {
+    cache.subscribers.delete(callback)
+    if (cache.subscribers.size === 0) {
+      if (cache.cleanupTimeout) clearTimeout(cache.cleanupTimeout)
+      cache.cleanupTimeout = setTimeout(() => {
+        if (cache.subscribers.size === 0 && cache.unsubscribeFirestore) {
+          cache.unsubscribeFirestore()
+          cache.unsubscribeFirestore = null
+          cache.data = null
+          cache.exists = false
+          cache.loading = true
+          cache.error = null
+        }
+        cache.cleanupTimeout = null
+      }, 5000) // 5s grace period
+    }
+  }
+}
+
+// ============================================================
+//  Exported Caching Hooks
+// ============================================================
+
+export function useContentCollection(name, fallbackItems = []) {
+  const collectionName = CONTENT_COLLECTIONS[name]
+  const cache = collectionName ? getOrCreateCollectionCache(collectionName) : null
+
+  const [state, setState] = useState(() => ({
+    remoteItems: cache ? cache.remoteItems : null,
+    loading: cache ? cache.loading : true,
+    error: cache ? cache.error : null
+  }))
+
+  useEffect(() => {
+    if (!collectionName) {
+      setState({
+        remoteItems: null,
+        loading: false,
+        error: new Error(`Unknown content collection: ${name}`)
+      })
+      return undefined
+    }
+
+    const unsubscribe = subscribeToCollection(collectionName, (nextState) => {
+      setState(nextState)
+    })
 
     return unsubscribe
   }, [collectionName, name])
@@ -133,12 +307,12 @@ export function useContentCollection(name, fallbackItems = []) {
   const stableFallbackItems = useMemo(() => fallbackItems, [serializedFallback])
 
   const items = useMemo(() => {
-    if (loading && remoteItems === null) {
+    if (state.loading && state.remoteItems === null) {
       return []
     }
-    const merged = mergeWithFallback(stableFallbackItems, remoteItems)
+    const merged = mergeWithFallback(stableFallbackItems, state.remoteItems)
     return [...merged].filter(item => !item.deleted).sort(byNewest)
-  }, [stableFallbackItems, loading, remoteItems])
+  }, [stableFallbackItems, state.loading, state.remoteItems])
 
   async function saveItem(item) {
     const id = String(item.id || crypto.randomUUID())
@@ -164,37 +338,34 @@ export function useContentCollection(name, fallbackItems = []) {
 
   return {
     items,
-    loading,
-    error,
-    isUsingFallback: !loading && (!remoteItems || remoteItems.length === 0),
+    loading: state.loading,
+    error: state.error,
+    isUsingFallback: !state.loading && (!state.remoteItems || state.remoteItems.length === 0),
     saveItem,
     deleteItem,
   }
 }
 
 export function useSiteSettings(fallbackSite) {
-  const [site, setSite] = useState(fallbackSite)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const cache = getOrCreateDocumentCache(SITE_DOC.collection, SITE_DOC.id)
+  
+  const [state, setState] = useState(() => ({
+    data: cache.data,
+    exists: cache.exists,
+    loading: cache.loading,
+    error: cache.error
+  }))
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      doc(db, SITE_DOC.collection, SITE_DOC.id),
-      snapshot => {
-        setSite(snapshot.exists() ? deepMerge(fallbackSite, snapshot.data()) : fallbackSite)
-        setError(null)
-        setLoading(false)
-      },
-      err => {
-        console.error("Cannot load site settings", err)
-        setSite(fallbackSite)
-        setError(err)
-        setLoading(false)
-      }
-    )
-
+    const unsubscribe = subscribeToDocument(SITE_DOC.collection, SITE_DOC.id, (nextState) => {
+      setState(nextState)
+    })
     return unsubscribe
-  }, [fallbackSite])
+  }, [])
+
+  const site = useMemo(() => {
+    return state.exists ? deepMerge(fallbackSite, state.data) : fallbackSite
+  }, [state.exists, state.data, fallbackSite])
 
   async function saveSiteSettings(nextSite) {
     await setDoc(doc(db, SITE_DOC.collection, SITE_DOC.id), {
@@ -203,32 +374,29 @@ export function useSiteSettings(fallbackSite) {
     }, { merge: true })
   }
 
-  return { site, loading, error, saveSiteSettings }
+  return { site, loading: state.loading, error: state.error, saveSiteSettings }
 }
 
 export function useTaxonomySettings(fallbackTaxonomy) {
-  const [taxonomy, setTaxonomy] = useState(fallbackTaxonomy)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const cache = getOrCreateDocumentCache(TAXONOMY_DOC.collection, TAXONOMY_DOC.id)
+  
+  const [state, setState] = useState(() => ({
+    data: cache.data,
+    exists: cache.exists,
+    loading: cache.loading,
+    error: cache.error
+  }))
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      doc(db, TAXONOMY_DOC.collection, TAXONOMY_DOC.id),
-      snapshot => {
-        setTaxonomy(snapshot.exists() ? deepMerge(fallbackTaxonomy, snapshot.data()) : fallbackTaxonomy)
-        setError(null)
-        setLoading(false)
-      },
-      err => {
-        console.error("Cannot load taxonomy settings", err)
-        setTaxonomy(fallbackTaxonomy)
-        setError(err)
-        setLoading(false)
-      }
-    )
-
+    const unsubscribe = subscribeToDocument(TAXONOMY_DOC.collection, TAXONOMY_DOC.id, (nextState) => {
+      setState(nextState)
+    })
     return unsubscribe
-  }, [fallbackTaxonomy])
+  }, [])
+
+  const taxonomy = useMemo(() => {
+    return state.exists ? deepMerge(fallbackTaxonomy, state.data) : fallbackTaxonomy
+  }, [state.exists, state.data, fallbackTaxonomy])
 
   async function saveTaxonomySettings(nextTaxonomy) {
     await setDoc(doc(db, TAXONOMY_DOC.collection, TAXONOMY_DOC.id), {
@@ -237,5 +405,5 @@ export function useTaxonomySettings(fallbackTaxonomy) {
     }, { merge: true })
   }
 
-  return { taxonomy, loading, error, saveTaxonomySettings }
+  return { taxonomy, loading: state.loading, error: state.error, saveTaxonomySettings }
 }
