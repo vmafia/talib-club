@@ -57,6 +57,8 @@ const stripTajweedTags = (html) => {
   cleaned = cleaned.replace(/<span\/>/gi, "")
   // Strip U+25CC dotted circle
   cleaned = cleaned.replace(/\u25cc/g, "")
+  // Replace U+0672 (custom superscript alif) with U+0670 (standard dagger alif) to fix rendering issues
+  cleaned = cleaned.replace(/\u0672/g, "\u0670")
   return cleaned.trim()
 }
 
@@ -68,6 +70,8 @@ const stripAllTags = (html) => {
   cleaned = cleaned.replace(/<span\/>/gi, "")
   // Strip U+25CC dotted circle
   cleaned = cleaned.replace(/\u25cc/g, "")
+  // Replace U+0672 (custom superscript alif) with U+0670 (standard dagger alif) to fix rendering issues
+  cleaned = cleaned.replace(/\u0672/g, "\u0670")
   return cleaned.trim()
 }
 
@@ -75,6 +79,8 @@ const cleanTajweedTags = (html) => {
   if (!html) return ""
   // Strip U+25CC dotted circles if any
   let cleaned = html.replace(/\u25cc/g, "")
+  // Replace U+0672 (custom superscript alif causing dotted circles) with U+0670 (standard dagger alif) to fix rendering issues
+  cleaned = cleaned.replace(/\u0672/g, "\u0670")
   // Strip tajweed tags wrapping combining diacritics to prevent dotted circles
   cleaned = cleaned.replace(/<tajweed[^>]*>([\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u06df-\u06e8\u06ea-\u06ed].*?)<\/tajweed>/g, "$1")
   return cleaned
