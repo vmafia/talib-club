@@ -539,8 +539,30 @@ export default function Quran({ initialSura, initialAyah, authState }) {
     
     audio.play().catch(err => {
       console.error("Audio playback failed", err)
+      toast.error("ไม่สามารถเล่นเสียงอายะฮ์นี้ได้ชั่วคราว")
       stopAudio()
     })
+
+    audio.onerror = (e) => {
+      console.error("Audio failed to load", e)
+      toast.error("การโหลดเสียงอ่านล้มเหลว กรุณาตรวจสอบอินเทอร์เน็ต")
+      
+      if (continueAutoplay || autoplayNext) {
+        const currentList = selectedPage ? pageVerses : verses
+        const currentIndex = currentList.findIndex(item => item.sura === sura && item.aya === aya)
+        if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
+          // Grace period before skipping to the next verse to prevent rapid toast spamming
+          setTimeout(() => {
+            const nextVerse = currentList[currentIndex + 1]
+            playVerseAudio(nextVerse.sura, nextVerse.aya, true)
+          }, 2000)
+        } else {
+          stopAudio()
+        }
+      } else {
+        stopAudio()
+      }
+    }
     
     audio.onended = () => {
       if (continueAutoplay || autoplayNext) {

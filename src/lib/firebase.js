@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app"
 import { getAuth } from "firebase/auth"
-import { getFirestore } from "firebase/firestore"
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from "firebase/firestore"
 import { getStorage } from "firebase/storage"
 
 const defaultWebFirebaseConfig = {
@@ -30,6 +30,19 @@ const app = getApps().find(item => item.name === "talib-web")
   || initializeApp(firebaseConfig, "talib-web")
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// Initialize firestore with persistent multi-tab cache
+let firestoreInstance
+try {
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  })
+} catch (e) {
+  firestoreInstance = getFirestore(app)
+}
+
+export const db = firestoreInstance
 export const storage = getStorage(app)
 export const isUsingFallbackFirebase = !hasWebFirebase
