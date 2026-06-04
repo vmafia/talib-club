@@ -416,13 +416,166 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   const [modalNotes, setModalNotes] = useState("")
   const [activeAyahMenu, setActiveAyahMenu] = useState(null)
 
-  const getVerseTranslation = (suraNum, ayaNum) => {
-    if (selectedSura === suraNum && verses.length > 0) {
-      const match = verses.find(item => item.aya === ayaNum)
-      if (match) return match.translation
+  // --- Audio Recitation States & Ref ---
+  const [playingAudio, setPlayingAudio] = useState(null) // { sura, aya }
+  const [audioState, setAudioState] = useState("stopped") // "playing" | "paused" | "stopped"
+  const [autoplayNext, setAutoplayNext] = useState(false)
+  const audioRef = useRef(null)
+  const [modalDetails, setModalDetails] = useState({ loading: false, translation: "", tafsir: "", error: null })
+
+  // Fetch translation & tafsir dynamically for activeAyahMenu in Mushaf mode
+  useEffect(() => {
+    if (!activeAyahMenu) {
+      setModalDetails({ loading: false, translation: "", tafsir: "", error: null })
+      return
     }
-    return ""
+
+    const { sura, aya } = activeAyahMenu
+    const match = verses.find(item => item.sura === sura && item.aya === aya)
+    if (match && match.translation && match.tafsir) {
+      setModalDetails({
+        loading: false,
+        translation: match.translation,
+        tafsir: match.tafsir,
+        error: null
+      })
+      return
+    }
+
+    setModalDetails({ loading: true, translation: "", tafsir: "", error: null })
+
+    Promise.all([
+      fetch(`https://quranenc.com/api/v1/translation/aya/${translationKey}/${sura}/${aya}`).then(res => {
+        if (!res.ok) throw new Error("Failed to load translation")
+        return res.json()
+      }),
+      fetch(`https://quranenc.com/api/v1/translation/aya/thai_mokhtasar/${sura}/${aya}`).then(res => {
+        if (!res.ok) throw new Error("Failed to load tafsir")
+        return res.json()
+      })
+    ])
+      .then(([transData, tafsirData]) => {
+        setModalDetails({
+          loading: false,
+          translation: transData.result?.translation || "",
+          tafsir: tafsirData.result?.translation || "",
+          error: null
+        })
+      })
+      .catch(err => {
+        console.error("Failed to fetch modal details", err)
+        setModalDetails({
+          loading: false,
+          translation: "",
+          tafsir: "",
+          error: "ไม่สามารถโหลดข้อมูลคำแปลและตัฟซีรได้"
+        })
+      })
+  }, [activeAyahMenu, translationKey, verses])
+
+  const getVerseTranslation = (suraNum, ayaNum) => {
+    const list = selectedPage ? pageVerses : verses
+    const match = list.find(item => item.sura === suraNum && item.aya === ayaNum)
+    return match ? match.translation : ""
   }
+
+  const getVerseTafsir = (suraNum, ayaNum) => {
+    const list = selectedPage ? pageVerses : verses
+    const match = list.find(item => item.sura === suraNum && item.aya === ayaNum)
+    return match ? match.tafsir : ""
+  }
+
+  // --- Audio Control Functions ---
+  const playVerseAudio = (sura, aya, continueAutoplay = false) => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+    }
+    
+    const suraStr = String(sura).padStart(3, "0")
+    const ayaStr = String(aya).padStart(3, "0")
+    const url = `https://www.everyayah.com/data/Alafasy_128kbps/${suraStr}${ayaStr}.mp3`
+    
+    const audio = new Audio(url)
+    audioRef.current = audio
+    setPlayingAudio({ sura, aya })
+    setAudioState("playing")
+    
+    if (continueAutoplay) {
+      setAutoplayNext(true)
+    } else {
+      setAutoplayNext(false)
+    }
+    
+    audio.play().catch(err => {
+      console.error("Audio playback failed", err)
+      stopAudio()
+    })
+    
+    audio.onended = () => {
+      if (continueAutoplay || autoplayNext) {
+        const currentList = selectedPage ? pageVerses : verses
+        const currentIndex = currentList.findIndex(item => item.sura === sura && item.aya === aya)
+        if (currentIndex !== -1 && currentIndex < currentList.length - 1) {
+          const nextVerse = currentList[currentIndex + 1]
+          playVerseAudio(nextVerse.sura, nextVerse.aya, true)
+        } else {
+          stopAudio()
+        }
+      } else {
+        stopAudio()
+      }
+    }
+  }
+
+  const pauseAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      setAudioState("paused")
+    }
+  }
+
+  const resumeAudio = () => {
+    if (audioRef.current && audioState === "paused") {
+      audioRef.current.play().catch(err => {
+        console.error("Audio resume failed", err)
+        stopAudio()
+      })
+      setAudioState("playing")
+    }
+  }
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setAudioState("stopped")
+    setPlayingAudio(null)
+    setAutoplayNext(false)
+  }
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
+
+  // Auto scroll to active reciting verse
+  useEffect(() => {
+    if (playingAudio && audioState === "playing") {
+      const elementId = mode === "mushaf"
+        ? `mushaf-ayah-${playingAudio.sura}-${playingAudio.aya}`
+        : `ayah-${playingAudio.aya}`
+      const element = document.getElementById(elementId)
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+    }
+  }, [playingAudio, audioState, mode])
 
   // Track mobile resize
   useEffect(() => {
@@ -1471,8 +1624,44 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             </div>
 
             {/* Arabic Big Calligraphy Name */}
-            <div style={{ fontSize: 32, fontFamily: "'Amiri', serif", color: "var(--teal)", textShadow: "0 0 1px rgba(45,190,160,0.1)" }}>
-              {currentSuraInfo.name}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+              <div style={{ fontSize: 32, fontFamily: "'Amiri', serif", color: "var(--teal)", textShadow: "0 0 1px rgba(45,190,160,0.1)" }}>
+                {currentSuraInfo.name}
+              </div>
+              {!selectedPage && (
+                <button
+                  className="btn"
+                  onClick={() => {
+                    if (audioState === "playing" && autoplayNext) {
+                      pauseAudio()
+                    } else if (audioState === "paused" && autoplayNext) {
+                      resumeAudio()
+                    } else {
+                      const currentList = selectedPage ? pageVerses : verses
+                      if (currentList.length > 0) {
+                        playVerseAudio(currentList[0].sura, currentList[0].aya, true)
+                      }
+                    }
+                  }}
+                  style={{
+                    background: (audioState === "playing" && autoplayNext) ? "rgba(220, 38, 38, 0.06)" : "rgba(45, 190, 160, 0.06)",
+                    border: (audioState === "playing" && autoplayNext) ? "0.5px solid #dc2626" : "0.5px solid var(--teal)",
+                    color: (audioState === "playing" && autoplayNext) ? "#dc2626" : "var(--teal)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 11,
+                    padding: "4px 12px",
+                    borderRadius: 12,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <i className={(audioState === "playing" && autoplayNext) ? "ti ti-player-pause" : "ti ti-player-play"} style={{ fontSize: 12 }}></i>
+                  {(audioState === "playing" && autoplayNext) ? "หยุดเล่นเสียง" : "ฟังเสียงทั้งซูเราะฮ์"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -2053,8 +2242,17 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                                 const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
                                 const rawText = v.arabic_text_tajweed || v.text || v.arabic_text || ""
                                 const cleanedText = rawText.replace(/<span[^>]*class=["']?end["']?[^>]*>.*?<\/span>/gi, "")
+                                const isActive = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
                                 return (
-                                  <span key={v.id}>
+                                  <span 
+                                    key={v.id}
+                                    id={`mushaf-ayah-${v.sura}-${v.aya}`}
+                                    style={{
+                                      backgroundColor: isActive ? "rgba(45, 190, 160, 0.25)" : "transparent",
+                                      borderRadius: isActive ? "4px" : "0",
+                                      transition: "background-color 0.3s ease"
+                                    }}
+                                  >
                                     {tajweedEnabled ? (
                                       <span dangerouslySetInnerHTML={{ __html: cleanedText }} />
                                     ) : (
@@ -2144,8 +2342,17 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                         const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
                         const rawText = v.arabic_text_tajweed || v.arabic_text || ""
                         const cleanedText = rawText.replace(/<span[^>]*class=["']?end["']?[^>]*>.*?<\/span>/gi, "")
+                        const isActive = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
                         return (
-                          <span key={v.id}>
+                          <span 
+                            key={v.id}
+                            id={`mushaf-ayah-${v.sura}-${v.aya}`}
+                            style={{
+                              backgroundColor: isActive ? "rgba(45, 190, 160, 0.25)" : "transparent",
+                              borderRadius: isActive ? "4px" : "0",
+                              transition: "background-color 0.3s ease"
+                            }}
+                          >
                             {tajweedEnabled ? (
                               <span dangerouslySetInnerHTML={{ __html: cleanedText }} />
                             ) : (
@@ -2186,6 +2393,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                     {verses.map(v => {
                       const bookmark = getBookmarkForVerse(v.aya)
+                      const isReciting = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
                       return (
                         <div
                           key={v.id}
@@ -2195,8 +2403,11 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                             display: "flex",
                             flexDirection: "column",
                             gap: 16,
-                            padding: isMobile ? "24px 0" : "20px 10px",
-                            transition: "background-color 0.3s"
+                            padding: isMobile ? "24px 10px" : "20px 14px",
+                            transition: "all 0.3s ease",
+                            backgroundColor: isReciting ? "rgba(45, 190, 160, 0.06)" : "transparent",
+                            borderLeft: isReciting ? "4px solid var(--quran-teal)" : "4px solid transparent",
+                            borderRadius: isReciting ? "8px" : "0"
                           }}
                         >
                           {/* Verse marker and Bookmark button */}
@@ -2206,6 +2417,37 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                             </span>
 
                             <div style={{ display: "flex", gap: 12 }}>
+                              {/* Listen to this Ayah button */}
+                              <button
+                                onClick={() => {
+                                  const isCurrent = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
+                                  if (isCurrent && audioState === "playing") {
+                                    pauseAudio()
+                                  } else if (isCurrent && audioState === "paused") {
+                                    resumeAudio()
+                                  } else {
+                                    playVerseAudio(v.sura, v.aya, false)
+                                  }
+                                }}
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: (playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "var(--teal)" : "var(--t3)",
+                                  padding: "4px 8px",
+                                  fontSize: 14,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4
+                                }}
+                                title="ฟังเสียงอายะฮ์นี้"
+                              >
+                                <i className={(playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"}></i>
+                                <span style={{ fontSize: 10, fontFamily: "'Prompt', sans-serif" }}>
+                                  {(playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "หยุดเล่น" : "ฟังเสียง"}
+                                </span>
+                              </button>
+
                               {/* Bookmark reading position */}
                               <button
                                 onClick={() => {
@@ -2560,9 +2802,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           padding: 16
         }} onClick={() => setActiveAyahMenu(null)}>
           <div className="card" style={{
-            maxWidth: 360,
+            maxWidth: 480,
             width: "100%",
-            padding: 20,
+            padding: 24,
             display: "flex",
             flexDirection: "column",
             gap: 16,
@@ -2572,7 +2814,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             animation: "scaleUp 0.15s cubic-bezier(0.16, 1, 0.3, 1)"
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "0.5px solid var(--quran-br2)", paddingBottom: 10 }}>
-              <span style={{ fontSize: 11, color: "var(--quran-t2)", fontWeight: 600, fontFamily: "'Prompt', sans-serif" }}>
+              <span style={{ fontSize: 12, color: "var(--quran-t2)", fontWeight: 600, fontFamily: "'Prompt', sans-serif" }}>
                 ซูเราะฮ์ {SURA_LIST.find(s => s.number === activeAyahMenu.sura)?.englishName} อายะฮ์ที่ {activeAyahMenu.aya}
               </span>
               <button 
@@ -2589,8 +2831,8 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               borderRadius: 8, 
               border: "0.5px solid var(--quran-br2)", 
               textAlign: "right",
-              fontFamily: "'Amiri', serif",
-              fontSize: 20,
+              fontFamily: quranFont === "UthmanicHafs" ? "'UthmanicHafs', serif" : quranFont === "Amiri" ? "'Amiri', serif" : "'Noto Naskh Arabic', serif",
+              fontSize: 22,
               color: "var(--quran-text)",
               lineHeight: 1.5,
               maxHeight: 120,
@@ -2598,6 +2840,77 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               direction: "rtl"
             }}>
               {activeAyahMenu.arabicText}
+            </div>
+
+            {/* Play/Pause Button for this verse */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  const isCurrent = playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya
+                  if (isCurrent && audioState === "playing") {
+                    pauseAudio()
+                  } else if (isCurrent && audioState === "paused") {
+                    resumeAudio()
+                  } else {
+                    playVerseAudio(activeAyahMenu.sura, activeAyahMenu.aya, false)
+                  }
+                }}
+                style={{
+                  background: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "rgba(220, 38, 38, 0.06)" : "rgba(45, 190, 160, 0.06)",
+                  border: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "0.5px solid #dc2626" : "0.5px solid var(--teal)",
+                  color: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "#dc2626" : "var(--teal)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  fontSize: 12,
+                  padding: "8px 16px",
+                  borderRadius: 16,
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  width: "100%",
+                  transition: "all 0.2s"
+                }}
+              >
+                <i className={(playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"} style={{ fontSize: 13 }}></i>
+                {(playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "หยุดฟังเสียงอายะฮ์นี้" : "ฟังเสียงอายะฮ์นี้"}
+              </button>
+            </div>
+
+            {/* Translation & Tafsir Load/Display */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, textAlign: "left" }}>
+              {modalDetails.loading ? (
+                <div style={{ padding: "12px 0", textAlign: "center" }}>
+                  <i className="ti ti-loader-2 spin" style={{ fontSize: 16, color: "var(--teal)", marginBottom: 4 }}></i>
+                  <div style={{ fontSize: 11, color: "var(--t3)" }}>กำลังโหลดคำแปลและตัฟซีร...</div>
+                </div>
+              ) : modalDetails.error ? (
+                <div style={{ fontSize: 11, color: "var(--red)", textAlign: "center", padding: "6px 0" }}>
+                  {modalDetails.error}
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--text)" }}>
+                    <strong style={{ display: "block", fontSize: 11, color: "var(--quran-teal)", marginBottom: 4 }}>คำแปลภาษาไทย:</strong>
+                    {modalDetails.translation}
+                  </div>
+                  {modalDetails.tafsir && (
+                    <div style={{ 
+                      fontSize: 12, 
+                      lineHeight: 1.5, 
+                      color: "var(--t2)", 
+                      background: "var(--quran-acc2)", 
+                      padding: 10, 
+                      borderRadius: 6,
+                      borderLeft: "2.5px solid var(--quran-teal)"
+                    }}>
+                      <strong style={{ display: "block", fontSize: 10, color: "var(--quran-teal)", marginBottom: 4 }}>ตัฟซีรย่อภาษาไทย:</strong>
+                      {modalDetails.tafsir}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2637,7 +2950,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                 }}
                 onClick={() => {
                   const bookmark = getBookmarkForVerse(activeAyahMenu.aya)
-                  const tr = getVerseTranslation(activeAyahMenu.sura, activeAyahMenu.aya)
+                  const tr = modalDetails.translation || getVerseTranslation(activeAyahMenu.sura, activeAyahMenu.aya)
                   handleOpenBookmarkModal(
                     {
                       id: activeAyahMenu.verse.id,
@@ -2998,6 +3311,150 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           </div>
         </div>,
         document.querySelector(".app") || document.body
+      )}
+
+      {playingAudio && (
+        <div style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "var(--quran-card-bg)",
+          border: "1.5px solid var(--quran-teal)",
+          borderRadius: 24,
+          padding: "12px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: 20,
+          zIndex: 99999,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+          backdropFilter: "blur(8px)",
+          maxWidth: "90vw",
+          width: "max-content",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
+        }}>
+          {/* Verse Info */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "var(--quran-teal)",
+              display: "inline-block",
+              animation: audioState === "playing" ? "pulse-highlight 1.5s infinite" : "none"
+            }}></span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--quran-text)" }}>
+              กำลังเล่น: ซูเราะฮ์ {SURA_LIST.find(s => s.number === playingAudio.sura)?.englishName} [{playingAudio.sura}:{playingAudio.aya}]
+            </span>
+          </div>
+
+          {/* Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {/* Previous button */}
+            <button
+              onClick={() => {
+                const currentList = selectedPage ? pageVerses : verses
+                const idx = currentList.findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya)
+                if (idx > 0) {
+                  const prevVerse = currentList[idx - 1]
+                  playVerseAudio(prevVerse.sura, prevVerse.aya, autoplayNext)
+                }
+              }}
+              disabled={(selectedPage ? pageVerses : verses).findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya) <= 0}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--quran-t2)",
+                cursor: "pointer",
+                fontSize: 16,
+                opacity: (selectedPage ? pageVerses : verses).findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya) <= 0 ? 0.35 : 1
+              }}
+              title="อายะฮ์ก่อนหน้า"
+            >
+              <i className="ti ti-player-skip-back"></i>
+            </button>
+
+            {/* Play/Pause Toggle */}
+            <button
+              onClick={() => {
+                if (audioState === "playing") {
+                  pauseAudio()
+                } else {
+                  resumeAudio()
+                }
+              }}
+              style={{
+                background: "var(--quran-teal)",
+                border: "none",
+                color: "#fff",
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontSize: 16,
+                boxShadow: "0 2px 8px rgba(45, 190, 160, 0.3)"
+              }}
+              title={audioState === "playing" ? "ชั่วคราว" : "เล่นต่อ"}
+            >
+              <i className={audioState === "playing" ? "ti ti-player-pause" : "ti ti-player-play"}></i>
+            </button>
+
+            {/* Next button */}
+            <button
+              onClick={() => {
+                const currentList = selectedPage ? pageVerses : verses
+                const idx = currentList.findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya)
+                if (idx !== -1 && idx < currentList.length - 1) {
+                  const nextVerse = currentList[idx + 1]
+                  playVerseAudio(nextVerse.sura, nextVerse.aya, autoplayNext)
+                }
+              }}
+              disabled={(selectedPage ? pageVerses : verses).findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya) >= (selectedPage ? pageVerses : verses).length - 1}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--quran-t2)",
+                cursor: "pointer",
+                fontSize: 16,
+                opacity: (selectedPage ? pageVerses : verses).findIndex(item => item.sura === playingAudio.sura && item.aya === playingAudio.aya) >= (selectedPage ? pageVerses : verses).length - 1 ? 0.35 : 1
+              }}
+              title="อายะฮ์ถัดไป"
+            >
+              <i className="ti ti-player-skip-forward"></i>
+            </button>
+
+            {/* Stop button */}
+            <button
+              onClick={stopAudio}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--red)",
+                cursor: "pointer",
+                fontSize: 16
+              }}
+              title="หยุดเล่น"
+            >
+              <i className="ti ti-square"></i>
+            </button>
+          </div>
+
+          {/* Autoplay Toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", fontSize: 11, color: "var(--quran-text)" }}>
+            <input
+              type="checkbox"
+              checked={autoplayNext}
+              onChange={e => setAutoplayNext(e.target.checked)}
+              style={{ cursor: "pointer", width: 13, height: 13, accentColor: "var(--quran-teal)" }}
+            />
+            <span>เล่นต่อเนื่องอัตโนมัติ</span>
+          </label>
+        </div>
       )}
     </div>
   )

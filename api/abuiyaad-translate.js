@@ -236,28 +236,31 @@ export default async function handler(req, res) {
     // 4. Translate using LLM (Try OpenAI, then Anthropic, else fail)
     let translationResult = null
     let source = ""
+    const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY
 
-    if (process.env.OPENAI_API_KEY) {
+    if (openaiKey) {
       try {
-        translationResult = await translateWithOpenAI(elements, process.env.OPENAI_API_KEY)
+        translationResult = await translateWithOpenAI(elements, openaiKey)
         source = "openai"
       } catch (err) {
         console.error("OpenAI translation failed, trying Anthropic/Gemini:", err)
       }
     }
 
-    if (!translationResult && process.env.ANTHROPIC_API_KEY) {
+    if (!translationResult && anthropicKey) {
       try {
-        translationResult = await translateWithAnthropic(elements, process.env.ANTHROPIC_API_KEY)
+        translationResult = await translateWithAnthropic(elements, anthropicKey)
         source = "anthropic"
       } catch (err) {
         console.error("Anthropic translation failed, trying Gemini:", err)
       }
     }
 
-    if (!translationResult && process.env.GEMINI_API_KEY) {
+    if (!translationResult && geminiKey) {
       try {
-        translationResult = await translateWithGemini(elements, process.env.GEMINI_API_KEY)
+        translationResult = await translateWithGemini(elements, geminiKey)
         source = "gemini"
       } catch (err) {
         console.error("Gemini translation failed:", err)
