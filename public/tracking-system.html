@@ -1005,7 +1005,7 @@ select.input-field option { background: #1a1a22; color: var(--text); }
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, getDocs, writeBatch, updateDoc, deleteDoc, Timestamp }
+import { getFirestore, collection, doc, getDocs, writeBatch, updateDoc, deleteDoc, Timestamp, query, where, or }
   from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Expose functions to global scope for inline event handlers
@@ -2511,15 +2511,18 @@ async function doRecipientSearch() {
   loading.classList.remove('hidden'); result.innerHTML = '';
   if (!S.fbReady) { loading.classList.add('hidden'); return; }
   try {
-    if (!S.cachedRecipients) {
-      const snap = await getDocs(getRecipientsCol());
-      S.cachedRecipients = []; snap.forEach(d => S.cachedRecipients.push(d.data()));
-    }
-    const ql = q.toLowerCase().replace(/\s+/g,''), qp = q.replace(/[-\s]/g,'');
-    const found = S.cachedRecipients.filter(r =>
-      (r.fullName||'').toLowerCase().replace(/\s+/g,'').includes(ql) ||
-      (r.phone||'').replace(/[-\s]/g,'').includes(qp)
+    const qClean = q;
+    const qPhone = q.replace(/[-\s]/g,'');
+    const targetQ = query(
+      getRecipientsCol(),
+      or(
+        where("fullName", "==", qClean),
+        where("phone", "==", qPhone)
+      )
     );
+    const snap = await getDocs(targetQ);
+    const found = [];
+    snap.forEach(d => found.push(d.data()));
     loading.classList.add('hidden');
     if (!found.length) {
       result.innerHTML = `<div class="card" style="text-align:center;padding:36px"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-weight:700;color:var(--teal);font-size:1rem">ไม่พบข้อมูลรายชื่อของท่าน</div></div>`;
@@ -2532,7 +2535,7 @@ async function doRecipientSearch() {
         <div class="rt" style="font-size:1rem;text-align:center;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:16px;margin-bottom:0">
           ✅ ท่านมีรายชื่อในระบบ<br><span style="font-size:.85rem;font-weight:400;opacity:.9">รอทางเราจัดเตรียมและจัดส่งให้ครับ</span></div></div>`;
     }).join('');
-  } catch(e) { loading.classList.add('hidden'); toast('เกิดข้อผิดพลาด','err'); }
+  } catch(e) { loading.classList.add('hidden'); console.error(e); toast('เกิดข้อผิดพลาด','err'); }
 }
 
 // ============= MANAGE TRACKING =============
@@ -2687,15 +2690,20 @@ async function doSearch() {
   loading.classList.remove('hidden'); result.innerHTML = '';
   if (!S.fbReady) { loading.classList.add('hidden'); return; }
   try {
-    if (!S.cachedRec) {
-      const snap = await getDocs(getRecordsCol());
-      S.cachedRec = []; snap.forEach(d => S.cachedRec.push(d.data()));
-    }
-    const ql = q.toLowerCase().replace(/\s+/g,''), qp = q.replace(/[-\s]/g,'');
-    const found = S.cachedRec.filter(r =>
-      (r.fullName||'').toLowerCase().replace(/\s+/g,'').includes(ql) ||
-      (r.phone||'').replace(/[-\s]/g,'').includes(qp)
+    const qClean = q;
+    const qPhone = q.replace(/[-\s]/g,'');
+    const qTrack = q.replace(/\s/g,'').toUpperCase();
+    const targetQ = query(
+      getRecordsCol(),
+      or(
+        where("fullName", "==", qClean),
+        where("phone", "==", qPhone),
+        where("trackingNumber", "==", qTrack)
+      )
     );
+    const snap = await getDocs(targetQ);
+    const found = [];
+    snap.forEach(d => found.push(d.data()));
     loading.classList.add('hidden');
     if (!found.length) {
       result.innerHTML = `<div class="card" style="text-align:center;padding:36px"><div style="font-size:40px;margin-bottom:12px">🔍</div><div style="font-weight:700;color:var(--navy)">ไม่พบข้อมูล</div></div>`;
@@ -2723,7 +2731,7 @@ async function doSearch() {
         </div>`).join('');
       return `<div class="result-card">${bonHtml}<div class="rl">ชื่อ-นามสกุล</div><div class="rv">${g.fullName}</div>${multiLabel}${trackItems}</div>`;
     }).join('');
-  } catch(e) { loading.classList.add('hidden'); toast('เกิดข้อผิดพลาด','err'); }
+  } catch(e) { loading.classList.add('hidden'); console.error(e); toast('เกิดข้อผิดพลาด','err'); }
 }
 
 // ============= LABEL MANAGER =============

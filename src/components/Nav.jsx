@@ -49,7 +49,7 @@ const NAV_LINKS = [
   { id: "tracking", label: "ตรวจพัสดุ", icon: "ti-package" },
 ]
 
-export default function Nav({ page, go, theme, setTheme, authState }) {
+export default function Nav({ page, go, theme, setTheme, authState, readingSessions: readingSessionsProp }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
@@ -66,10 +66,10 @@ export default function Nav({ page, go, theme, setTheme, authState }) {
   } = usePWA(authState?.user, authState?.isStaff)
 
   const uid = authState?.user?.uid
-  const { items: articles } = useContentCollection("articles", ARTICLES)
-  const { items: books } = useContentCollection("books", BOOKS)
-  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid)
-  const { items: streakRecords } = useContentCollection("reading_streaks", [], uid)
+  const { items: articles } = useContentCollection("articles", ARTICLES, null, { limit: 1, orderByField: "createdAt", orderDirection: "desc", live: false })
+  const { items: books } = useContentCollection("books", BOOKS, null, { limit: 1, orderByField: "createdAt", orderDirection: "desc", live: false })
+  const readingSessions = readingSessionsProp ?? []
+  const { items: streakRecords } = useContentCollection("reading_streaks", [], uid, { live: false })
 
   const userSettings = useMemo(() => {
     if (!uid || !streakRecords) return null

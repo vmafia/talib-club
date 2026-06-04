@@ -3,14 +3,19 @@ import { createPortal } from "react-dom"
 import toast from 'react-hot-toast'
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import { ARTICLES, BOOKS } from "../data/index.js"
-import { useContentCollection } from "../lib/contentStore.js"
+import { useContentCollection, useUserCollection, useUserDoc } from "../lib/contentStore.js"
 import { storage } from "../lib/firebase.js"
 import { confirmAction } from "../utils/feedback.jsx"
 import Quran from "./Quran.jsx"
 import DashboardNav from "../components/DashboardNav.jsx"
 
+function resolveDashboardView(initialView) {
+  if (!initialView || initialView === "bookshelf" || initialView === "streak") return "overview"
+  return initialView
+}
+
 export default function MemberDashboard({ authState, go, initialView = "overview", ctx, theme }) {
-  const [view, setCurrentView] = useState("overview")
+  const [view, setCurrentView] = useState(() => resolveDashboardView(initialView))
   const [copied, setCopied] = useState("")
   const [quranSura, setQuranSura] = useState(1)
   const [quranAyah, setQuranAyah] = useState(null)
@@ -21,12 +26,9 @@ export default function MemberDashboard({ authState, go, initialView = "overview
   const role = profile.role || "member"
 
   useEffect(() => {
-    if (initialView) {
-      if (initialView === "bookshelf" || initialView === "streak") {
-        go("reader", ctx?.shelfItemId ? { shelfItemId: ctx.shelfItemId } : null)
-      } else if (initialView) {
-        setCurrentView(initialView)
-      }
+    if (initialView === "bookshelf" || initialView === "streak") {
+      go("reader", ctx?.shelfItemId ? { shelfItemId: ctx.shelfItemId } : null)
+      return
     }
 
     const searchParams = new URLSearchParams(window.location.search)
@@ -151,21 +153,18 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
 
   const uid = authState?.user?.uid
-  const { items: shelfItems } = useContentCollection("bookshelf", [], uid)
-  const { items: savedVerses } = useContentCollection("quran_bookmarks", [], uid)
-  const { items: lastReadPos } = useContentCollection("quran_last_read", [], uid)
+  const { items: shelfItems } = useContentCollection("bookshelf", [], uid, { live: false })
+  const { items: savedVerses } = useUserCollection("quran_bookmarks", uid)
+  const { item: remoteLastRead } = useUserDoc("quran_last_read", uid, uid ? `${uid}_last_read` : null)
   
   const userSavedVerses = useMemo(() => savedVerses.filter(item => item.uid === uid), [savedVerses, uid])
   const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && item.status !== "finished"), [shelfItems, uid])
 
   useEffect(() => {
-    if (uid && lastReadPos && lastReadPos.length > 0) {
-      const userLastRead = lastReadPos.find(item => item.uid === uid)
-      if (userLastRead) {
-        setLastRead(userLastRead)
-        localStorage.setItem("quran-last-read", JSON.stringify(userLastRead))
-        return
-      }
+    if (uid && remoteLastRead) {
+      setLastRead(remoteLastRead)
+      localStorage.setItem("quran-last-read", JSON.stringify(remoteLastRead))
+      return
     }
 
     try {
@@ -336,8 +335,8 @@ function calculateReadingStreak(values, protections = []) {
 
 function SavedArticlesPanel({ authState, go, setView }) {
   const uid = authState?.user?.uid;
-  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES)
-  const { items: bookmarks, loading: loadingBookmarks } = useContentCollection("bookmarks", [], uid)
+  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, { live: false })
+  const { items: bookmarks, loading: loadingBookmarks } = useContentCollection("bookmarks", [], uid, { live: false })
 
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -600,10 +599,10 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
 
 
   // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [], user?.uid)
-  const { items: savedVerses } = useContentCollection("quran_bookmarks", [], user?.uid)
-  const { items: readingSessions } = useContentCollection("reading_sessions", [], user?.uid)
-  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [], user?.uid)
+  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [], user?.uid, { live: false })
+  const { items: savedVerses } = useUserCollection("quran_bookmarks", user?.uid)
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], user?.uid, { live: false })
+  const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [], user?.uid, { live: false })
 
   const history = useMemo(() => {
     if (!user?.uid) return [];
@@ -995,7 +994,7 @@ const fieldStyle = { display: "grid", gap: 6, marginTop: 12, fontSize: 12, color
 
 function SavedVersesPanel({ authState, go, setView, setQuranSura, setQuranAyah }) {
   const uid = authState?.user?.uid;
-  const { items: savedVerses, loading, deleteItem, saveItem } = useContentCollection("quran_bookmarks", [], uid)
+  const { items: savedVerses, loading, deleteItem, saveItem } = useUserCollection("quran_bookmarks", uid)
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editNote, setEditNote] = useState("");
@@ -1127,17 +1126,18 @@ function SavedVersesPanel({ authState, go, setView, setQuranSura, setQuranAyah }
 
                     {/* Verses Container */}
                     <div style={{ padding: 12, background: "var(--card)", borderRadius: 8, marginBottom: 12, border: "0.5px solid var(--br2)" }}>
-                      <div style={{
-                        fontFamily: "'Amiri', serif",
-                        fontSize: 24,
-                        direction: "rtl",
-                        textAlign: "right",
-                        marginBottom: 10,
-                        lineHeight: 1.8,
-                        color: "var(--text)"
-                      }}>
-                        {item.arabicText}
-                      </div>
+                      <div 
+                        style={{
+                          fontFamily: "'Amiri', serif",
+                          fontSize: 24,
+                          direction: "rtl",
+                          textAlign: "right",
+                          marginBottom: 10,
+                          lineHeight: 1.8,
+                          color: "var(--text)"
+                        }}
+                        dangerouslySetInnerHTML={{ __html: item.arabicText }}
+                      />
                       <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
                         {item.translation}
                       </div>

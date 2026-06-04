@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from "react"
 import toast from "react-hot-toast"
 import { ARTICLES, SERIES } from "../data/index.js"
-import { useContentCollection } from "../lib/contentStore.js"
-import { serverTimestamp } from "firebase/firestore"
+import { useContentCollection, useContentDoc, CONTENT_COLLECTIONS } from "../lib/contentStore.js"
+import { collection, getDocs, query, where, serverTimestamp } from "firebase/firestore"
+import { db } from "../lib/firebase.js"
 import { bumpContentMetric } from "../utils/contentMetrics.js"
 
 const READER_DEFAULTS = { size: "md", tone: "3" }
@@ -20,36 +21,53 @@ function sanitizeArticleForStore(article) {
 
 export default function ArticleDetail({ item, go, authState }) {
   const uid = authState?.user?.uid;
-  const { items: articles, loading: loadingArticles, saveItem } = useContentCollection("articles", ARTICLES)
-  
-  // 💡 เชื่อมต่อกับคอลเลกชัน bookmarks ใน Firestore
-  const { items: bookmarks, saveItem: saveBookmark, deleteItem: deleteBookmark } = useContentCollection("bookmarks", [], uid)
-  
-  // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
-  
   const urlId = new URLSearchParams(window.location.search).get("id")
+  const articleId = urlId || item?.id
+  const fallbackArticle = useMemo(
+    () => (articleId ? ARTICLES.find(a => String(a.id) === String(articleId)) : null) ?? null,
+    [articleId]
+  )
+  const { item: remoteArticle, loading: loadingArticles } = useContentDoc("articles", articleId, fallbackArticle)
+
+  const { items: bookmarks, saveItem: saveBookmark, deleteItem: deleteBookmark } = useContentCollection("bookmarks", [], uid, { live: false })
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
+
   const hasIncrementedView = useRef(null)
+  const hasSavedHistory = useRef(null)
+  const [seriesArticles, setSeriesArticles] = useState([])
 
   const displayItem = useMemo(() => {
-    const id = urlId || item?.id
     const fromFilters = item?.fromFilters
-    if (id && articles.length > 0) {
-      const live = articles.find(a => String(a.id) === String(id))
-      if (live) return fromFilters ? { ...live, fromFilters } : live
+    if (remoteArticle) {
+      return fromFilters ? { ...remoteArticle, fromFilters } : remoteArticle
     }
     if (item?.title && !item.viewMode) return item
     return null
-  }, [item, urlId, articles])
+  }, [item, remoteArticle])
 
-  const seriesArticles = useMemo(() => {
-    if (displayItem?.type === "series" && displayItem?.seriesId) {
-      return articles
-        .filter(a => String(a.type).toLowerCase() === "series" && String(a.seriesId).toLowerCase() === String(displayItem.seriesId).toLowerCase())
-        .sort((a, b) => (a.part || 0) - (b.part || 0));
+  useEffect(() => {
+    if (displayItem?.type !== "series" || !displayItem?.seriesId) {
+      setSeriesArticles([])
+      return undefined
     }
-    return [];
-  }, [displayItem, articles]);
+    let cancelled = false
+    const seriesId = String(displayItem.seriesId).toLowerCase()
+    const q = query(
+      collection(db, CONTENT_COLLECTIONS.articles),
+      where("seriesId", "==", displayItem.seriesId)
+    )
+    getDocs(q)
+      .then(snapshot => {
+        if (cancelled) return
+        const episodes = snapshot.docs
+          .map(d => ({ ...d.data(), id: d.data().id ?? d.id }))
+          .filter(a => !a.deleted && String(a.type).toLowerCase() === "series" && String(a.seriesId).toLowerCase() === seriesId)
+          .sort((a, b) => (a.part || 0) - (b.part || 0))
+        setSeriesArticles(episodes)
+      })
+      .catch(err => console.error("Cannot load series episodes", err))
+    return () => { cancelled = true }
+  }, [displayItem?.type, displayItem?.seriesId])
 
   const seriesName = useMemo(() => {
     if (displayItem?.seriesId) {
@@ -73,7 +91,8 @@ export default function ArticleDetail({ item, go, authState }) {
 
   // บันทึกประวัติการอ่านบทความ
   useEffect(() => {
-    if (displayItem && authState?.user?.uid && saveHistory) {
+    if (displayItem && authState?.user?.uid && saveHistory && hasSavedHistory.current !== displayItem.id) {
+      hasSavedHistory.current = displayItem.id
       const uid = authState.user.uid;
       const historyId = `${uid}_article_${displayItem.id}`;
       saveHistory({

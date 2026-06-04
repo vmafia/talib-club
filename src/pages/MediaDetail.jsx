@@ -1,23 +1,24 @@
-import { useEffect, useMemo } from "react"
-import { useContentCollection } from "../lib/contentStore.js"
+import { useEffect, useMemo, useRef } from "react"
+import { useContentCollection, useContentDoc } from "../lib/contentStore.js"
 import { MEDIA } from "../data/index.js"
 
 export default function MediaDetail({ item: initialItem, go, authState }) {
   const uid = authState?.user?.uid;
-  const { items: mediaList, loading } = useContentCollection("media", MEDIA)
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
-
   const urlId = new URLSearchParams(window.location.search).get("id")
+  const mediaId = urlId || initialItem?.id
+  const fallbackMedia = useMemo(
+    () => (mediaId ? MEDIA.find(m => String(m.id) === String(mediaId)) : null) ?? null,
+    [mediaId]
+  )
+  const { item: remoteMedia, loading } = useContentDoc("media", mediaId, fallbackMedia)
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
+  const hasSavedHistory = useRef(null)
 
   const item = useMemo(() => {
-    const id = urlId || initialItem?.id
-    if (id && mediaList.length > 0) {
-      const live = mediaList.find(m => String(m.id) === String(id))
-      if (live) return live
-    }
+    if (remoteMedia) return remoteMedia
     if (initialItem?.title) return initialItem
     return null
-  }, [initialItem, urlId, mediaList])
+  }, [initialItem, remoteMedia])
 
   const spotifyEmbedSrc = useMemo(() => {
     const url = item?.spotifyUrl || ""
@@ -38,7 +39,8 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
 
   // บันทึกประวัติการดูสื่อ
   useEffect(() => {
-    if (item && authState?.user?.uid && saveHistory) {
+    if (item && authState?.user?.uid && saveHistory && hasSavedHistory.current !== item.id) {
+      hasSavedHistory.current = item.id
       const uid = authState.user.uid;
       const historyId = `${uid}_media_${item.id}`;
       saveHistory({

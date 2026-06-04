@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { SURA_LIST } from "../data/surahs.js"
 import { getSurahTheme } from "../data/quranThemes.js"
-import { useUserCollection } from "../lib/contentStore.js"
+import { useUserCollection, useUserDoc } from "../lib/contentStore.js"
 import toast from "react-hot-toast"
 import { confirmAction } from "../utils/feedback.jsx"
 
@@ -290,11 +290,15 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState(null)
   const uid = authState?.user?.uid
-  // Bookmarks (Reflection notes) — one-time fetch, not real-time, to avoid excessive Firestore reads
-  const { items: savedVerses, saveItem, deleteItem } = useUserCollection("quran_bookmarks", uid)
+  const lastReadDocId = uid ? `${uid}_last_read` : null
 
-  // Last Read Position — one-time fetch
-  const { items: lastReadPos, saveItem: saveLastRead, deleteItem: deleteLastRead } = useUserCollection("quran_last_read", uid)
+  const { items: savedVerses, saveItem, deleteItem } = useUserCollection("quran_bookmarks", uid)
+  const { item: remoteLastRead, saveItem: saveLastRead, deleteItem: deleteLastRead } = useUserDoc(
+    "quran_last_read",
+    uid,
+    lastReadDocId
+  )
+
   const [lastRead, setLastRead] = useState(() => {
     try {
       const local = localStorage.getItem("quran-last-read")
@@ -305,14 +309,11 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   })
 
   useEffect(() => {
-    if (uid && lastReadPos && lastReadPos.length > 0) {
-      const userLastRead = lastReadPos.find(item => item.uid === uid)
-      if (userLastRead) {
-        setLastRead(userLastRead)
-        localStorage.setItem("quran-last-read", JSON.stringify(userLastRead))
-      }
+    if (uid && remoteLastRead) {
+      setLastRead(remoteLastRead)
+      localStorage.setItem("quran-last-read", JSON.stringify(remoteLastRead))
     }
-  }, [lastReadPos, uid])
+  }, [remoteLastRead, uid])
 
   const updateLastRead = async (suraNum, ayahNum) => {
     const isAlreadyBookmarked = lastRead?.sura === suraNum && lastRead?.aya === ayahNum
@@ -623,7 +624,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
       sura: selectedSura,
       aya: v.aya,
       suraName: currentSuraInfo.englishName,
-      arabicText: v.arabic_text,
+      arabicText: v.arabic_text_tajweed || v.arabic_text || "",
       translation: v.translation,
       bookmarkId: existingBookmark?.id || null
     })
@@ -644,10 +645,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         sura: activeBookmarkModal.sura,
         aya: activeBookmarkModal.aya,
         suraName: activeBookmarkModal.suraName,
-        arabicText: activeBookmarkModal.arabicText,
-        translation: activeBookmarkModal.translation,
         notes: modalNotes,
-        updatedAt: new Date()
       })
 
       toast.success(isNew ? "บันทึกอายะฮ์สำเร็จ" : "อัปเดตข้อคิดแล้ว", { id: toastId })
@@ -928,15 +926,17 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           color: var(--quran-teal) !important;
           text-shadow: 0 0 8px rgba(45, 190, 160, 0.5);
         }
-        .arabic-font {
-          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif;
+        .arabic-font,
+        .arabic-font span {
+          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif !important;
           direction: rtl;
           text-align: right;
           line-height: 2.6;
           color: var(--quran-text);
         }
-        .mushaf-flow {
-          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif;
+        .mushaf-flow,
+        .mushaf-flow span {
+          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif !important;
           text-align: justify;
           direction: rtl;
           line-height: 2.6;
@@ -2698,9 +2698,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                 margin: "8px 0",
                 lineHeight: 1.6,
                 color: "var(--quran-text)"
-              }}>
-                {activeBookmarkModal.arabicText}
-              </div>
+              }} dangerouslySetInnerHTML={{ __html: tajweedEnabled ? activeBookmarkModal.arabicText : stripTajweedTags(activeBookmarkModal.arabicText) }} />
               <div style={{ fontSize: 12, color: "var(--quran-t2)", lineHeight: 1.45, textAlign: "left" }}>
                 {activeBookmarkModal.translation}
               </div>
@@ -2813,9 +2811,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               maxHeight: 120,
               overflowY: "auto",
               direction: "rtl"
-            }}>
-              {activeAyahMenu.arabicText}
-            </div>
+            }} dangerouslySetInnerHTML={{
+              __html: tajweedEnabled ? (activeAyahMenu.verse?.arabic_text_tajweed || activeAyahMenu.arabicText || "") : stripTajweedTags(activeAyahMenu.verse?.arabic_text_tajweed || activeAyahMenu.arabicText || "")
+            }} />
 
             {/* Play/Pause Button for this verse */}
             <div style={{ display: "flex", justifyContent: "center" }}>

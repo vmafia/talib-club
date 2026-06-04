@@ -6,7 +6,7 @@ import PaginationBar from "../components/PaginationBar.jsx"
 import ContentStatusBanner from "../components/ContentStatusBanner.jsx"
 
 export default function Media({ go, ctx }) {
-  const { items: media, loading, error, isUsingFallback } = useContentCollection("media", MEDIA)
+  const { items: media, loading, error, isUsingFallback } = useContentCollection("media", MEDIA, null, { live: false })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   const { site } = useSiteSettings(SITE)
   

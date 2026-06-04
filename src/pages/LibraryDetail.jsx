@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import toast from "react-hot-toast"
 import { BOOKS } from "../data/index.js"
-import { useContentCollection } from "../lib/contentStore.js"
+import { useContentCollection, useContentDoc } from "../lib/contentStore.js"
 import { bumpContentMetric } from "../utils/contentMetrics.js"
 
 function getDirectUrl(url) {
@@ -27,28 +27,28 @@ function getPreviewUrl(url) {
 
 export default function LibraryDetail({ item, go, authState }) {
   const uid = authState?.user?.uid;
-  // ดึง saveItem ออกมาจากคอลเล็กชันเพื่อใช้อัปเดตข้อมูลขึ้น Firebase
-  const { items: books, loading, saveItem } = useContentCollection("books", BOOKS)
-  
-  // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid)
-  
   const urlId = new URLSearchParams(window.location.search).get("id")
-  const hasIncrementedView = useRef(null) // ตัวรั้งสำหรับป้องกันการบวกยอดวิวซ้ำตอนเรนเดอร์
+  const bookId = urlId || item?.id
+  const fallbackBook = useMemo(
+    () => (bookId ? BOOKS.find(b => String(b.id) === String(bookId)) : null) ?? null,
+    [bookId]
+  )
+  const { item: remoteBook, loading } = useContentDoc("books", bookId, fallbackBook)
+  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
+
+  const hasIncrementedView = useRef(null)
+  const hasSavedHistory = useRef(null)
 
   const displayItem = useMemo(() => {
-    const id = urlId || item?.id
-    if (id && books.length > 0) {
-      const live = books.find(b => String(b.id) === String(id))
-      if (live) return live
-    }
+    if (remoteBook) return remoteBook
     if (item?.title) return item
     return null
-  }, [item, urlId, books])
+  }, [item, remoteBook])
 
   // บันทึกประวัติการดูหนังสือ
   useEffect(() => {
-    if (displayItem && authState?.user?.uid && saveHistory) {
+    if (displayItem && authState?.user?.uid && saveHistory && hasSavedHistory.current !== displayItem.id) {
+      hasSavedHistory.current = displayItem.id
       const uid = authState.user.uid;
       const historyId = `${uid}_book_${displayItem.id}`;
       saveHistory({

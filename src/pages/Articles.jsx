@@ -6,7 +6,7 @@ import PaginationBar from "../components/PaginationBar.jsx"
 import ContentStatusBanner from "../components/ContentStatusBanner.jsx"
 
 export default function Articles({ go, authState, ctx }) {
-  const { items: articles, loading, error, isUsingFallback } = useContentCollection("articles", ARTICLES)
+  const { items: articles, loading, error, isUsingFallback } = useContentCollection("articles", ARTICLES, null, { live: false })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   
   const cat = ctx?.cat || "all"

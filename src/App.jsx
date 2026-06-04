@@ -70,7 +70,7 @@ export default function App() {
   const [countdownText, setCountdownText] = useState("")
 
   const uid = authState?.user?.uid
-  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid)
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid, { live: false })
   const countdownNotifRef = useRef(null)
 
   // --- Preferred Time Notification (60s interval, gated by user toggle) ---
@@ -248,7 +248,14 @@ export default function App() {
     <div className={`app ${theme}`}>
       <Toaster position="top-right" toastOptions={{ style: { fontFamily: "'Prompt', sans-serif", fontSize: 14 } }} />
       
-      <Nav page={page} go={go} theme={theme} setTheme={setTheme} authState={authState} />
+      <Nav
+        page={page}
+        go={go}
+        theme={theme}
+        setTheme={setTheme}
+        authState={authState}
+        readingSessions={readingSessions}
+      />
       {countdownText && (
         <div
           className="countdown-banner"

@@ -28,7 +28,7 @@ function getDownloadUrl(url) {
 }
 
 export default function Library({ go, authState, ctx }) {
-  const { items: books, loading, error, isUsingFallback } = useContentCollection("books", BOOKS)
+  const { items: books, loading, error, isUsingFallback } = useContentCollection("books", BOOKS, null, { live: false })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
   const filter = ctx?.filter || "all"

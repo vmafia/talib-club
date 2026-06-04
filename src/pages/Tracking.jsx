@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { collection, getDocs, writeBatch, doc, updateDoc, deleteDoc, Timestamp, query, where, or } from "firebase/firestore";
 import { trackingDb as db } from "../lib/trackingFirebase.js";
 import { canAccessTrackingAdmin, verifyTrackingAdminPassword } from "../utils/trackingAuth.js";
 
@@ -142,22 +142,43 @@ export default function Tracking({ authState }) {
 
   const handlePublicSearch = async (e, mode) => {
     e.preventDefault();
-    if (!userQuery.trim()) return;
-    setIsLoading(true); setUserSearchResult(null);
+    const rawQuery = userQuery.trim();
+    if (!rawQuery) return;
+    setIsLoading(true);
+    setUserSearchResult(null);
     try {
       const targetCol = mode === "recipient" ? "recipients" : "records";
-      const snap = await getDocs(collection(db, targetCol));
-      const qClean = userQuery.trim().toLowerCase().replace(/\s+/g, '');
-      const found = snap.docs.map(d => d.data()).filter(item => {
-        const name = (item.fullName || "").toLowerCase().replace(/\s+/g, "")
-        const phone = String(item.phone || "").replace(/[-\s]/g, "")
-        const track = String(item.trackingNumber || "").replace(/\s/g, "").toUpperCase()
-        const qTrack = userQuery.trim().replace(/\s/g, "").toUpperCase()
-        return name.includes(qClean) || phone.includes(qClean) ||
-          (targetCol === "records" && track.includes(qTrack))
-      });
+      const qClean = rawQuery;
+      const qPhone = rawQuery.replace(/[-\s]/g, ""); // digits only
+      const qTrack = rawQuery.replace(/\s/g, "").toUpperCase();
+
+      let q;
+      if (mode === "recipient") {
+        q = query(
+          collection(db, "recipients"),
+          or(
+            where("fullName", "==", qClean),
+            where("phone", "==", qPhone)
+          )
+        );
+      } else {
+        q = query(
+          collection(db, "records"),
+          or(
+            where("fullName", "==", qClean),
+            where("phone", "==", qPhone),
+            where("trackingNumber", "==", qTrack)
+          )
+        );
+      }
+
+      const snap = await getDocs(q);
+      const found = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setUserSearchResult(found.length > 0 ? found : "NOT_FOUND");
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Public search error:", err);
+      setUserSearchResult("NOT_FOUND");
+    }
     setIsLoading(false);
   };
 
