@@ -73,7 +73,7 @@ export default function StaffWork({ authState, go }) {
   const [isDragging, setIsDragging] = useState(false)
   
   // Modal State สำหรับลบข้อมูล
-  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: "", text: "", onConfirm: null })
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: "", text: "", confirmLabel: "ยืนยัน", onConfirm: null })
 
   // Dynamic Data States
   const [staffTeam, setStaffTeam] = useState(DEFAULT_STAFF)
@@ -170,12 +170,17 @@ export default function StaffWork({ authState, go }) {
 
   // ━━━ ADMIN ACTIONS ━━━
   const handleAddStaff = async () => {
-    if (!newStaffName.trim()) return
-    const updatedTeam = [...staffTeam, newStaffName.trim()].sort()
+    const name = newStaffName.trim()
+    if (!name) return
+    if (staffTeam.includes(name)) {
+      notifyError(`"${name}" มีในระบบแล้ว`)
+      return
+    }
+    const updatedTeam = [...staffTeam, name].sort()
     try {
       await setDoc(doc(db, "settings", "staff"), { members: updatedTeam }, { merge: true })
       setNewStaffName("")
-      notifySuccess(`เพิ่ม "${newStaffName}" เข้าระบบแล้ว`)
+      notifySuccess(`เพิ่ม "${name}" เข้าระบบแล้ว`)
     } catch (e) {
       notifyError("เกิดข้อผิดพลาดในการเพิ่มทีมงาน")
     }
@@ -186,6 +191,7 @@ export default function StaffWork({ authState, go }) {
       isOpen: true,
       title: "ลบทีมงาน",
       text: `คุณแน่ใจหรือไม่ที่จะลบ "${name}" ออกจากระบบ?`,
+      confirmLabel: "ลบรายชื่อ",
       onConfirm: async () => {
         const updatedTeam = staffTeam.filter(n => n !== name)
         await setDoc(doc(db, "settings", "staff"), { members: updatedTeam }, { merge: true })
@@ -293,6 +299,7 @@ export default function StaffWork({ authState, go }) {
       setReviewingId(null)
 
       const targetSub = subs.find(s => s.id === id)
+      if (!targetSub) return
       if (nextStatus === STATUS_OPTIONS.APPROVED) {
         await sendBotNotification(`✅ [อนุมัติแล้ว] งาน "${targetSub.title}"\nตรวจผ่านแล้ว 🎉 เตรียมจัดคิวลงแพลตฟอร์มได้เลย!`)
         await triggerPushNotification(
@@ -327,6 +334,7 @@ export default function StaffWork({ authState, go }) {
       notifySuccess("บันทึกการลงงานเรียบร้อย!")
       setPostingId(null)
       const targetSub = subs.find(s => s.id === id)
+      if (!targetSub) return
       const platformsStr = postingForm.platforms.join(", ")
       const postUrl = postingForm.postLink
       setPostingForm({ scheduleDate: "", platforms: [], postLink: "" })
@@ -348,6 +356,7 @@ export default function StaffWork({ authState, go }) {
       isOpen: true,
       title: "ยืนยันการลบงาน",
       text: `คุณแน่ใจหรือไม่ที่จะลบงาน "${title}" ออกจากระบบถาวร? ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้`,
+      confirmLabel: "ลบงานถาวร",
       onConfirm: async () => {
         try {
           await deleteDoc(doc(db, "submissions", id))
@@ -383,7 +392,7 @@ export default function StaffWork({ authState, go }) {
             <p style={{ color: 'var(--t2)', marginBottom: '24px', lineHeight: '1.6' }}>{confirmDialog.text}</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <button className="btn btn-outline" onClick={() => setConfirmDialog({ isOpen: false })}>ยกเลิก</button>
-              <button className="btn" style={{ background: '#d84f4f', color: '#fff', border: 'none' }} onClick={confirmDialog.onConfirm}>ยืนยันการลบ</button>
+              <button className="btn" style={{ background: '#d84f4f', color: '#fff', border: 'none' }} onClick={confirmDialog.onConfirm}>{confirmDialog.confirmLabel || "ยืนยัน"}</button>
             </div>
           </div>
         </div>,
@@ -391,7 +400,7 @@ export default function StaffWork({ authState, go }) {
       )}
 
       {/* ━━━ UPPER BANNER ━━━ */}
-      <div className="card" style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--teal)" }}>
+      <div className="card staff-work-hero" style={{ padding: "24px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <button className="btn btn-outline" onClick={() => go("staff")} style={{ marginBottom: "12px", padding: "5px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -439,7 +448,7 @@ export default function StaffWork({ authState, go }) {
                 const hl = (name) => name === currentUser ? <strong style={{color: "var(--teal)"}}>{name}</strong> : name;
 
                 return (
-                  <div key={sub.id} className="card animate-fade-in" style={{ padding: "20px", borderLeft: `4px solid ${isPending ? "#bd7a13" : isRejected ? "#d84f4f" : isApproved ? "var(--teal)" : "#3b73c4"}` }}>
+                  <div key={sub.id} className={`card animate-fade-in staff-sub-card ${isPending ? "is-pending" : isRejected ? "is-rejected" : isApproved ? "is-approved" : "is-posted"}`} style={{ padding: "20px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
@@ -503,7 +512,13 @@ export default function StaffWork({ authState, go }) {
                           <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="เช่น ขอแก้ฟอนต์..." rows="2" />
                           <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "10px" }}>
                             <button className="btn btn-outline" onClick={() => setReviewingId(null)}>ยกเลิก</button>
-                            <button className="btn" onClick={() => handleReviewAction(sub.id, STATUS_OPTIONS.REJECTED, feedback)} style={{ background: "#bd7a13", color: "white" }}>ยืนยันส่งกลับ</button>
+                            <button className="btn" onClick={() => {
+                              if (!feedback.trim()) {
+                                notifyError("กรุณาระบุฟีดแบ็กก่อนส่งกลับงาน")
+                                return
+                              }
+                              handleReviewAction(sub.id, STATUS_OPTIONS.REJECTED, feedback.trim())
+                            }} style={{ background: "#bd7a13", color: "white" }}>ยืนยันส่งกลับ</button>
                           </div>
                         </div>
                       )}
@@ -657,7 +672,7 @@ export default function StaffWork({ authState, go }) {
                 const isCurrentMonth = i === new Date().getMonth()
                 const isMine = item.user === currentUser
                 return (
-                  <div key={i} className={`card staff-mag-card ${isCurrentMonth ? "current" : ""} ${isMine ? "mine" : ""}`} style={{ padding: "16px", borderLeft: isCurrentMonth ? "4px solid var(--teal)" : "1px solid var(--br2)" }}>
+                  <div key={i} className={`card staff-mag-card ${isCurrentMonth ? "current" : ""} ${isMine ? "mine" : ""}`} style={{ padding: "16px" }}>
                     <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{item.month}</span>
                     <strong style={{ color: isCurrentMonth ? "var(--teal)" : "var(--text)", fontSize: "18px", marginTop: "4px" }}>{item.user}</strong>
                     {isCurrentMonth && <em style={{ fontSize: "10px", display: "inline-block", marginTop: "8px", background: "var(--teal-bg)", padding: "2px 8px", borderRadius: "10px", color: "var(--teal)", fontWeight: "500" }}>เดือนปัจจุบัน</em>}

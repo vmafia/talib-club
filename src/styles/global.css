@@ -1632,6 +1632,82 @@ button.dashboard-card:hover {
   width: 100%;
 }
 
+.translation-filter-bar {
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.translation-page-size {
+  min-width: 130px;
+}
+
+.translation-list-meta {
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--t2);
+}
+
+.translation-btn-progress,
+.translation-btn-pending {
+  padding: 5px 12px;
+  font-size: 12px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+}
+
+.translation-btn-progress {
+  background: #3b73c4;
+}
+
+.translation-btn-pending {
+  background: #bd7a13;
+}
+
+.pagination-ellipsis {
+  color: var(--t3);
+  font-size: 12px;
+  padding: 0 2px;
+  user-select: none;
+}
+
+.staff-work-hero {
+  border-top: 3px solid var(--teal);
+}
+
+.staff-sub-card {
+  border: .5px solid var(--br2);
+}
+
+.staff-sub-card.is-pending {
+  border-top: 3px solid #bd7a13;
+}
+
+.staff-sub-card.is-rejected {
+  border-top: 3px solid #d84f4f;
+}
+
+.staff-sub-card.is-approved {
+  border-top: 3px solid var(--teal);
+}
+
+.staff-sub-card.is-posted {
+  border-top: 3px solid #3b73c4;
+}
+
+@media (max-width: 767px) {
+  .translation-filter-bar .pill {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .translation-page .card.translation-table > div {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 .translation-toolbar {
   padding: 14px;
   display: grid;
@@ -2413,4 +2489,4 @@ button.dashboard-card:hover {
   background: var(--teal);
   color: #fff;
   border-color: var(--teal);
-}
+}
