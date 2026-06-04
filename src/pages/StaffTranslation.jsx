@@ -135,15 +135,9 @@ export default function StaffTranslation({ go }) {
       notifyError(`งานนี้รับโดย ${item.assignee} อยู่แล้ว`)
       return
     }
-    let next = item
-    if (!item.assignee && item.status !== STATUS.completed) {
-      const ok = await updateItem(item, { status: STATUS.progress, assignee: myName })
-      if (!ok) return
-      next = { ...item, assignee: myName, status: STATUS.progress }
-    }
-    setActiveWorkspaceItem(next)
-    setWorkspaceParagraphs(next.paragraphs || [])
-    setWorkspaceThaiTitle(next.thaiTitle || "")
+    setActiveWorkspaceItem(item)
+    setWorkspaceParagraphs(item.paragraphs || [])
+    setWorkspaceThaiTitle(item.thaiTitle || "")
     setWorkspaceDirty(false)
   }
 
@@ -366,6 +360,17 @@ export default function StaffTranslation({ go }) {
               </button>
               <h1 style={{ marginTop: "10px" }}>พื้นที่แปลภาษา</h1>
               <p style={{ marginTop: "4px" }}>บทความ: <a href={activeWorkspaceItem.url} target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>{activeWorkspaceItem.title} <i className="ti ti-external-link" /></a></p>
+              <div style={{ display: "flex", gap: "8px", marginTop: "8px", alignItems: "center" }}>
+                {activeWorkspaceItem.assignee ? (
+                  <span className="badge badge-teal" style={{ fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <i className="ti ti-user" /> ผู้รับงาน: {activeWorkspaceItem.assignee}
+                  </span>
+                ) : (
+                  <span className="badge" style={{ background: "rgba(245,158,11,0.08)", color: "#bd7a13", border: "0.5px solid rgba(245,158,11,0.2)", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 10px", borderRadius: "12px" }}>
+                    <i className="ti ti-info-circle" /> ยังไม่มีผู้รับงาน (จะรับงานให้อัตโนมัติเมื่อกดบันทึกร่าง)
+                  </span>
+                )}
+              </div>
             </div>
             
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
