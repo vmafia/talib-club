@@ -90,13 +90,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
     localStorage.setItem("quran-sidebar-collapsed", sidebarCollapsed)
   }, [sidebarCollapsed])
 
-  useEffect(() => {
-    localStorage.setItem("quran-font-family", quranFont)
-  }, [quranFont])
 
-  useEffect(() => {
-    localStorage.setItem("quran-tajweed-enabled", tajweedEnabled)
-  }, [tajweedEnabled])
 
   useEffect(() => {
     setBenefitsExpanded(false)
@@ -264,6 +258,14 @@ export default function Quran({ initialSura, initialAyah, authState }) {
   const [tajweedEnabled, setTajweedEnabled] = useState(() => {
     return localStorage.getItem("quran-tajweed-enabled") !== "false"
   })
+
+  useEffect(() => {
+    localStorage.setItem("quran-font-family", quranFont)
+  }, [quranFont])
+
+  useEffect(() => {
+    localStorage.setItem("quran-tajweed-enabled", tajweedEnabled)
+  }, [tajweedEnabled])
   const [showTajweedLegend, setShowTajweedLegend] = useState(false)
 
   const [verses, setVerses] = useState([])
