@@ -55,9 +55,11 @@ const SURAH_NAMES = {
 }
 
 export default function Home({ go }) {
-  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, { limit: 3, orderByField: "updatedAt", orderDirection: "desc", live: false })
-  const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, { limit: 4, orderByField: "updatedAt", orderDirection: "desc", live: false })
-  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, { limit: 3, orderByField: "updatedAt", orderDirection: "desc", live: false })
+  // ไม่ใช้ orderByField เพราะ records เก่าบางตัวอาจไม่มี updatedAt
+  // ให้ byNewest() ใน contentStore จัดเรียงให้แทน
+  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, { live: false })
+  const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, { live: false })
+  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, { live: false })
   const { count: scholarCount } = useCollectionCount("scholars")
   const { count: articleCount } = useCollectionCount("articles")
   const { count: bookCount } = useCollectionCount("books")
@@ -278,9 +280,15 @@ export default function Home({ go }) {
                 </div>
               ))}
             </div>
+          ) : recentMedia.length === 0 ? (
+            <div className="card" style={{ padding:"20px 14px", textAlign:"center", color:"var(--t3)", fontSize:12 }}>
+              <i className="ti ti-player-play" style={{ fontSize:24, display:"block", marginBottom:8, opacity:.4 }}></i>
+              <div>ยังไม่มีมีเดีย</div>
+              <button className="sec-link" style={{ marginTop:6, fontSize:11 }} onClick={() => go("media")}>ดูหน้ามีเดีย →</button>
+            </div>
           ) : (
             <div className="flex-col">
-              {recentMedia.map(m => (
+              {recentMedia.slice(0, 3).map(m => (
                 <div key={m.id} className="card" style={{ padding:"11px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}
                   onClick={() => go("media")}>
                   <div style={{
@@ -288,14 +296,19 @@ export default function Home({ go }) {
                     border:".5px solid var(--acc-br)", display:"flex", alignItems:"center",
                     justifyContent:"center", flexShrink:0,
                   }}>
-                    <i className={`ti ${m.type==="youtube" ? "ti-brand-youtube" : "ti-brand-spotify"}`}
-                      style={{ fontSize:14, color: m.type==="youtube" ? "#ff4444" : "#1ed760" }}></i>
+                    <i className={`ti ${
+                      m.type==="youtube" ? "ti-brand-youtube" :
+                      m.type==="spotify" ? "ti-brand-spotify" : "ti-video"
+                    }`} style={{ fontSize:14, color:
+                      m.type==="youtube" ? "#ff4444" :
+                      m.type==="spotify" ? "#1ed760" : "var(--teal)"
+                    }}></i>
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:12, fontWeight:500, color:"var(--text)",
                       whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{m.title}</div>
                     <div style={{ fontSize:10, color:"var(--t3)", fontWeight:300, marginTop:2 }}>
-                      {m.series} · {m.duration}
+                      {m.series || m.channel}{m.duration ? ` · ${m.duration}` : ""}
                     </div>
                   </div>
                 </div>
