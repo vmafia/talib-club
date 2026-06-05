@@ -3,9 +3,9 @@ import { createPortal } from "react-dom"
 import toast from 'react-hot-toast'
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage"
 import { ARTICLES, BOOKS } from "../data/index.js"
-import { useContentCollection, useUserCollection, useUserDoc } from "../lib/contentStore.js"
+import { useContentCollection, useUserCollection, useUserDoc, invalidateContentCache } from "../lib/contentStore.js"
 import { storage, db } from "../lib/firebase.js"
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore"
+import { collection, query, orderBy, limit, getDocs, getCountFromServer, where } from "firebase/firestore"
 import { confirmAction } from "../utils/feedback.jsx"
 import Quran from "./Quran.jsx"
 import DashboardNav from "../components/DashboardNav.jsx"
@@ -75,13 +75,14 @@ export default function MemberDashboard({ authState, go, initialView = "overview
     const toastId = toast.loading("กำลังออกจากระบบ...");
     setTimeout(async () => {
       try {
+        invalidateContentCache();
         if (authState?.logout) await authState.logout();
         toast.success("ออกจากระบบสำเร็จ", { id: toastId });
-        window.location.href = "/";
+        go("home");
       } catch (error) {
         toast.error("เกิดข้อผิดพลาดในการออกจากระบบ", { id: toastId });
       }
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -219,19 +220,64 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
 
   const uid = authState?.user?.uid
-  const { items: shelfItems } = useContentCollection("bookshelf", [], uid, { live: false })
-  const { items: savedVerses } = useUserCollection("quran_bookmarks", uid)
   const { item: remoteLastRead } = useUserDoc("quran_last_read", uid, uid ? `${uid}_last_read` : null)
-  const { items: sessionItems } = useContentCollection("reading_sessions", [], uid, { live: false })
-  const { items: streakRecords } = useContentCollection("reading_streaks", [], uid, { live: false })
-  
-  const userSavedVerses = useMemo(() => savedVerses.filter(item => item.uid === uid), [savedVerses, uid])
-  const activeBooks = useMemo(() => shelfItems.filter(item => item.uid === uid && item.status !== "finished"), [shelfItems, uid])
 
-  const sessionCount = useMemo(() => sessionItems.filter(item => item.uid === uid && item.verified).length, [sessionItems, uid])
-  const streakSettings = useMemo(() => streakRecords.find(item => item.uid === uid || item.id === uid), [streakRecords, uid])
-  const finishedCount = useMemo(() => shelfItems.filter(item => item.uid === uid && item.status === "finished").length, [shelfItems, uid])
-  const bookmarkCount = userSavedVerses.length
+  const [counts, setCounts] = useState({
+    activeBooks: 0,
+    finishedBooks: 0,
+    bookmarkCount: 0,
+    sessionCount: 0,
+  })
+  const [streakCount, setStreakCount] = useState(0)
+  const [loadingCounts, setLoadingCounts] = useState(true)
+
+  useEffect(() => {
+    if (!uid) return
+    setLoadingCounts(true)
+    
+    const fetchOverviewData = async () => {
+      try {
+        const [
+          activeBooksSnap,
+          finishedBooksSnap,
+          bookmarkSnap,
+          sessionSnap,
+          streakSnap,
+        ] = await Promise.all([
+          getCountFromServer(query(collection(db, "content_bookshelf"), where("uid", "==", uid), where("status", "!=", "finished"))),
+          getCountFromServer(query(collection(db, "content_bookshelf"), where("uid", "==", uid), where("status", "==", "finished"))),
+          getCountFromServer(query(collection(db, "content_quran_bookmarks"), where("uid", "==", uid))),
+          getCountFromServer(query(collection(db, "content_reading_sessions"), where("uid", "==", uid), where("verified", "==", true))),
+          getDocs(query(collection(db, "content_reading_streaks"), where("uid", "==", uid), limit(1))),
+        ])
+        
+        let streakVal = 0
+        if (!streakSnap.empty) {
+          streakVal = streakSnap.docs[0].data()?.streakCount || 0
+        }
+        
+        setCounts({
+          activeBooks: activeBooksSnap.data().count,
+          finishedBooks: finishedBooksSnap.data().count,
+          bookmarkCount: bookmarkSnap.data().count,
+          sessionCount: sessionSnap.data().count,
+        })
+        setStreakCount(streakVal)
+      } catch (err) {
+        console.error("Failed to load overview counts:", err)
+      } finally {
+        setLoadingCounts(false)
+      }
+    }
+    fetchOverviewData()
+  }, [uid])
+
+  const sessionCount = counts.sessionCount
+  const streakSettings = { streakCount }
+  const finishedCount = counts.finishedBooks
+  const bookmarkCount = counts.bookmarkCount
+  const activeBooksCount = counts.activeBooks
+  const userSavedVersesCount = counts.bookmarkCount
   const [sharedCount, setSharedCount] = useState(() => Number(localStorage.getItem("talib_shared_articles_count") || 0))
 
   useEffect(() => {
@@ -300,6 +346,15 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
     }
   }, [remoteLastRead, uid])
 
+  if (loadingCounts) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 20px" }}>
+        <i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)", marginBottom: 8 }}></i>
+        <p style={{ fontSize: 13, color: "var(--t3)", fontFamily: "'Prompt', sans-serif" }}>กำลังโหลดสถิติของคุณ...</p>
+      </div>
+    )
+  }
+
   return (
     <div>
       {lastRead && (
@@ -335,8 +390,8 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
         go={go} 
         lastRead={lastRead} 
         onOpenQuran={onOpenQuran} 
-        activeBooksCount={activeBooks.length} 
-        userSavedVersesCount={userSavedVerses.length} 
+        activeBooksCount={activeBooksCount} 
+        userSavedVersesCount={userSavedVersesCount} 
       />
 
       {/* Achievements Section */}
@@ -776,22 +831,51 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
   const [busy, setBusy] = useState("")
 
 
-  // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore
-  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [], user?.uid, { live: false })
+  // 💡 เชื่อมต่อกับคอลเลกชัน history ใน Firestore (ดึงเพียง 10 รายการล่าสุด)
+  const { items: rawHistory, loading: loadingHistory } = useContentCollection("history", [], user?.uid, { limit: 10, orderByField: "timestamp", orderDirection: "desc", live: false })
   const { items: savedVerses } = useUserCollection("quran_bookmarks", user?.uid)
-  const { items: readingSessions } = useContentCollection("reading_sessions", [], user?.uid, { live: false })
   const { items: streakRecords, saveItem: saveStreakSettings } = useContentCollection("reading_streaks", [], user?.uid, { live: false })
 
   const history = useMemo(() => {
     if (!user?.uid) return [];
-    return rawHistory
-      .filter(h => h.uid === user.uid)
-      .sort((a, b) => {
-        const timeA = a.timestamp || 0;
-        const timeB = b.timestamp || 0;
-        return timeB - timeA;
-      });
+    return rawHistory;
   }, [rawHistory, user?.uid])
+
+  const [dbStats, setDbStats] = useState({
+    articlesRead: 0,
+    booksDownloaded: 0,
+    mediaWatched: 0,
+    verifiedSessions: 0,
+  })
+  const [loadingDbStats, setLoadingDbStats] = useState(false)
+
+  useEffect(() => {
+    if (!user?.uid) return
+    setLoadingDbStats(true)
+
+    const fetchDbStats = async () => {
+      try {
+        const [artSnap, bookSnap, mediaSnap, sessionSnap] = await Promise.all([
+          getCountFromServer(query(collection(db, "content_history"), where("uid", "==", user.uid), where("type", "==", "article"))),
+          getCountFromServer(query(collection(db, "content_history"), where("uid", "==", user.uid), where("type", "==", "book"))),
+          getCountFromServer(query(collection(db, "content_history"), where("uid", "==", user.uid), where("type", "==", "media"))),
+          getCountFromServer(query(collection(db, "content_reading_sessions"), where("uid", "==", user.uid), where("verified", "==", true))),
+        ])
+        
+        setDbStats({
+          articlesRead: artSnap.data().count,
+          booksDownloaded: bookSnap.data().count,
+          mediaWatched: mediaSnap.data().count,
+          verifiedSessions: sessionSnap.data().count,
+        })
+      } catch (err) {
+        console.error("Failed to fetch profile counts:", err)
+      } finally {
+        setLoadingDbStats(false)
+      }
+    }
+    fetchDbStats()
+  }, [user?.uid])
 
   const isGoogleUser = user?.providerData?.some(p => p.providerId === "google.com") || false;
 
@@ -866,18 +950,18 @@ function ProfilePanel({ authState, copied, copyText, go, setView, ctx }) {
   }
 
   const stats = useMemo(() => {
-    const articlesRead = history.filter(h => h.type === "article").length;
-    const booksDownloaded = history.filter(h => h.type === "book").length;
-    const mediaWatched = history.filter(h => h.type === "media").length;
-    const verifiedSessions = readingSessions.filter(item => item.uid === user?.uid && item.verified)
-    const settings = normalizeStreakSettings(streakRecords.find(item => item.uid === user?.uid || item.id === user?.uid), user?.uid)
-    const streak = calculateReadingStreak(
-      verifiedSessions.map(item => item.dayKey || item.completedAt || item.createdAt),
-      settings.protectedDays
-    );
-    const readingMinutes = Math.round(verifiedSessions.reduce((sum, item) => sum + Number(item.activeSeconds || 0), 0) / 60)
-    return { articlesRead, booksDownloaded, mediaWatched, streak, verifiedSessions: verifiedSessions.length, readingMinutes };
-  }, [history, readingSessions, streakRecords, user?.uid])
+    const userStreakRecord = streakRecords.find(item => item.uid === user?.uid || item.id === user?.uid)
+    return {
+      articlesRead: dbStats.articlesRead,
+      booksDownloaded: dbStats.booksDownloaded,
+      mediaWatched: dbStats.mediaWatched,
+      streak: {
+        current: userStreakRecord?.streakCount || 0
+      },
+      verifiedSessions: dbStats.verifiedSessions,
+      readingMinutes: 0
+    };
+  }, [dbStats, streakRecords, user?.uid])
 
   const handleHistoryClick = (h) => {
     const targetId = h.itemId || parseHistoryTargetId(h) || h.id;

@@ -268,11 +268,14 @@ export default function Tracking({ authState }) {
 
     setIsLoading(true);
     try {
-      const batch = writeBatch(db);
-      idsToDelete.forEach(id => {
-        batch.delete(doc(db, collectionName, id));
-      });
-      await batch.commit();
+      const BATCH_LIMIT = 450;
+      for (let i = 0; i < idsToDelete.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        for (const id of idsToDelete.slice(i, i + BATCH_LIMIT)) {
+          batch.delete(doc(db, collectionName, id));
+        }
+        await batch.commit();
+      }
       await myAlert("ลบข้อมูลออกจากระบบสำเร็จ", "สำเร็จ");
       if (collectionName === "recipients") fetchRecipients();
       else fetchRecords();
@@ -294,11 +297,14 @@ export default function Tracking({ authState }) {
 
     setIsLoading(true);
     try {
-      const batch = writeBatch(db);
-      selectedIds.forEach(id => {
-        batch.update(doc(db, collectionName, id), { bonusNote: note.trim() });
-      });
-      await batch.commit();
+      const BATCH_LIMIT = 450;
+      for (let i = 0; i < selectedIds.length; i += BATCH_LIMIT) {
+        const batch = writeBatch(db);
+        for (const id of selectedIds.slice(i, i + BATCH_LIMIT)) {
+          batch.update(doc(db, collectionName, id), { bonusNote: note.trim() });
+        }
+        await batch.commit();
+      }
       await myAlert(`เพิ่มโบนัสสำเร็จจำนวน ${selectedIds.length} รายการ`, "สำเร็จ");
       if (collectionName === "recipients") fetchRecipients();
       else fetchRecords();

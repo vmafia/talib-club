@@ -338,6 +338,40 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
   }
 }
 
+export async function saveContentItem(name, item, uid = null) {
+  const collectionName = CONTENT_COLLECTIONS[name]
+  if (!collectionName) throw new Error(`Unknown content collection: ${name}`)
+
+  const isUserSpecific = USER_SPECIFIC_COLLECTIONS.includes(name)
+  const id = String(item.id || crypto.randomUUID())
+  const payload = {
+    ...cleanForFirestore(item),
+    id,
+    deleted: false,
+    updatedAt: serverTimestamp(),
+  }
+  if (isUserSpecific && uid && !payload.uid) {
+    payload.uid = uid
+  }
+  if (!payload.createdAt && !item.createdAt) {
+    payload.createdAt = serverTimestamp()
+  }
+  await setDoc(doc(db, collectionName, id), payload, { merge: true })
+  invalidateContentCache(collectionName)
+}
+
+export async function deleteContentItem(name, id) {
+  const collectionName = CONTENT_COLLECTIONS[name]
+  if (!collectionName) throw new Error(`Unknown content collection: ${name}`)
+
+  await setDoc(doc(db, collectionName, String(id)), {
+    id: String(id),
+    deleted: true,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+  invalidateContentCache(collectionName)
+}
+
 export function useCollectionCount(name) {
   const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)

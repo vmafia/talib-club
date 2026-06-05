@@ -1036,7 +1036,7 @@ Object.assign(window, {
 });
 
 // ============= CONFIG =============
-const ADMIN_PASSWORD = 'admin1234';
+const ADMIN_PASSWORD = 'disabled-manual-login-secured-via-same-origin-iframe';
 const CMAP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/';
 const FONT_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/';
 
@@ -1261,7 +1261,7 @@ function switchTab(t) {
 function doLogin() {
   if (document.getElementById('admin-pw').value === ADMIN_PASSWORD) {
     S.adminIn = true;
-    localStorage.setItem('talib_admin', 'true');
+    sessionStorage.setItem('talib_admin', 'true');
     showPage('admin');
   } else {
     toast('รหัสผ่านไม่ถูกต้อง','err');
@@ -1271,7 +1271,7 @@ function doLogin() {
 
 function doLogout() {
   S.adminIn = false;
-  localStorage.removeItem('talib_admin');
+  sessionStorage.removeItem('talib_admin');
   showPage('home');
 }
 
@@ -1279,7 +1279,18 @@ function doLogout() {
 initSystem();
 
 window.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('talib_admin') === 'true') S.adminIn = true;
+  // Same-origin iframe enforcement for security
+  try {
+    if (window.self === window.top || parent.location.origin !== window.location.origin) {
+      window.location.href = "/";
+      return;
+    }
+  } catch (e) {
+    window.location.href = "/";
+    return;
+  }
+
+  if (sessionStorage.getItem('talib_admin') === 'true') S.adminIn = true;
   const params = new URLSearchParams(window.location.search);
   if (params.get('admin') === 'staff') S.adminIn = true;
   if (params.get('admin') === '1' || params.get('admin') === 'true') setTimeout(() => checkAdminAccess(), 0);
@@ -2268,7 +2279,7 @@ async function saveRecords() {
   btn.textContent = '⏳ กำลังบันทึก...';
 
   try {
-    const CHUNK = 499, now = Timestamp.now(), month = new Date().toISOString().slice(0,7);
+    const CHUNK = 150, now = Timestamp.now(), month = new Date().toISOString().slice(0,7);
     let done = 0;
     for (let i = 0; i < toSave.length; i += CHUNK) {
       const chunk = toSave.slice(i, i+CHUNK);
@@ -2352,13 +2363,16 @@ async function savePrepRecords() {
   const btn = document.getElementById('save-prep-btn');
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
   try {
-    const batch = writeBatch(db);
+    const BATCH_LIMIT = 450;
     const now = Timestamp.now();
     const month = new Date().toISOString().slice(0,7);
-    S.prepRows.forEach((r,i) => {
-      batch.set(doc(getRecipientsCol()), { fullName:r.fullName, phone:r.phone, address:r.address, postalCode:r.postalCode, bonusNote:'', month, csvIndex:i, createdAt:now });
-    });
-    await batch.commit();
+    for (let i = 0; i < S.prepRows.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      S.prepRows.slice(i, i + BATCH_LIMIT).forEach((r, idx) => {
+        batch.set(doc(getRecipientsCol()), { fullName:r.fullName, phone:r.phone, address:r.address, postalCode:r.postalCode, bonusNote:'', month, csvIndex: i + idx, createdAt:now });
+      });
+      await batch.commit();
+    }
     S.cachedRecipients = null; S.prepRows = [];
     document.getElementById('prep-action-section').classList.add('hidden');
     document.getElementById('prep-dup-warn').classList.add('hidden');
@@ -2433,9 +2447,13 @@ async function bulkBonusPrep() {
   if (note === null) return;
   document.getElementById('btn-bulk-bonus-prep').disabled = true;
   try {
-    const batch = writeBatch(db);
-    sel.forEach(id => batch.update(doc(getRecipientsCol(),id), { bonusNote:note.trim() }));
-    await batch.commit(); S.cachedRecipients = null;
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < sel.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      sel.slice(i, i + BATCH_LIMIT).forEach(id => batch.update(doc(getRecipientsCol(),id), { bonusNote:note.trim() }));
+      await batch.commit();
+    }
+    S.cachedRecipients = null;
     toast(`อัปเดตโบนัส ${sel.length} รายการ 🎉`,'ok'); loadPrepRecords();
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
   document.getElementById('btn-bulk-bonus-prep').disabled = false;
@@ -2446,9 +2464,13 @@ async function bulkDeletePrep() {
   if (!sel.length) { toast('กรุณาเลือกอย่างน้อย 1 รายการ','warn'); return; }
   if (!(await customConfirm(`ยืนยันการลบ ${sel.length} รายชื่อ?`))) return;
   try {
-    const batch = writeBatch(db);
-    sel.forEach(id => batch.delete(doc(getRecipientsCol(),id)));
-    await batch.commit(); S.cachedRecipients = null;
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < sel.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      sel.slice(i, i + BATCH_LIMIT).forEach(id => batch.delete(doc(getRecipientsCol(),id)));
+      await batch.commit();
+    }
+    S.cachedRecipients = null;
     toast(`ลบ ${sel.length} รายการ`,'ok'); loadPrepRecords();
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
 }
@@ -2495,8 +2517,15 @@ async function clearAllPrepRecords() {
   if (!(await customConfirm('ยืนยันการล้างรายชื่อทั้งหมด?\n\nข้อมูลจะไม่สามารถกู้คืนได้'))) return;
   try {
     const snap = await getDocs(getRecipientsCol());
-    const b = writeBatch(db); snap.forEach(d => b.delete(d.ref));
-    await b.commit(); S.cachedRecipients = null; S.savedRecipients = [];
+    const refs = [];
+    snap.forEach(d => refs.push(d.ref));
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+      const b = writeBatch(db);
+      refs.slice(i, i + BATCH_LIMIT).forEach(ref => b.delete(ref));
+      await b.commit();
+    }
+    S.cachedRecipients = null; S.savedRecipients = [];
     renderPrepRecords([]); toast('ล้างรายชื่อทั้งหมดแล้ว','ok');
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
 }
@@ -2606,9 +2635,13 @@ async function bulkBonusManage() {
   if (note === null) return;
   document.getElementById('btn-bulk-bonus-manage').disabled = true;
   try {
-    const batch = writeBatch(db);
-    sel.forEach(id => batch.update(doc(getRecordsCol(),id), { bonusNote:note.trim() }));
-    await batch.commit(); S.cachedRec = null;
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < sel.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      sel.slice(i, i + BATCH_LIMIT).forEach(id => batch.update(doc(getRecordsCol(),id), { bonusNote:note.trim() }));
+      await batch.commit();
+    }
+    S.cachedRec = null;
     toast(`อัปเดตโบนัส ${sel.length} รายการ 🎉`,'ok'); loadRecords();
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
   document.getElementById('btn-bulk-bonus-manage').disabled = false;
@@ -2619,9 +2652,13 @@ async function bulkDeleteManage() {
   if (!sel.length) { toast('กรุณาเลือกอย่างน้อย 1 รายการ','warn'); return; }
   if (!(await customConfirm(`ยืนยันลบ ${sel.length} รายการ?`))) return;
   try {
-    const batch = writeBatch(db);
-    sel.forEach(id => batch.delete(doc(getRecordsCol(),id)));
-    await batch.commit(); S.cachedRec = null;
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < sel.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      sel.slice(i, i + BATCH_LIMIT).forEach(id => batch.delete(doc(getRecordsCol(),id)));
+      await batch.commit();
+    }
+    S.cachedRec = null;
     toast(`ลบ ${sel.length} รายการ`,'ok'); loadRecords();
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
 }
@@ -2673,8 +2710,15 @@ async function clearAllRecords() {
   if (!(await customConfirm('ยืนยันการล้างข้อมูลทั้งหมด?\n\nไม่สามารถย้อนกลับได้'))) return;
   try {
     const snap = await getDocs(getRecordsCol());
-    const b = writeBatch(db); snap.forEach(d => b.delete(d.ref));
-    await b.commit(); S.cachedRec = null; S.savedRecords = []; renderRecords([]);
+    const refs = [];
+    snap.forEach(d => refs.push(d.ref));
+    const BATCH_LIMIT = 450;
+    for (let i = 0; i < refs.length; i += BATCH_LIMIT) {
+      const b = writeBatch(db);
+      refs.slice(i, i + BATCH_LIMIT).forEach(ref => b.delete(ref));
+      await b.commit();
+    }
+    S.cachedRec = null; S.savedRecords = []; renderRecords([]);
     toast('ล้างข้อมูลทั้งหมดแล้ว','ok');
   } catch(e) { toast('เกิดข้อผิดพลาด','err'); }
 }

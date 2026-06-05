@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import toast from "react-hot-toast"
 import { BOOKS } from "../data/index.js"
-import { useContentCollection, useContentDoc } from "../lib/contentStore.js"
+import { useContentCollection, useContentDoc, saveContentItem } from "../lib/contentStore.js"
 import { bumpContentMetric } from "../utils/contentMetrics.js"
 
 function getDirectUrl(url) {
@@ -34,7 +34,6 @@ export default function LibraryDetail({ item, go, authState }) {
     [bookId]
   )
   const { item: remoteBook, loading } = useContentDoc("books", bookId, fallbackBook)
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
 
   const hasIncrementedView = useRef(null)
   const hasSavedHistory = useRef(null)
@@ -47,20 +46,20 @@ export default function LibraryDetail({ item, go, authState }) {
 
   // บันทึกประวัติการดูหนังสือ
   useEffect(() => {
-    if (displayItem && authState?.user?.uid && saveHistory && hasSavedHistory.current !== displayItem.id) {
+    if (displayItem && authState?.user?.uid && hasSavedHistory.current !== displayItem.id) {
       hasSavedHistory.current = displayItem.id
       const uid = authState.user.uid;
       const historyId = `${uid}_book_${displayItem.id}`;
-      saveHistory({
+      saveContentItem("history", {
         id: historyId,
         uid,
         itemId: displayItem.id,
         type: "book",
         title: displayItem.title,
         timestamp: Date.now()
-      }).catch(err => console.error("Failed to save book history to Firebase", err));
+      }, uid).catch(err => console.error("Failed to save book history to Firebase", err));
     }
-  }, [displayItem, authState?.user?.uid, saveHistory])
+  }, [displayItem, authState?.user?.uid])
 
   // --- ระบบนับยอดเข้าชมของจริง (ยิงขึ้น Firebase) ---
   useEffect(() => {

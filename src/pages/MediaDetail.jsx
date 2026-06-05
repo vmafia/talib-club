@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react"
-import { useContentCollection, useContentDoc } from "../lib/contentStore.js"
+import { useContentCollection, useContentDoc, saveContentItem } from "../lib/contentStore.js"
 import { MEDIA } from "../data/index.js"
 
 export default function MediaDetail({ item: initialItem, go, authState }) {
@@ -11,7 +11,6 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
     [mediaId]
   )
   const { item: remoteMedia, loading } = useContentDoc("media", mediaId, fallbackMedia)
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
   const hasSavedHistory = useRef(null)
 
   const item = useMemo(() => {
@@ -39,11 +38,11 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
 
   // บันทึกประวัติการดูสื่อ
   useEffect(() => {
-    if (item && authState?.user?.uid && saveHistory && hasSavedHistory.current !== item.id) {
+    if (item && authState?.user?.uid && hasSavedHistory.current !== item.id) {
       hasSavedHistory.current = item.id
       const uid = authState.user.uid;
       const historyId = `${uid}_media_${item.id}`;
-      saveHistory({
+      saveContentItem("history", {
         id: historyId,
         uid,
         itemId: item.id,
@@ -51,9 +50,9 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
         mediaType: item.type, // youtube หรือ spotify
         title: item.title, 
         timestamp: Date.now()
-      }).catch(err => console.error("Failed to save media history to Firebase", err));
+      }, uid).catch(err => console.error("Failed to save media history to Firebase", err));
     }
-  }, [item, authState?.user?.uid, saveHistory])
+  }, [item, authState?.user?.uid])
 
   if (loading) return <div style={{textAlign: "center", padding: 40}}><i className="ti ti-loader-2 spin" style={{fontSize: 24, color: "var(--teal)"}}></i></div>
   if (!item) return null

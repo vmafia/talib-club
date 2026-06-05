@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react"
 import { createPortal } from "react-dom"
 import { 
-  collection, getDocs, doc, updateDoc, query, where, limit 
+  collection, getDocs, doc, updateDoc, query, where, limit, getCountFromServer 
 } from "firebase/firestore"
 import { db } from "../lib/firebase.js"
 import { toast } from "react-hot-toast"
@@ -91,27 +91,39 @@ export default function StaffMembers({ authState, go }) {
         }
       }
 
-      // 2. Fetch bookshelf count
+      // 2. Fetch bookshelf count (sum activeSeconds/totalReadSeconds from books later)
       let bookshelfData = { total: 0, finished: 0 }
-      const shelfSnap = await getDocs(query(collection(db, "content_bookshelf"), where("uid", "==", uid)))
-      bookshelfData.total = shelfSnap.size
-      bookshelfData.finished = shelfSnap.docs.filter(d => d.data().progressStatus === "finished" || d.data().completed).length
+      const shelfSnapPromise = getDocs(query(collection(db, "content_bookshelf"), where("uid", "==", uid)))
+      
+      // 3. Fetch reading sessions count using getCountFromServer (no document downloads!)
+      const sessionTotalPromise = getCountFromServer(query(collection(db, "content_reading_sessions"), where("uid", "==", uid)))
+      const sessionVerifiedPromise = getCountFromServer(query(collection(db, "content_reading_sessions"), where("uid", "==", uid), where("verified", "==", true)))
 
-      // 3. Fetch reading sessions count
-      let sessionsData = { total: 0, totalSeconds: 0, verifiedCount: 0 }
-      const sessionSnap = await getDocs(query(collection(db, "content_reading_sessions"), where("uid", "==", uid)))
-      sessionsData.total = sessionSnap.size
-      sessionSnap.docs.forEach(d => {
-        const data = d.data()
-        sessionsData.totalSeconds += Number(data.activeSeconds || 0)
-        if (data.score >= 72 || data.verified) {
-          sessionsData.verifiedCount++
-        }
+      // 4. Fetch Quran bookmarks count using getCountFromServer
+      const quranBookmarksPromise = getCountFromServer(query(collection(db, "content_quran_bookmarks"), where("uid", "==", uid)))
+
+      const [shelfSnap, sessionTotalSnap, sessionVerifiedSnap, quranBookmarksSnap] = await Promise.all([
+        shelfSnapPromise,
+        sessionTotalPromise,
+        sessionVerifiedPromise,
+        quranBookmarksPromise,
+      ])
+
+      bookshelfData.total = shelfSnap.size
+      bookshelfData.finished = shelfSnap.docs.filter(d => d.data().progressStatus === "finished" || d.data().completed || d.data().status === "finished").length
+
+      let sessionsData = { 
+        total: sessionTotalSnap.data().count, 
+        totalSeconds: 0, 
+        verifiedCount: sessionVerifiedSnap.data().count 
+      }
+      
+      // Sum up active seconds using totalReadSeconds stored on bookshelf items
+      shelfSnap.docs.forEach(d => {
+        sessionsData.totalSeconds += Number(d.data().totalReadSeconds || 0)
       })
 
-      // 4. Fetch Quran bookmarks count
-      const quranBookmarksSnap = await getDocs(query(collection(db, "content_quran_bookmarks"), where("uid", "==", uid)))
-      const quranBookmarksCount = quranBookmarksSnap.size
+      const quranBookmarksCount = quranBookmarksSnap.data().count
 
       setUserStats({
         streak: streakData,

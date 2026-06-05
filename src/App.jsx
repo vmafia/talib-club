@@ -80,7 +80,7 @@ export default function App() {
   }, [])
 
   const uid = authState?.user?.uid
-  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid, { live: false })
+  const { items: readingSessions } = useContentCollection("reading_sessions", [], uid, { limit: 20, orderByField: "completedAt", orderDirection: "desc", live: false })
   const countdownNotifRef = useRef(null)
 
   // --- Preferred Time Notification (60s interval, gated by user toggle) ---
@@ -472,6 +472,20 @@ class PageErrorBoundary extends Component {
 function RequireLogin({ authState, go, children }) {
   if (authState.loading) return <LoadingState />
   if (!authState.user) return <Auth authState={authState} go={go} />
+  if (authState.user.email !== "islamofwhite@gmail.com") {
+    return (
+      <div className="card" style={{ maxWidth: 520, margin: "44px auto", padding: 24, textAlign: "center" }}>
+        <i className="ti ti-lock" style={{ fontSize: 28, color: "var(--red)", marginBottom: 10 }}></i>
+        <h2 style={{ fontSize: 18, marginBottom: 8 }}>พื้นที่นี้สงวนสิทธิ์เฉพาะผู้ได้รับอนุญาต</h2>
+        <p style={{ marginBottom: 16 }}>
+          บัญชีของคุณ ({authState.user.email}) ไม่มีสิทธิ์เข้าถึงหน้าสมาชิกของระบบ Talib Club ในขณะนี้
+        </p>
+        <button className="btn btn-teal" onClick={() => go("home")}>
+          กลับหน้าหลัก
+        </button>
+      </div>
+    )
+  }
   return children
 }
 

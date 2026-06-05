@@ -92,7 +92,7 @@ export function useAuth() {
             snapData.displayName !== nextProfileData.displayName ||
             snapData.photoURL !== nextProfileData.photoURL
           ) {
-            await setDoc(ref, nextProfileData, { merge: true }).catch(e => console.error("Sync profile to firestore failed", e))
+            setDoc(ref, nextProfileData, { merge: true }).catch(e => console.error("Sync profile to firestore failed", e))
           }
           setProfile({
             ...DEFAULT_PROFILE,

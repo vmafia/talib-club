@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react"
 import { SITE } from "../data/index.js"
 import toast from "react-hot-toast"
 import { confirmAction } from "../utils/feedback.jsx"
-import { useContentCollection } from "../lib/contentStore.js"
+import { useContentCollection, invalidateContentCache } from "../lib/contentStore.js"
 import { ARTICLES, BOOKS } from "../data/index.js"
 import { usePWA } from "../hooks/usePWA.js"
 
@@ -356,13 +356,14 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
 
     setTimeout(async () => {
       try {
+        invalidateContentCache();
         if (authState?.logout) await authState.logout();
         toast.success("ออกจากระบบสำเร็จ", { id: toastId });
-        window.location.href = "/"; // รีโหลดหน้าเพื่อเคลียร์ state ทั้งหมด
+        nav("home"); // เปลี่ยนหน้าแบบ SPA ลื่นๆ โดยไม่ต้องรีโหลดหน้าเว็บใหม่
       } catch (error) {
         toast.error("เกิดข้อผิดพลาดในการออกจากระบบ", { id: toastId });
       }
-    }, 600);
+    }, 400);
   }
 
   const userName = authState?.profile?.displayName || authState?.user?.displayName || authState?.user?.email || "บัญชีของฉัน"

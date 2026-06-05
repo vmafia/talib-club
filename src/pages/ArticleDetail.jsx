@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react"
 import toast from "react-hot-toast"
 import { ARTICLES, SERIES } from "../data/index.js"
-import { useContentCollection, useContentDoc, CONTENT_COLLECTIONS } from "../lib/contentStore.js"
+import { useContentCollection, useContentDoc, CONTENT_COLLECTIONS, saveContentItem } from "../lib/contentStore.js"
 import { collection, getDocs, query, where, serverTimestamp } from "firebase/firestore"
 import { db } from "../lib/firebase.js"
 import { bumpContentMetric } from "../utils/contentMetrics.js"
@@ -31,7 +31,6 @@ export default function ArticleDetail({ item, go, authState }) {
 
   const { items: articles } = useContentCollection("articles", ARTICLES, null, { live: false })
   const { items: bookmarks, saveItem: saveBookmark, deleteItem: deleteBookmark } = useContentCollection("bookmarks", [], uid, { live: false })
-  const { saveItem: saveHistory } = useContentCollection("history", [], uid, { live: false })
 
   const hasIncrementedView = useRef(null)
   const hasSavedHistory = useRef(null)
@@ -77,20 +76,20 @@ export default function ArticleDetail({ item, go, authState }) {
 
   // บันทึกประวัติการอ่านบทความ
   useEffect(() => {
-    if (displayItem && authState?.user?.uid && saveHistory && hasSavedHistory.current !== displayItem.id) {
+    if (displayItem && authState?.user?.uid && hasSavedHistory.current !== displayItem.id) {
       hasSavedHistory.current = displayItem.id
       const uid = authState.user.uid;
       const historyId = `${uid}_article_${displayItem.id}`;
-      saveHistory({
+      saveContentItem("history", {
         id: historyId,
         uid,
         itemId: displayItem.id,
         type: "article",
         title: displayItem.title,
         timestamp: Date.now()
-      }).catch(err => console.error("Failed to save read history to Firebase", err));
+      }, uid).catch(err => console.error("Failed to save read history to Firebase", err));
     }
-  }, [displayItem, authState?.user?.uid, saveHistory])
+  }, [displayItem, authState?.user?.uid])
 
   useEffect(() => {
     if (!loadingArticles && !displayItem) go("articles")

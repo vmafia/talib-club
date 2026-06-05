@@ -18,6 +18,8 @@ export function AudioProvider({ children }) {
   const play = (sura, aya, suraName, playlist = []) => {
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.onended = null
+      audioRef.current.onerror = null
     }
 
     playlistRef.current = playlist
@@ -87,6 +89,8 @@ export function AudioProvider({ children }) {
   const stop = () => {
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.onended = null
+      audioRef.current.onerror = null
       audioRef.current = null
     }
     setAudioState("stopped")
@@ -97,6 +101,8 @@ export function AudioProvider({ children }) {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
+        audioRef.current.onended = null
+        audioRef.current.onerror = null
       }
     }
   }, [])

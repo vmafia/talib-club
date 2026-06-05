@@ -56,7 +56,7 @@ const SURAH_NAMES = {
 export default function Home({ go }) {
   const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, { limit: 3, orderByField: "createdAt", orderDirection: "desc", live: false })
   const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, { limit: 4, orderByField: "createdAt", orderDirection: "desc", live: false })
-  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, { limit: 3, orderByField: "createdAt", orderDirection: "desc", live: false })
+  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, { live: false })
   const { count: scholarCount } = useCollectionCount("scholars")
   const { count: articleCount } = useCollectionCount("articles")
   const { count: bookCount } = useCollectionCount("books")
