@@ -7,8 +7,13 @@ export function AudioProvider({ children }) {
   const [playingAudio, setPlayingAudio] = useState(null) // { sura, aya, suraName }
   const [audioState, setAudioState] = useState("stopped") // "playing" | "paused" | "stopped"
   const [autoplayNext, setAutoplayNext] = useState(false)
+  const autoplayNextRef = useRef(false)
   const audioRef = useRef(null)
   const playlistRef = useRef([]) // List of verses in current surah for autoplay
+
+  useEffect(() => {
+    autoplayNextRef.current = autoplayNext
+  }, [autoplayNext])
 
   const play = (sura, aya, suraName, playlist = []) => {
     if (audioRef.current) {
@@ -22,7 +27,7 @@ export function AudioProvider({ children }) {
 
     const audio = new Audio(url)
     audioRef.current = audio
-    setPlayingAudio({ sura, aya, suraName })
+    setPlayingAudio({ sura: Number(sura), aya: Number(aya), suraName })
     setAudioState("playing")
 
     audio.play().catch(err => {
@@ -35,7 +40,7 @@ export function AudioProvider({ children }) {
       console.error("Audio failed to load", e)
       toast.error("การโหลดเสียงอ่านล้มเหลว กรุณาตรวจสอบอินเทอร์เน็ต")
       
-      if (autoplayNext) {
+      if (autoplayNextRef.current) {
         handleNext(sura, aya, suraName)
       } else {
         stop()
@@ -43,7 +48,7 @@ export function AudioProvider({ children }) {
     }
 
     audio.onended = () => {
-      if (autoplayNext) {
+      if (autoplayNextRef.current) {
         handleNext(sura, aya, suraName)
       } else {
         stop()
@@ -53,7 +58,7 @@ export function AudioProvider({ children }) {
 
   const handleNext = (sura, aya, suraName) => {
     const list = playlistRef.current
-    const currentIndex = list.findIndex(item => item.sura === sura && item.aya === aya)
+    const currentIndex = list.findIndex(item => Number(item.sura) === Number(sura) && Number(item.aya) === Number(aya))
     if (currentIndex !== -1 && currentIndex < list.length - 1) {
       const nextVerse = list[currentIndex + 1]
       play(nextVerse.sura, nextVerse.aya, suraName, list)
@@ -86,7 +91,6 @@ export function AudioProvider({ children }) {
     }
     setAudioState("stopped")
     setPlayingAudio(null)
-    setAutoplayNext(false)
   }
 
   useEffect(() => {

@@ -350,20 +350,10 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
           {achievements.map(badge => (
             <div
               key={badge.id}
-              className="card"
+              className={`achievement-row ${badge.unlocked ? "unlocked" : "locked"}`}
               style={{
-                display: "flex",
-                gap: 14,
-                padding: 16,
-                alignItems: "center",
-                opacity: badge.unlocked ? 1 : 0.6,
-                background: badge.unlocked ? "var(--bg3)" : "rgba(100, 116, 139, 0.04)",
-                border: badge.unlocked ? `1.5px solid ${badge.color}` : "0.5px solid var(--br)",
-                borderRadius: 16,
-                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                boxShadow: badge.unlocked ? `0 4px 14px ${badge.color}15` : "none",
-                transform: "translateY(0px)",
-                cursor: "default"
+                borderColor: badge.unlocked ? badge.color : "var(--br)",
+                boxShadow: badge.unlocked ? `0 4px 14px ${badge.color}15` : "none"
               }}
               onMouseEnter={(e) => {
                 if (badge.unlocked) {
@@ -379,18 +369,11 @@ function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
               }}
             >
               <div
+                className="achievement-row-icon"
                 style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: "50%",
                   background: badge.unlocked ? badge.color + "15" : "var(--br2)",
                   color: badge.unlocked ? badge.color : "var(--t3)",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 26,
                   filter: badge.unlocked ? "none" : "grayscale(100%)",
-                  flexShrink: 0,
-                  transition: "all 0.3s"
                 }}
               >
                 <i className={badge.icon} />
@@ -1616,7 +1599,7 @@ function LeaderboardPanel({ authState, setView }) {
         ) : (
           <div>
             {/* List */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="leaderboard-list">
               {leaders.map((item, index) => {
                 const isCurrentUser = item.uid === uid || item.id === uid
                 const rank = index + 1
@@ -1639,17 +1622,8 @@ function LeaderboardPanel({ authState, setView }) {
                 return (
                   <div
                     key={item.id}
-                    className="card"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "14px 20px",
-                      borderRadius: 14,
-                      border: isCurrentUser ? "1.5px solid #ec4899" : "0.5px solid var(--br)",
-                      background: isCurrentUser ? "rgba(236,72,153,0.03)" : "var(--bg3)",
-                      boxShadow: isCurrentUser ? "0 4px 12px rgba(236,72,153,0.08)" : "none"
-                    }}
+                    className={`leaderboard-item ${isCurrentUser ? "me" : ""}`}
+                    style={isCurrentUser ? { borderColor: "#ec4899", boxShadow: "0 4px 12px rgba(236,72,153,0.08)" } : {}}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                       <span style={{ width: 32, textAlign: "center", ...rankStyle }}>
@@ -1699,14 +1673,110 @@ function LeaderboardPanel({ authState, setView }) {
   )
 }
 
+// --- Edit Reflection Modal ---
+function EditReflectionModal({ note, onClose, onSave, theme }) {
+  const [text, setText] = useState(note.notes)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!text.trim()) {
+      toast.error("กรุณากรอกข้อคิดบันทึก")
+      return
+    }
+    setSaving(true)
+    try {
+      await onSave(note, text.trim())
+      toast.success("แก้ไขบันทึกข้อคิดเรียบร้อยแล้ว")
+      onClose()
+    } catch (err) {
+      console.error(err)
+      toast.error("เกิดข้อผิดพลาดในการบันทึก")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return createPortal(
+    <div className={`app ${theme || "light"}`} style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.6)",
+      backdropFilter: "blur(4px)",
+      zIndex: 99999,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 16
+    }}>
+      <div className="card" style={{
+        maxWidth: 500,
+        width: "100%",
+        padding: 24,
+        background: "var(--card)",
+        border: "0.5px solid var(--br)",
+        borderRadius: 20,
+        boxShadow: "0 20px 40px rgba(0,0,0,0.35)",
+        animation: "pageFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <i className="ti ti-edit" style={{ color: "var(--teal)" }}></i> แก้ไขข้อคิดบันทึก
+          </h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 20 }}>
+            <i className="ti ti-x"></i>
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "var(--t2)", marginBottom: 8, fontWeight: 500 }}>
+            {note.title}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--t3)", marginBottom: 12 }}>
+            {note.reference}
+          </div>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={6}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 12,
+              background: "var(--bg3)",
+              border: "1px solid var(--br)",
+              color: "var(--text)",
+              fontSize: 13,
+              lineHeight: 1.6,
+              resize: "vertical",
+              outline: "none"
+            }}
+            placeholder="เขียนข้อคิดธรรมสะกิดใจที่นี่..."
+          />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button className="btn btn-outline" onClick={onClose} disabled={saving} style={{ borderRadius: 20 }}>
+            ยกเลิก
+          </button>
+          <button className="btn btn-teal" onClick={handleSave} disabled={saving} style={{ borderRadius: 20 }}>
+            {saving ? <i className="ti ti-loader-2 spin"></i> : "บันทึกข้อมูล"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 // --- Reflections Panel ---
 function ReflectionsPanel({ authState, setView, theme }) {
   const uid = authState?.user?.uid
   const { items: books } = useContentCollection("books", BOOKS, null, { live: false })
-  const { items: bookmarkItems, loading: loadingBookmarks } = useUserCollection("quran_bookmarks", uid)
-  const { items: sessionItems, loading: loadingSessions } = useContentCollection("reading_sessions", [], uid, { live: false })
+  const { items: bookmarkItems, loading: loadingBookmarks, saveItem: saveBookmark } = useUserCollection("quran_bookmarks", uid)
+  const { items: sessionItems, loading: loadingSessions, saveItem: saveSession } = useContentCollection("reading_sessions", [], uid, { live: false })
   const [search, setSearch] = useState("")
   const [activeExportCard, setActiveExportCard] = useState(null)
+  const [editingNote, setEditingNote] = useState(null)
 
   const bookmarkNotes = useMemo(() => {
     return bookmarkItems
@@ -1756,6 +1826,49 @@ function ReflectionsPanel({ authState, setView, theme }) {
       (n.translation && n.translation.toLowerCase().includes(q))
     )
   }, [allNotes, search])
+
+  const handleSaveEdit = async (note, newText) => {
+    if (note.type === "quran") {
+      const bookmark = bookmarkItems.find(b => String(b.id) === String(note.id))
+      if (bookmark) {
+        await saveBookmark({ ...bookmark, notes: newText })
+      }
+    } else {
+      const session = sessionItems.find(s => String(s.id) === String(note.id))
+      if (session) {
+        await saveSession({ ...session, reflection: newText })
+      }
+    }
+  }
+
+  const handleDeleteNote = async (note) => {
+    const ok = await confirmAction({
+      title: "ยืนยันการลบข้อคิด",
+      message: "คุณต้องการลบข้อคิดสะกิดใจนี้หรือไม่? (บันทึกเวลาการอ่านจะคงอยู่ แต่ข้อมูลข้อคิดที่เขียนไว้จะถูกลบออก)",
+      confirmText: "ใช่, ลบข้อคิด",
+      cancelText: "ยกเลิก",
+      danger: true
+    })
+    if (!ok) return
+
+    try {
+      if (note.type === "quran") {
+        const bookmark = bookmarkItems.find(b => String(b.id) === String(note.id))
+        if (bookmark) {
+          await saveBookmark({ ...bookmark, notes: "" })
+        }
+      } else {
+        const session = sessionItems.find(s => String(s.id) === String(note.id))
+        if (session) {
+          await saveSession({ ...session, reflection: "" })
+        }
+      }
+      toast.success("ลบข้อคิดเรียบร้อยแล้ว")
+    } catch (err) {
+      console.error(err)
+      toast.error("เกิดข้อผิดพลาดในการลบ")
+    }
+  }
 
   const loading = loadingBookmarks || loadingSessions
 
@@ -1812,13 +1925,29 @@ function ReflectionsPanel({ authState, setView, theme }) {
                         {note.title}
                       </span>
 
-                      <button
-                        className="btn btn-outline"
-                        style={{ padding: "4px 10px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--teal)", borderColor: "var(--teal)" }}
-                        onClick={() => setActiveExportCard(note)}
-                      >
-                        <i className="ti ti-share"></i> ส่งออกการ์ด
-                      </button>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--teal)", borderColor: "var(--teal)" }}
+                          onClick={() => setActiveExportCard(note)}
+                        >
+                          <i className="ti ti-share"></i> การ์ด
+                        </button>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--t2)", borderColor: "var(--br)" }}
+                          onClick={() => setEditingNote(note)}
+                        >
+                          <i className="ti ti-edit"></i> แก้ไข
+                        </button>
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: "4px 8px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "#e05555", borderColor: "rgba(224,85,85,0.4)" }}
+                          onClick={() => handleDeleteNote(note)}
+                        >
+                          <i className="ti ti-trash"></i> ลบ
+                        </button>
+                      </div>
                     </div>
 
                     <div style={{ background: "var(--card)", borderLeft: "3.5px solid var(--teal)", padding: "10px 14px", borderRadius: "0 8px 8px 0" }}>
@@ -1845,6 +1974,14 @@ function ReflectionsPanel({ authState, setView, theme }) {
           note={activeExportCard}
           theme={theme}
           onClose={() => setActiveExportCard(null)}
+        />
+      )}
+      {editingNote && (
+        <EditReflectionModal
+          note={editingNote}
+          theme={theme}
+          onClose={() => setEditingNote(null)}
+          onSave={handleSaveEdit}
         />
       )}
     </div>

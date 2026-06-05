@@ -1,0 +1,242 @@
+/* src/styles/dashboard.css */
+
+/* Dashboard Layout Rules & Grids */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.metrics-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+/* Achievement Badges Grid */
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+/* Unified Achievement Row Layout */
+.achievement-row {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  align-items: center;
+  border-radius: 16px;
+  border: 0.5px solid var(--br);
+  background: var(--bg3);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+  cursor: default;
+}
+
+.achievement-row.unlocked {
+  opacity: 1;
+}
+
+.achievement-row.locked {
+  opacity: 0.6;
+  background: rgba(100, 116, 139, 0.04);
+}
+
+.achievement-row-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.achievement-badge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--br);
+  background: var(--bg3);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  user-select: none;
+}
+
+.achievement-badge-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--teal);
+  box-shadow: 0 8px 24px rgba(45, 190, 160, 0.08);
+}
+
+.achievement-badge-card.locked {
+  opacity: 0.55;
+  filter: grayscale(80%);
+}
+
+.achievement-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  font-size: 22px;
+  background: var(--card);
+}
+
+.achievement-badge-card.unlocked .achievement-icon-wrapper {
+  background: var(--teal-bg);
+  color: var(--teal);
+}
+
+.achievement-badge-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.achievement-badge-points {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--teal);
+  background: var(--teal-bg);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+/* Leaderboard List */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 0.5px solid var(--br);
+  background: var(--bg3);
+  transition: background 0.15s;
+}
+
+.leaderboard-item:hover {
+  background: var(--card);
+}
+
+.leaderboard-item.me {
+  border-color: var(--teal);
+  background: var(--teal-bg);
+}
+
+.leaderboard-rank {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--t2);
+}
+
+.leaderboard-item:nth-child(1) .leaderboard-rank {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.leaderboard-item:nth-child(2) .leaderboard-rank {
+  background: #94a3b8;
+  color: #fff;
+}
+
+.leaderboard-item:nth-child(3) .leaderboard-rank {
+  background: #b45309;
+  color: #fff;
+}
+
+.leaderboard-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--br2);
+  border: 1px solid var(--br);
+}
+
+.leaderboard-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-score {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Reflection Cards */
+.reflection-note-card {
+  padding: 20px;
+  border: 0.5px solid var(--br);
+  background: var(--bg3);
+  border-radius: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.reflection-note-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.reflection-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reflection-note-body {
+  background: var(--card);
+  border-left: 3.5px solid var(--teal);
+  padding: 10px 14px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.reflection-quran-trans {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--t3);
+  font-style: italic;
+  border-top: 0.5px dashed var(--br2);
+  padding-top: 8px;
+}

@@ -207,12 +207,52 @@ The array must contain exactly 20 objects: 7 easy, 8 medium, and 5 hard.`,
   return quiz.length ? quiz : null
 }
 
+async function verifyFirebaseIdToken(idToken) {
+  const apiKey = process.env.VITE_WEB_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || "AIzaSyC8HoWaAu0XWy3he_pMxqUIWwREDPdeUpg"
+  try {
+    const url = `https://identitytoolkit.googleapis.com/v1/getAccountInfo?key=${apiKey}`
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken })
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.users?.[0]?.localId || null
+  } catch (err) {
+    console.error("Token verification failed", err)
+    return null
+  }
+}
+
 export default async function handler(req, res) {
   const method = req.method || req.httpMethod
   if (method === "OPTIONS") return send(res, 200, { ok: true })
   if (method !== "POST") return send(res, 405, { error: "Method Not Allowed" })
 
   const { book = {} } = parseBody(req)
+
+  const authHeader = req.headers?.authorization || req.headers?.Authorization
+  let idToken = null
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    idToken = authHeader.substring(7)
+  }
+
+  // Cost Hardening 1: Check environment variable to allow completely free client-side quiz fallback
+  const enableAIQuiz = process.env.VITE_ENABLE_AI_QUIZ === "true" || process.env.ENABLE_AI_QUIZ === "true"
+  if (!enableAIQuiz) {
+    return send(res, 200, { source: "fallback", quiz: fallbackQuiz(book) })
+  }
+
+  // Cost Hardening 2: Gating by auth token verification
+  if (!idToken) {
+    return send(res, 401, { error: "Unauthorized: Missing authentication token" })
+  }
+
+  const uid = await verifyFirebaseIdToken(idToken)
+  if (!uid) {
+    return send(res, 401, { error: "Unauthorized: Invalid authentication token" })
+  }
 
   try {
     if (process.env.OPENAI_API_KEY) {

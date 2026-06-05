@@ -43,7 +43,7 @@ export default function StaffDashboard({ authState, go }) {
       <div className="grid3">
         <ActionCard icon="ti-file-text" title="จัดการเนื้อหา" text="เพิ่ม/แก้บทความ หนังสือ มีเดีย อุลามาอฺ และข้อมูลเว็บ" onClick={() => go("admin")} />
         <ActionCard icon="ti-package" title="Tracking" text="ตรวจสอบและจัดการข้อมูลการจัดส่ง" onClick={() => go("admin", { tab: "tracking" })} />
-        <ActionCard icon="ti-users" title="สมาชิก" text="โครงสำหรับดูแลสมาชิกและสิทธิ์ในเฟสถัดไป" disabled />
+        <ActionCard icon="ti-users" title="สมาชิก" text="ดูแลสมาชิก สิทธิ์ผู้ใช้งาน และตรวจสอบสถิติการเรียนรู้สะสม" onClick={() => go("staff-members")} />
       </div>
 
       <h2 style={{ marginTop: 28, marginBottom: 12 }}>เครื่องมือของสตาฟ</h2>

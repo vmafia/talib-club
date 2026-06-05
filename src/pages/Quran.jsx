@@ -288,7 +288,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
     }
   }, [mode])
 
-  const [arabicSize, setArabicSize] = useState(32) // px
+  const [arabicSize, setArabicSize] = useState(() => {
+    return window.innerWidth < 768 ? 26 : 32
+  }) // px
   const [thaiSize, setThaiSize] = useState(15) // px
   const quranFont = "UthmanicHafs"
   const [tajweedEnabled, setTajweedEnabled] = useState(() => {
@@ -872,19 +874,32 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         }
         .arabic-font,
         .arabic-font span {
-          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif !important;
+          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Geeza Pro', 'Segoe UI Arabic', 'Noto Sans Arabic', 'Traditional Arabic', serif !important;
           direction: rtl;
           text-align: right;
-          line-height: 2.6;
+          line-height: 2.8;
           color: var(--quran-text);
         }
         .mushaf-flow,
         .mushaf-flow span {
-          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Traditional Arabic', serif !important;
+          font-family: ${quranFont === "UthmanicHafs" ? "'UthmanicHafs', " : quranFont === "Amiri" ? "'Amiri', " : quranFont === "NotoNaskh" ? "'Noto Naskh Arabic', " : ""}'Amiri', 'Noto Naskh Arabic', 'Geeza Pro', 'Segoe UI Arabic', 'Noto Sans Arabic', 'Traditional Arabic', serif !important;
           text-align: justify;
           direction: rtl;
-          line-height: 2.6;
+          line-height: 2.8;
           color: var(--quran-text);
+        }
+
+        @media (max-width: 768px) {
+          .mushaf-flow,
+          .mushaf-flow span,
+          .arabic-font,
+          .arabic-font span {
+            text-align: right !important;
+            text-justify: none !important;
+            letter-spacing: 0px !important;
+            word-spacing: normal !important;
+            line-height: 3.0 !important;
+          }
         }
 
         /* Tajweed Color Rules */
@@ -1612,7 +1627,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                       const currentList = selectedPage ? pageVerses : verses
                       if (currentList.length > 0) {
                         setAutoplayNext(true)
-                        play(currentList[0].sura, currentList[0].aya, SURA_LIST.find(s => s.number === currentList[0].sura)?.englishName || "", currentList)
+                        play(currentList[0].sura, currentList[0].aya, SURA_LIST.find(s => Number(s.number) === Number(currentList[0].sura))?.englishName || "", currentList)
                       }
                     }
                   }}
@@ -2185,17 +2200,17 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                               fontFamily: quranFont === "UthmanicHafs" ? "'UthmanicHafs', serif" : quranFont === "Amiri" ? "'Amiri', serif" : "'Noto Naskh Arabic', serif",
                               color: "var(--text)",
                               direction: "rtl",
-                              textAlign: "justify",
+                              textAlign: isMobile ? "right" : "justify",
                               lineHeight: 2.3
                             }}
                           >
                             {pageVerses.length > 0 ? (
                               pageVerses.map(v => {
-                                const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
+                                const isBookmarked = Number(lastRead?.sura) === Number(v.sura) && Number(lastRead?.aya) === Number(v.aya)
                                 const rawText = v.arabic_text_tajweed || v.text || v.arabic_text || ""
                                 // Keep span.end from API — it IS the ayah marker. Style it via CSS class.
                                 const displayHtml = tajweedEnabled ? rawText : stripTajweedTags(rawText)
-                                const isActive = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
+                                const isActive = Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya)
                                 return (
                                   <span 
                                     key={v.id}
@@ -2270,16 +2285,16 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                         fontFamily: quranFont === "UthmanicHafs" ? "'UthmanicHafs', serif" : quranFont === "Amiri" ? "'Amiri', serif" : "'Noto Naskh Arabic', serif",
                         color: "var(--text)",
                         direction: "rtl",
-                        textAlign: "justify",
+                        textAlign: isMobile ? "right" : "justify",
                         lineHeight: 2.3
                       }}
                     >
                       {verses.map(v => {
-                        const isBookmarked = lastRead?.sura === v.sura && lastRead?.aya === v.aya
+                        const isBookmarked = Number(lastRead?.sura) === Number(v.sura) && Number(lastRead?.aya) === Number(v.aya)
                         const rawText = v.arabic_text_tajweed || v.arabic_text || ""
                         // Keep span.end — it is the correct ayah marker. No manual duplicate needed.
                         const displayHtml = tajweedEnabled ? rawText : stripTajweedTags(rawText)
-                        const isActive = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
+                        const isActive = Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya)
                         return (
                           <span 
                             key={v.id}
@@ -2313,7 +2328,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                     {verses.map(v => {
                       const bookmark = getBookmarkForVerse(v.aya)
-                      const isReciting = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
+                      const isReciting = Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya)
                       return (
                         <div
                           key={v.id}
@@ -2340,21 +2355,21 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                               {/* Listen to this Ayah button */}
                               <button
                                 onClick={() => {
-                                  const isCurrent = playingAudio?.sura === v.sura && playingAudio?.aya === v.aya
+                                  const isCurrent = Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya)
                                   if (isCurrent && audioState === "playing") {
                                     pause()
                                   } else if (isCurrent && audioState === "paused") {
                                     resume()
                                   } else {
                                     const currentList = selectedPage ? pageVerses : verses
-                                    play(v.sura, v.aya, SURA_LIST.find(s => s.number === v.sura)?.englishName || "", currentList)
+                                    play(v.sura, v.aya, SURA_LIST.find(s => Number(s.number) === Number(v.sura))?.englishName || "", currentList)
                                   }
                                 }}
                                 style={{
                                   background: "transparent",
                                   border: "none",
                                   cursor: "pointer",
-                                  color: (playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "var(--teal)" : "var(--t3)",
+                                  color: (Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya) && audioState === "playing") ? "var(--teal)" : "var(--t3)",
                                   padding: "4px 8px",
                                   fontSize: 14,
                                   display: "flex",
@@ -2363,9 +2378,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                                 }}
                                 title="ฟังเสียงอายะฮ์นี้"
                               >
-                                <i className={(playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"}></i>
+                                <i className={(Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya) && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"}></i>
                                 <span style={{ fontSize: 10, fontFamily: "'Prompt', sans-serif" }}>
-                                  {(playingAudio?.sura === v.sura && playingAudio?.aya === v.aya && audioState === "playing") ? "หยุดเล่น" : "ฟังเสียง"}
+                                  {(Number(playingAudio?.sura) === Number(v.sura) && Number(playingAudio?.aya) === Number(v.aya) && audioState === "playing") ? "หยุดเล่น" : "ฟังเสียง"}
                                 </span>
                               </button>
 
@@ -2734,7 +2749,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "0.5px solid var(--quran-br2)", paddingBottom: 10 }}>
               <span style={{ fontSize: 12, color: "var(--quran-t2)", fontWeight: 600, fontFamily: "'Prompt', sans-serif" }}>
-                ซูเราะฮ์ {SURA_LIST.find(s => s.number === activeAyahMenu.sura)?.englishName} อายะฮ์ที่ {activeAyahMenu.aya}
+                ซูเราะฮ์ {SURA_LIST.find(s => Number(s.number) === Number(activeAyahMenu.sura))?.englishName} อายะฮ์ที่ {activeAyahMenu.aya}
               </span>
               <button 
                 onClick={() => setActiveAyahMenu(null)} 
@@ -2766,20 +2781,20 @@ export default function Quran({ initialSura, initialAyah, authState }) {
               <button
                 className="btn"
                 onClick={() => {
-                  const isCurrent = playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya
+                  const isCurrent = Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya)
                   if (isCurrent && audioState === "playing") {
                     pause()
                   } else if (isCurrent && audioState === "paused") {
                     resume()
                   } else {
                     const currentList = selectedPage ? pageVerses : verses
-                    play(activeAyahMenu.sura, activeAyahMenu.aya, SURA_LIST.find(s => s.number === activeAyahMenu.sura)?.englishName || "", currentList)
+                    play(activeAyahMenu.sura, activeAyahMenu.aya, SURA_LIST.find(s => Number(s.number) === Number(activeAyahMenu.sura))?.englishName || "", currentList)
                   }
                 }}
                 style={{
-                  background: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "rgba(220, 38, 38, 0.06)" : "rgba(45, 190, 160, 0.06)",
-                  border: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "0.5px solid #dc2626" : "0.5px solid var(--teal)",
-                  color: (playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "#dc2626" : "var(--teal)",
+                  background: (Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya) && audioState === "playing") ? "rgba(220, 38, 38, 0.06)" : "rgba(45, 190, 160, 0.06)",
+                  border: (Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya) && audioState === "playing") ? "0.5px solid #dc2626" : "0.5px solid var(--teal)",
+                  color: (Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya) && audioState === "playing") ? "#dc2626" : "var(--teal)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -2793,8 +2808,8 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                   transition: "all 0.2s"
                 }}
               >
-                <i className={(playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"} style={{ fontSize: 13 }}></i>
-                {(playingAudio?.sura === activeAyahMenu.sura && playingAudio?.aya === activeAyahMenu.aya && audioState === "playing") ? "หยุดฟังเสียงอายะฮ์นี้" : "ฟังเสียงอายะฮ์นี้"}
+                <i className={(Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya) && audioState === "playing") ? "ti ti-player-pause" : "ti ti-player-play"} style={{ fontSize: 13 }}></i>
+                {(Number(playingAudio?.sura) === Number(activeAyahMenu.sura) && Number(playingAudio?.aya) === Number(activeAyahMenu.aya) && audioState === "playing") ? "หยุดฟังเสียงอายะฮ์นี้" : "ฟังเสียงอายะฮ์นี้"}
               </button>
             </div>
 

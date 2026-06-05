@@ -238,6 +238,24 @@ async function translateWithGemini(elements, apiKey) {
   return result.join("")
 }
 
+async function verifyFirebaseIdToken(idToken) {
+  const apiKey = process.env.VITE_WEB_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || "AIzaSyC8HoWaAu0XWy3he_pMxqUIWwREDPdeUpg"
+  try {
+    const url = `https://identitytoolkit.googleapis.com/v1/getAccountInfo?key=${apiKey}`
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idToken })
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.users?.[0]?.localId || null
+  } catch (err) {
+    console.error("Token verification failed", err)
+    return null
+  }
+}
+
 export default async function handler(req, res) {
   const method = req.method || req.httpMethod
   if (method === "OPTIONS") return send(res, 200, { ok: true })
@@ -247,6 +265,21 @@ export default async function handler(req, res) {
   const { url } = params
   if (!url) {
     return send(res, 400, { error: "Missing article URL" })
+  }
+
+  const authHeader = req.headers?.authorization || req.headers?.Authorization
+  let idToken = null
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    idToken = authHeader.substring(7)
+  }
+
+  if (!idToken) {
+    return send(res, 401, { error: "Unauthorized: Missing authentication token" })
+  }
+
+  const uid = await verifyFirebaseIdToken(idToken)
+  if (!uid) {
+    return send(res, 401, { error: "Unauthorized: Invalid authentication token" })
   }
 
   let parsedUrl

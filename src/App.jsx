@@ -36,10 +36,12 @@ const StaffDashboard = lazyWithRetry(() => import("./pages/StaffDashboard.jsx"))
 const StaffWork = lazyWithRetry(() => import("./pages/StaffWork.jsx"))
 const StaffTranslation = lazyWithRetry(() => import("./pages/StaffTranslation.jsx"))
 const Admin = lazyWithRetry(() => import("./pages/Admin.jsx"))
+const StaffMembers = lazyWithRetry(() => import("./pages/StaffMembers.jsx"))
 const Donation = lazyWithRetry(() => import("./pages/Donation.jsx"))
 import { Toaster } from "react-hot-toast"
 import PWAInstallBanner from "./components/PWAInstallBanner.jsx"
 import "./styles/global.css"
+import "./styles/dashboard.css"
 import { useContentCollection } from "./lib/contentStore.js"
 import { syncServerTime, safeDateNow } from "./utils/time.js"
 
@@ -332,6 +334,11 @@ export default function App() {
             {page === "staff-translation" && (
               <RequireStaff authState={authState} go={go}>
                 <StaffTranslation authState={authState} go={go} />
+              </RequireStaff>
+            )}
+            {page === "staff-members" && (
+              <RequireStaff authState={authState} go={go}>
+                <StaffMembers authState={authState} go={go} />
               </RequireStaff>
             )}
             {page === "admin" && (

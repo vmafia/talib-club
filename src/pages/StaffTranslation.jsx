@@ -91,7 +91,7 @@ function EditModal({ item, onClose, onSave }) {
 
 // ── Main ───────────────────────────────────────────────────────────
 export default function StaffTranslation({ go }) {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const myName = getMyName(profile)
 
   const [items, setItems] = useState([])
@@ -156,9 +156,13 @@ export default function StaffTranslation({ go }) {
     if (!activeWorkspaceItem?.url) return
     setTranslating(true)
     try {
+      const idToken = user ? await user.getIdToken() : ""
       const res = await fetch("/api/abuiyaad-translate", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "authorization": `Bearer ${idToken}`
+        },
         body: JSON.stringify({ url: activeWorkspaceItem.url }),
       })
       if (!res.ok) throw new Error(`HTTP Error Status ${res.status}`)
