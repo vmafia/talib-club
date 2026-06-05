@@ -308,43 +308,60 @@ export default function Library({ go, authState, ctx }) {
                   </p>
 
                   <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
-                    <a
-                      className="btn btn-teal"
-                      href={authState?.user ? getDownloadUrl(b.fileUrl) : "#"}
-                      target={authState?.user ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!authState?.user) {
-                          e.preventDefault()
+                    {!authState?.user ? (
+                      <button
+                        className="btn btn-outline"
+                        onClick={(e) => {
+                          e.stopPropagation()
                           toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
                           go("auth")
-                        } else {
-                          handleDownloadClick(b)
-                        }
-                      }}
-                      style={{ flex: 1, fontSize: 11, padding: "6px 0", textDecoration: "none", textAlign: "center", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
-                    >
-                      <i className="ti ti-download" style={{ marginRight: 4, fontSize: 12 }}></i>โหลด
-                    </a>
-                    <a
-                      className="btn btn-outline"
-                      href={authState?.user ? (onlineUrl || b.fileUrl || "#") : "#"}
-                      target={authState?.user ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!authState?.user) {
-                          e.preventDefault()
-                          toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
-                          go("auth")
-                        }
-                      }}
-                      style={{ fontSize: 11, padding: "6px 10px", textDecoration: "none", pointerEvents: (onlineUrl || b.fileUrl) ? "auto" : "none", opacity: (onlineUrl || b.fileUrl) ? 1 : 0.55, display: "inline-flex", alignItems: "center", gap: 4 }}
-                    >
-                      <i className={`ti ${onlineUrl ? "ti-book-open" : "ti-eye"}`} style={{ fontSize: 12 }}></i>
-                      {onlineUrl && <span style={{ fontSize: 11 }}>อ่านออนไลน์</span>}
-                    </a>
+                        }}
+                        style={{
+                          width: "100%",
+                          fontSize: 11,
+                          padding: "6px 0",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          borderColor: "var(--br)",
+                          color: "var(--t2)",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <i className="ti ti-lock" style={{ fontSize: 12 }}></i>
+                        เข้าสู่ระบบเพื่อดาวน์โหลด
+                      </button>
+                    ) : (
+                      <>
+                        <a
+                          className="btn btn-teal"
+                          href={getDownloadUrl(b.fileUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownloadClick(b)
+                          }}
+                          style={{ flex: 1, fontSize: 11, padding: "6px 0", textDecoration: "none", textAlign: "center", pointerEvents: b.fileUrl ? "auto" : "none", opacity: b.fileUrl ? 1 : 0.55 }}
+                        >
+                          <i className="ti ti-download" style={{ marginRight: 4, fontSize: 12 }}></i>โหลด
+                        </a>
+                        <a
+                          className="btn btn-outline"
+                          href={onlineUrl || b.fileUrl || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                          style={{ fontSize: 11, padding: "6px 10px", textDecoration: "none", pointerEvents: (onlineUrl || b.fileUrl) ? "auto" : "none", opacity: (onlineUrl || b.fileUrl) ? 1 : 0.55, display: "inline-flex", alignItems: "center", gap: 4 }}
+                        >
+                          <i className={`ti ${onlineUrl ? "ti-book-open" : "ti-eye"}`} style={{ fontSize: 12 }}></i>
+                          {onlineUrl && <span style={{ fontSize: 11 }}>อ่านออนไลน์</span>}
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

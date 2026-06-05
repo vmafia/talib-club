@@ -49,52 +49,86 @@ export default function ArticleDetail({ item, go, authState }) {
   useEffect(() => {
     if (!displayItem) return
 
-    // 1. Fetch related articles
-    const relatedQ = query(
-      collection(db, "content_articles"),
-      where("category", "==", displayItem.category),
-      limit(4)
-    )
-    getDocs(relatedQ)
-      .then(snap => {
-        const docs = snap.docs
-          .map(d => ({ ...d.data(), id: d.id }))
-          .filter(a => String(a.id) !== String(displayItem.id) && !a.deleted)
-          .slice(0, 3)
-        setRelatedArticles(docs)
-      })
-      .catch(err => {
-        console.error("Failed to load related articles from Firebase", err)
-        // Fallback to static articles
-        const staticRelated = ARTICLES.filter(
-          a => String(a.id) !== String(displayItem.id) && String(a.category || "").toLowerCase() === String(displayItem.category || "").toLowerCase()
-        ).slice(0, 3)
-        setRelatedArticles(staticRelated)
-      })
+    // 1. Fetch related articles (Check sessionStorage cache first)
+    const cacheKeyRelated = `talib_related_${displayItem.category}`
+    let cachedRelatedData = null
+    try {
+      const cached = sessionStorage.getItem(cacheKeyRelated)
+      if (cached) cachedRelatedData = JSON.parse(cached)
+    } catch (e) {}
 
-    // 2. Fetch series articles if applicable
-    if (displayItem.type === "series" && displayItem.seriesId) {
-      const seriesQ = query(
+    if (cachedRelatedData) {
+      const docs = cachedRelatedData
+        .filter(a => String(a.id) !== String(displayItem.id) && !a.deleted)
+        .slice(0, 3)
+      setRelatedArticles(docs)
+    } else {
+      const relatedQ = query(
         collection(db, "content_articles"),
-        where("type", "==", "series"),
-        where("seriesId", "==", displayItem.seriesId)
+        where("category", "==", displayItem.category),
+        limit(4)
       )
-      getDocs(seriesQ)
+      getDocs(relatedQ)
         .then(snap => {
-          const docs = snap.docs
-            .map(d => ({ ...d.data(), id: d.id }))
-            .filter(a => !a.deleted)
-            .sort((a, b) => (a.part || 0) - (b.part || 0))
-          setSeriesArticles(docs)
+          const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+          try {
+            sessionStorage.setItem(cacheKeyRelated, JSON.stringify(docs))
+          } catch (e) {}
+          const filtered = docs
+            .filter(a => String(a.id) !== String(displayItem.id) && !a.deleted)
+            .slice(0, 3)
+          setRelatedArticles(filtered)
         })
         .catch(err => {
-          console.error("Failed to load series articles from Firebase", err)
+          console.error("Failed to load related articles from Firebase", err)
           // Fallback to static articles
-          const staticSeries = ARTICLES.filter(
-            a => !a.deleted && String(a.type).toLowerCase() === "series" && String(a.seriesId || "").toLowerCase() === String(displayItem.seriesId).toLowerCase()
-          ).sort((a, b) => (a.part || 0) - (b.part || 0))
-          setSeriesArticles(staticSeries)
+          const staticRelated = ARTICLES.filter(
+            a => String(a.id) !== String(displayItem.id) && String(a.category || "").toLowerCase() === String(displayItem.category || "").toLowerCase()
+          ).slice(0, 3)
+          setRelatedArticles(staticRelated)
         })
+    }
+
+    // 2. Fetch series articles if applicable (Check sessionStorage cache first)
+    if (displayItem.type === "series" && displayItem.seriesId) {
+      const cacheKeySeries = `talib_series_${displayItem.seriesId}`
+      let cachedSeriesData = null
+      try {
+        const cached = sessionStorage.getItem(cacheKeySeries)
+        if (cached) cachedSeriesData = JSON.parse(cached)
+      } catch (e) {}
+
+      if (cachedSeriesData) {
+        const docs = cachedSeriesData
+          .filter(a => !a.deleted)
+          .sort((a, b) => (a.part || 0) - (b.part || 0))
+        setSeriesArticles(docs)
+      } else {
+        const seriesQ = query(
+          collection(db, "content_articles"),
+          where("type", "==", "series"),
+          where("seriesId", "==", displayItem.seriesId)
+        )
+        getDocs(seriesQ)
+          .then(snap => {
+            const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+            try {
+              sessionStorage.setItem(cacheKeySeries, JSON.stringify(docs))
+            } catch (e) {}
+            const sorted = docs
+              .filter(a => !a.deleted)
+              .sort((a, b) => (a.part || 0) - (b.part || 0))
+            setSeriesArticles(sorted)
+          })
+          .catch(err => {
+            console.error("Failed to load series articles from Firebase", err)
+            // Fallback to static articles
+            const staticSeries = ARTICLES.filter(
+              a => !a.deleted && String(a.type).toLowerCase() === "series" && String(a.seriesId || "").toLowerCase() === String(displayItem.seriesId).toLowerCase()
+            ).sort((a, b) => (a.part || 0) - (b.part || 0))
+            setSeriesArticles(staticSeries)
+          })
+      }
     } else {
       setSeriesArticles([])
     }

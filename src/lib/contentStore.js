@@ -61,22 +61,39 @@ function deepMerge(base, patch) {
   return result
 }
 
+function parseDateStringToMs(dateStr) {
+  if (!dateStr || typeof dateStr !== "string") return 0
+  const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (match) {
+    let year = parseInt(match[1], 10)
+    const month = parseInt(match[2], 10) - 1
+    const day = parseInt(match[3], 10)
+    if (year > 2400) {
+      year -= 543
+    }
+    return new Date(year, month, day).getTime()
+  }
+  const parsed = Date.parse(dateStr)
+  return isNaN(parsed) ? 0 : parsed
+}
+
 function getMs(val) {
   if (!val) return 0
   if (typeof val.toDate === "function") return val.toDate().getTime()
   if (val.seconds) return val.seconds * 1000
   if (typeof val === "number") return val
+  if (typeof val === "string") return parseDateStringToMs(val)
   const parsed = Date.parse(val)
   return isNaN(parsed) ? 0 : parsed
 }
 
 function byNewest(a, b) {
-  // Sort by createdAt or updatedAt (Firestore timestamp)
-  const timeA = getMs(a.createdAt || a.updatedAt)
-  const timeB = getMs(b.createdAt || b.updatedAt)
-  if (timeA || timeB) {
-    if (timeA && timeB) return timeB - timeA // Newer first
-    return timeA ? -1 : 1 // Items with Firestore timestamps go to the top
+  const timeA = getMs(a.createdAt || a.updatedAt || a.date)
+  const timeB = getMs(b.createdAt || b.updatedAt || b.date)
+  if (timeA && timeB) {
+    if (timeA !== timeB) return timeB - timeA // Newer first
+  } else if (timeA || timeB) {
+    return timeA ? -1 : 1
   }
 
   // Fall back to date field if available
@@ -436,7 +453,7 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     items,
     loading,
     error,
-    isUsingFallback: !loading && (!remoteItems || remoteItems.length === 0),
+    isUsingFallback: !loading && (remoteItems === null || error !== null),
     saveItem,
     deleteItem,
   }
@@ -460,6 +477,12 @@ export async function saveContentItem(name, item, uid = null) {
   if (!payload.createdAt && !item.createdAt) {
     payload.createdAt = serverTimestamp()
   }
+
+  // S1 ownership guard
+  if (isUserSpecific && uid && item.uid && item.uid !== uid) {
+    throw new Error("Unauthorized: cannot write to another user's data")
+  }
+
   await setDoc(doc(db, collectionName, id), payload, { merge: true })
   invalidateContentCache(collectionName)
   await updateCollectionMetadata(collectionName)

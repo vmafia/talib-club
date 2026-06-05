@@ -246,71 +246,14 @@ export default function Scholars() {
             {/* Scholars Cards Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
               {visibleScholars.map(s => (
-                <div 
-                  key={s.id} 
-                  className="card scholar-card"
-                  style={{ 
-                    padding: 16, 
-                    borderTop: `3px solid ${color}`,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", lineHeight: 1.4 }}>{s.name}</div>
-                    <span 
-                      className="tag" 
-                      style={{ 
-                        background: "var(--acc2)", 
-                        color: "var(--t2)", 
-                        fontSize: 9, 
-                        flexShrink: 0, 
-                        fontWeight: 400 
-                      }}
-                    >
-                      {s.field}
-                    </span>
-                  </div>
-                  
-                  {s.latin && (
-                    <div style={{ fontSize: 11, color: "var(--t3)", fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {s.latin}
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 300 }}>
-                      <span style={{ color: "var(--t3)" }}>ฮ.ศ. </span>
-                      <span style={{ color: color, fontWeight: 500 }}>{s.hijri}</span>
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 300 }}>
-                      <span style={{ color: "var(--t3)" }}>ค.ศ. </span>
-                      <span style={{ color: "var(--text)" }}>{s.ad}</span>
-                    </div>
-                  </div>
-
-                  {/* Badges for Creed, Manhaj, Mazhab */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, margin: "4px 0" }}>
-                    {s.aq && s.aq !== "ไม่ระบุ" && (
-                      <span className={`badge-mockup ${getAqClass(s.aq)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
-                        {s.aq}
-                      </span>
-                    )}
-                    {s.mh && s.mh !== "ไม่ระบุ" && (
-                      <span className={`badge-mockup ${getMhClass(s.mh)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
-                        {s.mh}
-                      </span>
-                    )}
-                    {s.mz && s.mz !== "ไม่ระบุ" && (
-                      <span className={`badge-mockup ${getMzClass(s.mz)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
-                        {s.mz}
-                      </span>
-                    )}
-                  </div>
-
-                  <ScholarNote note={s.note} />
-                </div>
+                <ScholarCard
+                  key={s.id}
+                  s={s}
+                  color={color}
+                  getAqClass={getAqClass}
+                  getMhClass={getMhClass}
+                  getMzClass={getMzClass}
+                />
               ))}
             </div>
 
@@ -361,53 +304,135 @@ export default function Scholars() {
   )
 }
 
-function ScholarNote({ note }) {
-  const [expanded, setExpanded] = useState(false);
-  const noteText = note || "";
-  const isLong = noteText.length > 80;
-  
-  if (!noteText) return null;
-  
+function ScholarCard({ s, color, getAqClass, getMhClass, getMzClass }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = s.note && s.note.length > 80
+
   return (
-    <div style={{ marginTop: "auto", paddingTop: 4 }}>
-      <p 
-        style={{
-          fontSize: 11.5,
-          lineHeight: 1.55,
-          color: "var(--text2)",
-          fontWeight: 300,
-          display: "-webkit-box",
-          WebkitLineClamp: expanded ? "unset" : 3,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden"
-        }}
-      >
-        {noteText}
-      </p>
-      {isLong && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+    <div
+      className="card scholar-card"
+      onClick={() => {
+        if (isLong) {
+          setExpanded(!expanded)
+        }
+      }}
+      style={{
+        padding: 16,
+        borderTop: `3px solid ${color}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        cursor: isLong ? "pointer" : "default",
+        transition: "transform 0.2s ease, box-shadow 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-4px)"
+        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0px)"
+        e.currentTarget.style.boxShadow = "none"
+      }}
+      role={isLong ? "button" : undefined}
+      tabIndex={isLong ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (isLong && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault()
+          setExpanded(!expanded)
+        }
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", lineHeight: 1.4 }}>{s.name}</div>
+        <span
+          className="tag"
           style={{
-            background: "none",
-            border: "none",
-            color: "var(--teal)",
-            fontSize: "11px",
-            cursor: "pointer",
-            padding: "2px 0 0 0",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "2px",
-            fontFamily: "'Prompt', sans-serif",
+            background: "var(--acc2)",
+            color: "var(--t2)",
+            fontSize: 9,
+            flexShrink: 0,
             fontWeight: 400,
-            marginTop: 2
           }}
         >
-          {expanded ? (
-            <>แสดงน้อยลง <i className="ti ti-chevron-up"></i></>
-          ) : (
-            <>อ่านเพิ่มเติม <i className="ti ti-chevron-down"></i></>
+          {s.field}
+        </span>
+      </div>
+
+      {s.latin && (
+        <div style={{ fontSize: 11, color: "var(--t3)", fontFamily: "'IBM Plex Mono', monospace" }}>
+          {s.latin}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 300 }}>
+          <span style={{ color: "var(--t3)" }}>ฮ.ศ. </span>
+          <span style={{ color: color, fontWeight: 500 }}>{s.hijri}</span>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 300 }}>
+          <span style={{ color: "var(--t3)" }}>ค.ศ. </span>
+          <span style={{ color: "var(--text)" }}>{s.ad}</span>
+        </div>
+      </div>
+
+      {/* Badges for Creed, Manhaj, Mazhab */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, margin: "4px 0" }}>
+        {s.aq && s.aq !== "ไม่ระบุ" && (
+          <span className={`badge-mockup ${getAqClass(s.aq)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
+            {s.aq}
+          </span>
+        )}
+        {s.mh && s.mh !== "ไม่ระบุ" && (
+          <span className={`badge-mockup ${getMhClass(s.mh)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
+            {s.mh}
+          </span>
+        )}
+        {s.mz && s.mz !== "ไม่ระบุ" && (
+          <span className={`badge-mockup ${getMzClass(s.mz)}`} style={{ fontSize: 10, padding: "1px 6px" }}>
+            {s.mz}
+          </span>
+        )}
+      </div>
+
+      {s.note && (
+        <div style={{ marginTop: "auto", paddingTop: 4 }}>
+          <p
+            style={{
+              fontSize: 11.5,
+              lineHeight: 1.55,
+              color: "var(--text2)",
+              fontWeight: 300,
+              display: "-webkit-box",
+              WebkitLineClamp: expanded ? "unset" : 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              margin: 0,
+            }}
+          >
+            {s.note}
+          </p>
+          {isLong && (
+            <div
+              style={{
+                color: "var(--teal)",
+                fontSize: "11px",
+                padding: "4px 0 0 0",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "2px",
+                fontFamily: "'Prompt', sans-serif",
+                fontWeight: 400,
+                marginTop: 2,
+              }}
+            >
+              {expanded ? (
+                <>แสดงน้อยลง <i className="ti ti-chevron-up"></i></>
+              ) : (
+                <>อ่านเพิ่มเติม <i className="ti ti-chevron-down"></i></>
+              )}
+            </div>
           )}
-        </button>
+        </div>
       )}
     </div>
   )

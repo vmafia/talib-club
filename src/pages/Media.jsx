@@ -45,11 +45,12 @@ export default function Media({ go, ctx }) {
     const list = []
     media.forEach(item => {
       const playlistName = item.series || "วิดีโอทั่วไป"
-      let pl = list.find(p => p.name === playlistName)
+      const teacherName = item.channel || "Talib Club"
+      let pl = list.find(p => p.name === playlistName && p.teacher === teacherName)
       if (!pl) {
         pl = {
           name: playlistName,
-          teacher: item.channel || item.series || "Talib Club",
+          teacher: teacherName,
           type: String(item.type || "").toLowerCase(),
           items: []
         }
@@ -62,14 +63,18 @@ export default function Media({ go, ctx }) {
 
   const selectedPlaylist = useMemo(() => {
     if (!ctx?.playlist) return null
-    return playlists.find(p => String(p.name).toLowerCase() === String(ctx.playlist).toLowerCase()) || null
-  }, [ctx?.playlist, playlists])
+    return playlists.find(p => 
+      String(p.name).toLowerCase() === String(ctx.playlist).toLowerCase() &&
+      (!ctx.teacher || String(p.teacher).toLowerCase() === String(ctx.teacher).toLowerCase())
+    ) || null
+  }, [ctx?.playlist, ctx?.teacher, playlists])
 
   const updateFilters = (newParams) => {
     const updated = {
       filter,
       searchPlaylist,
       playlist: ctx?.playlist || "",
+      teacher: ctx?.teacher || "",
       searchClip,
       sort: sortOrder,
       page,
@@ -221,9 +226,9 @@ export default function Media({ go, ctx }) {
                     <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text)", marginBottom: 6, lineHeight: 1.4, flex: 1 }}>
                       {pl.name}
                     </div>
-                    <button 
+                     <button 
                       className="btn btn-outline" 
-                      onClick={() => updateFilters({ playlist: pl.name, page: 1, searchClip: "" })}
+                      onClick={() => updateFilters({ playlist: pl.name, teacher: pl.teacher, page: 1, searchClip: "" })}
                       style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, padding: "8px 0", borderColor: "rgba(15,110,86,0.3)", color: "var(--teal)" }}
                     >
                       <i className="ti ti-play-circle" style={{ fontSize: 13 }}></i> ดูเพลย์ลิสต์
@@ -237,7 +242,7 @@ export default function Media({ go, ctx }) {
       ) : (
         /* INSIDE PLAYLIST (แบบบล็อกพร้อมปก Thumbnail และ Pagination) */
         <div>
-          <button className="btn btn-outline" style={{ marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }} onClick={() => updateFilters({ playlist: "", page: 1, searchClip: "" })}>
+          <button className="btn btn-outline" style={{ marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }} onClick={() => updateFilters({ playlist: "", teacher: "", page: 1, searchClip: "" })}>
             <i className="ti ti-arrow-left"></i> กลับหน้ารวมมีเดีย
           </button>
           
@@ -293,6 +298,7 @@ export default function Media({ go, ctx }) {
                     onClick={() => go?.("media-detail", {
                       ...item,
                       playlist: ctx?.playlist || "",
+                      teacher: ctx?.teacher || "",
                       filter: ctx?.filter,
                       page: currentPage,
                     })}

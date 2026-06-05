@@ -394,7 +394,8 @@ function Footer({ site }) {
     { key: "spotify", icon: "ti-brand-spotify" },
     { key: "instagram", icon: "ti-brand-instagram" },
     { key: "tiktok", icon: "ti-brand-tiktok" },
-  ].map(item => ({ ...item, url: site?.social?.[item.key] })).filter(item => item.url)
+  ].map(item => ({ ...item, url: site?.social?.[item.key] }))
+   .filter(item => item.url && /^https?:\/\//i.test(item.url))
 
   return (
     <footer style={{ padding: "32px 0 20px", marginTop: "40px", textAlign: "center", borderTop: ".5px solid var(--br2)" }}>
