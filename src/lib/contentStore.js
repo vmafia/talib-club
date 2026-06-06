@@ -130,7 +130,7 @@ const inFlightRequests = new Map()
 function stableStringify(obj) {
   if (obj === null) return "null"
   if (typeof obj !== "object" || Array.isArray(obj)) return JSON.stringify(obj)
-  
+
   const sorted = {}
   const keys = Object.keys(obj).sort()
   for (const key of keys) {
@@ -245,7 +245,7 @@ export async function invalidateContentCache(collectionName = null) {
           localStorage.removeItem(key)
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     // Invalidate metadata cache for full invalidation
     cachedMetadata = null
     cachedMetadataAt = 0
@@ -256,7 +256,7 @@ export async function invalidateContentCache(collectionName = null) {
       collectionCache.delete(key)
       try {
         localStorage.removeItem(LOCAL_STORAGE_CACHE_PREFIX + key)
-      } catch (e) {}
+      } catch (e) { }
     }
   }
   // Clear count cache for this collection
@@ -265,7 +265,7 @@ export async function invalidateContentCache(collectionName = null) {
       countCache.delete(`count_${key}`)
       try {
         localStorage.removeItem(LOCAL_STORAGE_CACHE_PREFIX + `count_${key}`)
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 }
@@ -406,6 +406,13 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
           setRemoteItems(null)
           setLoading(false)
         }
+      } catch (outerErr) {
+        if (!active) return
+        console.error(`Cannot load ${collectionName}`, outerErr)
+        setError(outerErr)
+        setRemoteItems(null)
+        setLoading(false)
+      }
     }
 
     if (live) {
@@ -567,7 +574,7 @@ export function useCollectionCount(name) {
           return parsed.count
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return null
   }
 
@@ -595,7 +602,7 @@ export function useCollectionCount(name) {
         countCache.set(cacheKey, { count: cnt, at: now })
         try {
           localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + cacheKey, JSON.stringify({ count: cnt, at: now }))
-        } catch (e) {}
+        } catch (e) { }
         setCount(cnt)
         setLoading(false)
       })
@@ -872,7 +879,7 @@ export function invalidateDocumentCache(collectionName, docId) {
   documentCache.delete(cacheKey)
   try {
     localStorage.removeItem(LOCAL_STORAGE_CACHE_PREFIX + cacheKey)
-  } catch (e) {}
+  } catch (e) { }
 }
 
 /**
@@ -881,7 +888,7 @@ export function invalidateDocumentCache(collectionName, docId) {
  */
 export function useContentDoc(collectionKey, docId, fallback = null) {
   const collectionName = CONTENT_COLLECTIONS[collectionKey]
-  
+
   // Find in collection cache first to avoid Firestore getDoc reads
   const cachedFromCollection = useMemo(() => {
     if (!collectionName || !docId) return null
@@ -905,7 +912,7 @@ export function useContentDoc(collectionKey, docId, fallback = null) {
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { }
     return null
   }, [collectionName, docId])
 
