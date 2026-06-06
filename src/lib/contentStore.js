@@ -478,25 +478,64 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     if (!payload.createdAt && !item.createdAt) {
       payload.createdAt = serverTimestamp()
     }
+
+    // 🟢 Optimistic Update: อัปเดต State ที่หน้าจอก่อนทันทีโดยไม่ต้องดึงข้อมูลใหม่
+    setRemoteItems(prev => {
+      const list = prev || []
+      const idx = list.findIndex(d => String(d.id) === id)
+      if (idx >= 0) {
+        const next = [...list]
+        next[idx] = { ...next[idx], ...payload }
+        return next
+      }
+      return [payload, ...list]
+    })
+
+    // 🟢 อัปเดตใน Cache ด้วย เพื่อให้หน้าที่ใช้ข้อมูลเดียวกันไม่ต้องดึงใหม่
+    for (const [key, entry] of collectionCache.entries()) {
+      if (key.includes(`"collectionName":"${collectionName}"`)) {
+        const idx = entry.items.findIndex(d => String(d.id) === id)
+        const newItems = idx >= 0
+          ? entry.items.map(d => String(d.id) === id ? { ...d, ...payload } : d)
+          : [payload, ...entry.items]
+        collectionCache.set(key, { ...entry, items: newItems })
+        if (PUBLIC_COLLECTIONS.includes(collectionName)) {
+          try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
+        }
+      }
+    }
+
+    // ยิงเซฟลง Firestore แค่ 1 Write
     await setDoc(doc(db, collectionName, id), payload, { merge: true })
-    // Await cache invalidation before triggering refetch
-    await invalidateContentCache(collectionName)
     await updateCollectionMetadata(collectionName)
-    // Trigger refetch to display updated data immediately
-    setRefetchTrigger(t => t + 1)
+
   }, [collectionName, isUserSpecific, uid])
 
   const deleteItem = useCallback(async (id) => {
+    // 🟢 Optimistic Update: ลบออกจากหน้าจอก่อนทันที
+    setRemoteItems(prev => {
+      if (!prev) return null
+      return prev.filter(d => String(d.id) !== String(id))
+    })
+
+    // 🟢 ลบออกจาก Cache
+    for (const [key, entry] of collectionCache.entries()) {
+      if (key.includes(`"collectionName":"${collectionName}"`)) {
+        const newItems = entry.items.filter(d => String(d.id) !== String(id))
+        collectionCache.set(key, { ...entry, items: newItems })
+        if (PUBLIC_COLLECTIONS.includes(collectionName)) {
+          try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
+        }
+      }
+    }
+
     await setDoc(doc(db, collectionName, String(id)), {
       id: String(id),
       deleted: true,
       updatedAt: serverTimestamp(),
     }, { merge: true })
-    // Await cache invalidation before triggering refetch
-    await invalidateContentCache(collectionName)
     await updateCollectionMetadata(collectionName)
-    // Trigger refetch to remove deleted item from list immediately
-    setRefetchTrigger(t => t + 1)
+
   }, [collectionName])
 
   return {
@@ -528,13 +567,25 @@ export async function saveContentItem(name, item, uid = null) {
     payload.createdAt = serverTimestamp()
   }
 
-  // S1 ownership guard
   if (isUserSpecific && uid && item.uid && item.uid !== uid) {
     throw new Error("Unauthorized: cannot write to another user's data")
   }
 
   await setDoc(doc(db, collectionName, id), payload, { merge: true })
-  invalidateContentCache(collectionName)
+
+  // 🟢 Optimistic Update แทนการล้าง Cache
+  for (const [key, entry] of collectionCache.entries()) {
+    if (key.includes(`"collectionName":"${collectionName}"`)) {
+      const idx = entry.items.findIndex(d => String(d.id) === id)
+      const newItems = idx >= 0
+        ? entry.items.map(d => String(d.id) === id ? { ...d, ...payload } : d)
+        : [payload, ...entry.items]
+      collectionCache.set(key, { ...entry, items: newItems })
+      if (PUBLIC_COLLECTIONS.includes(collectionName)) {
+        try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
+      }
+    }
+  }
   await updateCollectionMetadata(collectionName)
 }
 
@@ -547,7 +598,17 @@ export async function deleteContentItem(name, id) {
     deleted: true,
     updatedAt: serverTimestamp(),
   }, { merge: true })
-  invalidateContentCache(collectionName)
+
+  // 🟢 Optimistic Update แทนการล้าง Cache
+  for (const [key, entry] of collectionCache.entries()) {
+    if (key.includes(`"collectionName":"${collectionName}"`)) {
+      const newItems = entry.items.filter(d => String(d.id) !== String(id))
+      collectionCache.set(key, { ...entry, items: newItems })
+      if (PUBLIC_COLLECTIONS.includes(collectionName)) {
+        try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
+      }
+    }
+  }
   await updateCollectionMetadata(collectionName)
 }
 
