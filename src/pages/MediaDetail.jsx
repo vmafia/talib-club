@@ -20,13 +20,20 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
   }, [initialItem, remoteMedia])
 
   const spotifyEmbedSrc = useMemo(() => {
-    const url = item?.spotifyUrl || ""
-    if (!url) return ""
-    if (url.includes("/embed/")) return url
-    if (url.includes("open.spotify.com/episode/") || url.includes("open.spotify.com/show/")) {
-      return url.replace("open.spotify.com/", "open.spotify.com/embed/")
+    let url = item?.spotifyUrl || "";
+    if (!url) return "";
+
+    // ถ้าเป็นลิงก์ embed อยู่แล้ว
+    if (url.includes("/embed/")) return url;
+
+    // ดึงเอา query parameters (เช่น ?si=...) ออกไปก่อน
+    url = url.split("?")[0];
+
+    // แปลงลิงก์ปกติให้เป็นลิงก์ Embed
+    if (url.includes("open.spotify.com/")) {
+      return url.replace("open.spotify.com/", "open.spotify.com/embed/");
     }
-    return url
+    return url;
   }, [item?.spotifyUrl])
 
   // ถ้ารีเฟรชแล้วไม่มีข้อมูล ให้กลับไปหน้ามีเดีย
@@ -48,25 +55,25 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
         itemId: item.id,
         type: "media",
         mediaType: item.type, // youtube หรือ spotify
-        title: item.title, 
+        title: item.title,
         timestamp: Date.now()
       }, uid).catch(err => console.error("Failed to save media history to Firebase", err));
     }
   }, [item, authState?.user?.uid])
 
-  if (loading) return <div style={{textAlign: "center", padding: 40}}><i className="ti ti-loader-2 spin" style={{fontSize: 24, color: "var(--teal)"}}></i></div>
+  if (loading) return <div style={{ textAlign: "center", padding: 40 }}><i className="ti ti-loader-2 spin" style={{ fontSize: 24, color: "var(--teal)" }}></i></div>
   if (!item) return null
 
   return (
     <div className="article-page" style={{ maxWidth: 800, margin: "0 auto", paddingBottom: 40, width: "100%" }}>
       {/* ปุ่มย้อนกลับ */}
-      <button 
+      <button
         onClick={() => go("media", initialItem?.playlist ? {
           playlist: initialItem.playlist,
           filter: initialItem.filter,
           page: initialItem.page,
         } : null)}
-        className="sec-link" 
+        className="sec-link"
         style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: 13, background: "none", border: "none", fontFamily: "'Prompt', sans-serif", cursor: "pointer" }}
       >
         <i className="ti ti-arrow-left"></i> กลับหน้ารวมมีเดีย
@@ -124,10 +131,10 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
           boxShadow: "0 10px 30px -10px rgba(0,0,0,0.2)",
           width: "100%", position: "relative", paddingBottom: "56.25%", height: 0
         }}>
-          <video 
-            src={item.videoUrl} 
-            controls 
-            autoPlay 
+          <video
+            src={item.videoUrl}
+            controls
+            autoPlay
             style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "contain" }}
           />
         </div>
@@ -145,11 +152,11 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
           </span>
           <span style={{ fontSize: 13, color: "var(--t3)", fontWeight: 300 }}>{item.series}</span>
         </div>
-        
+
         <h1 style={{ fontSize: 22, marginBottom: 20, lineHeight: 1.4, wordBreak: "break-word" }}>{item.title}</h1>
-        
+
         <div style={{ display: "flex", alignItems: "center", gap: 20, borderTop: ".5px solid var(--br2)", paddingTop: 16, flexWrap: "wrap" }}>
-          
+
           {/* จากช่อง : */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--teal-bg)", color: "var(--teal)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -160,7 +167,7 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
               <div style={{ fontSize: 14, color: "var(--text)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.channel}</div>
             </div>
           </div>
-          
+
           {/* ความยาวคลิป */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bg2)", color: "var(--t2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -171,7 +178,7 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
               <div style={{ fontSize: 14, color: "var(--text)", fontWeight: 500 }}>{item.duration || "ไม่ได้ระบุ"}</div>
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>

@@ -7,10 +7,10 @@ import ContentStatusBanner from "../components/ContentStatusBanner.jsx"
 import ImageWithFallback from "../components/ImageWithFallback.jsx"
 
 export default function Media({ go, ctx }) {
-  const { items: media, loading, error, isUsingFallback } = useContentCollection("media", MEDIA, null, { live: false })
+  const { items: media, loading, error, isUsingFallback } = useContentCollection("media", MEDIA, null, { live: false, limit: 100, orderByField: "createdAt", orderDirection: "desc" })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
   const { site } = useSiteSettings(SITE)
-  
+
   const filter = ctx?.filter || "all"
   const sortOrder = ctx?.sort || "newest"
   const page = parseInt(ctx?.page, 10) || 1
@@ -63,7 +63,7 @@ export default function Media({ go, ctx }) {
 
   const selectedPlaylist = useMemo(() => {
     if (!ctx?.playlist) return null
-    return playlists.find(p => 
+    return playlists.find(p =>
       String(p.name).toLowerCase() === String(ctx.playlist).toLowerCase() &&
       (!ctx.teacher || String(p.teacher).toLowerCase() === String(ctx.teacher).toLowerCase())
     ) || null
@@ -93,8 +93,8 @@ export default function Media({ go, ctx }) {
   const filteredPlaylists = useMemo(() => {
     return playlists.filter(pl => {
       const matchType = filter === "all" || String(pl.type).toLowerCase() === String(filter).toLowerCase();
-      const matchSearch = String(pl.name).toLowerCase().includes(searchPlaylist.toLowerCase()) || 
-                          String(pl.teacher).toLowerCase().includes(searchPlaylist.toLowerCase());
+      const matchSearch = String(pl.name).toLowerCase().includes(searchPlaylist.toLowerCase()) ||
+        String(pl.teacher).toLowerCase().includes(searchPlaylist.toLowerCase());
       return matchType && matchSearch;
     })
   }, [playlists, filter, searchPlaylist])
@@ -104,7 +104,7 @@ export default function Media({ go, ctx }) {
     return [...filteredPlaylists].sort((a, b) => {
       const datesA = a.items.map(item => item.date || "").filter(Boolean)
       const datesB = b.items.map(item => item.date || "").filter(Boolean)
-      
+
       const maxDateA = datesA.length > 0 ? (sortOrder === "newest" ? datesA.reduce((x, y) => x > y ? x : y) : datesA.reduce((x, y) => x < y ? x : y)) : ""
       const maxDateB = datesB.length > 0 ? (sortOrder === "newest" ? datesB.reduce((x, y) => x > y ? x : y) : datesB.reduce((x, y) => x < y ? x : y)) : ""
 
@@ -122,8 +122,8 @@ export default function Media({ go, ctx }) {
   const filteredClips = useMemo(() => {
     if (!selectedPlaylist) return []
     const items = [...selectedPlaylist.items]
-    
-    const matched = !searchClip.trim() ? items : items.filter(item => 
+
+    const matched = !searchClip.trim() ? items : items.filter(item =>
       String(item.title).toLowerCase().includes(searchClip.toLowerCase()) ||
       String(item.channel).toLowerCase().includes(searchClip.toLowerCase())
     )
@@ -167,10 +167,10 @@ export default function Media({ go, ctx }) {
           <div className="filter-bar">
             <div className="filter-search">
               <i className="ti ti-search"></i>
-              <input 
-                value={searchPlaylist} 
-                onChange={e => { setSearchPlaylist(e.target.value); updateFilters({ searchPlaylist: e.target.value }) }} 
-                placeholder="ค้นหาเพลย์ลิสต์ หรือ ชื่อช่อง..." 
+              <input
+                value={searchPlaylist}
+                onChange={e => { setSearchPlaylist(e.target.value); updateFilters({ searchPlaylist: e.target.value }) }}
+                placeholder="ค้นหาเพลย์ลิสต์ หรือ ชื่อช่อง..."
               />
             </div>
             <select className="filter-select" value={sortOrder} onChange={e => updateFilters({ sort: e.target.value })}>
@@ -226,8 +226,8 @@ export default function Media({ go, ctx }) {
                     <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text)", marginBottom: 6, lineHeight: 1.4, flex: 1 }}>
                       {pl.name}
                     </div>
-                     <button 
-                      className="btn btn-outline" 
+                    <button
+                      className="btn btn-outline"
                       onClick={() => updateFilters({ playlist: pl.name, teacher: pl.teacher, page: 1, searchClip: "" })}
                       style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12, padding: "8px 0", borderColor: "rgba(15,110,86,0.3)", color: "var(--teal)" }}
                     >
@@ -245,7 +245,7 @@ export default function Media({ go, ctx }) {
           <button className="btn btn-outline" style={{ marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }} onClick={() => updateFilters({ playlist: "", teacher: "", page: 1, searchClip: "" })}>
             <i className="ti ti-arrow-left"></i> กลับหน้ารวมมีเดีย
           </button>
-          
+
           <div className="card" style={{ padding: 18, marginBottom: 24, background: "var(--acc2)" }}>
             <div style={{ fontSize: 12, color: "var(--teal)", marginBottom: 4, fontWeight: 500 }}>จากช่อง: {selectedPlaylist.teacher}</div>
             <h2 style={{ fontSize: 18, fontWeight: 500 }}>{selectedPlaylist.name}</h2>
@@ -258,10 +258,10 @@ export default function Media({ go, ctx }) {
           <div className="filter-bar">
             <div className="filter-search" style={{ maxWidth: 400 }}>
               <i className="ti ti-search"></i>
-              <input 
-                value={searchClip} 
-                onChange={e => { setSearchClip(e.target.value); updateFilters({ searchClip: e.target.value }) }} 
-                placeholder={`ค้นหาคลิปใน ${selectedPlaylist.name}...`} 
+              <input
+                value={searchClip}
+                onChange={e => { setSearchClip(e.target.value); updateFilters({ searchClip: e.target.value }) }}
+                placeholder={`ค้นหาคลิปใน ${selectedPlaylist.name}...`}
               />
             </div>
             <select className="filter-select" value={sortOrder} onChange={e => updateFilters({ sort: e.target.value })}>
@@ -289,11 +289,11 @@ export default function Media({ go, ctx }) {
               {currentItems.map((item) => {
                 // ดึงภาพปกจาก YouTube หากไม่มีการใส่ CoverUrl
                 const thumbUrl = item.coverUrl || (item.type === "youtube" && item.embedId ? `https://img.youtube.com/vi/${item.embedId}/hqdefault.jpg` : null)
-                
+
                 return (
-                  <div 
-                    key={item.id} 
-                    className="card" 
+                  <div
+                    key={item.id}
+                    className="card"
                     style={{ padding: 0, overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column" }}
                     onClick={() => go?.("media-detail", {
                       ...item,
@@ -351,9 +351,9 @@ function Footer({ site }) {
 
   return (
     <footer style={{ padding: "32px 0 20px", marginTop: "40px", textAlign: "center", position: "relative", borderTop: ".5px solid var(--br2)" }}>
-      
+
       <div style={{ fontSize: "14px", color: "var(--text)", fontWeight: 500, letterSpacing: "0.5px", marginBottom: "6px", textTransform: "uppercase" }}>
-        Quran, Sunnah <span style={{fontWeight: 300, fontSize: "13px"}}>and the understanding of Salaf</span>
+        Quran, Sunnah <span style={{ fontWeight: 300, fontSize: "13px" }}>and the understanding of Salaf</span>
       </div>
 
       <div style={{ fontSize: "12px", color: "var(--t3)", marginBottom: "16px", fontWeight: 300 }}>
@@ -363,8 +363,8 @@ function Footer({ site }) {
       <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
         {links.map(item => (
           <a key={item.key} href={item.url} target="_blank" rel="noreferrer" style={{ width: "36px", height: "36px", backgroundColor: "var(--card)", border: ".5px solid var(--br)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--t2)", textDecoration: "none", transition: "0.2s" }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "var(--teal)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--card)"; e.currentTarget.style.color = "var(--t2)"; e.currentTarget.style.borderColor = "var(--br)"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "var(--teal)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--card)"; e.currentTarget.style.color = "var(--t2)"; e.currentTarget.style.borderColor = "var(--br)"; }}
           >
             <i className={`ti ${item.icon}`} style={{ fontSize: "16px" }}></i>
           </a>
@@ -372,8 +372,8 @@ function Footer({ site }) {
       </div>
 
       <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} style={{ position: "absolute", right: "0", top: "32px", width: "38px", height: "38px", backgroundColor: "var(--teal-bg)", border: "1px solid rgba(15,110,86,0.1)", borderRadius: "50%", color: "var(--teal)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "0.2s" }}
-      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--teal-bg)"; e.currentTarget.style.color = "var(--teal)"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--teal)"; e.currentTarget.style.color = "#fff"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--teal-bg)"; e.currentTarget.style.color = "var(--teal)"; }}
       >
         <i className="ti ti-arrow-up" style={{ fontSize: "16px" }}></i>
       </button>

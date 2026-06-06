@@ -7,9 +7,9 @@ import ContentStatusBanner from "../components/ContentStatusBanner.jsx"
 import ImageWithFallback from "../components/ImageWithFallback.jsx"
 
 export default function Articles({ go, authState, ctx }) {
-  const { items: articles, loading, error, isUsingFallback } = useContentCollection("articles", ARTICLES, null, { live: false })
+  const { items: articles, loading, error, isUsingFallback } = useContentCollection("articles", ARTICLES, null, { live: false, limit: 100, orderByField: "createdAt", orderDirection: "desc" })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
-  
+
   const cat = ctx?.cat || "all"
   const type = ctx?.type || "all"
   const sortOrder = ctx?.sort || "newest"
@@ -132,7 +132,7 @@ export default function Articles({ go, authState, ctx }) {
         .filter(a => String(a.type).toLowerCase() === "series" && a.seriesId)
         .map(a => String(a.seriesId).toLowerCase())
     );
-    
+
     return (taxonomy.articleSeries || []).map(s => {
       const seriesArticles = articles.filter(a => String(a.type).toLowerCase() === "series" && String(a.seriesId).toLowerCase() === String(s.id).toLowerCase());
       const sorted = [...seriesArticles].sort((a, b) => (a.part || 0) - (b.part || 0));
@@ -157,12 +157,12 @@ export default function Articles({ go, authState, ctx }) {
       {/* ปุ่มลัดเข้าดูคลังส่วนตัว (โชว์เฉพาะคนล็อกอิน) */}
       {isLoggedIn && (
         <div style={{ marginBottom: 24 }}>
-          <button 
-            onClick={() => go("member", { view: "saved-articles" })} 
+          <button
+            onClick={() => go("member", { view: "saved-articles" })}
             className="btn btn-outline"
             style={{ padding: "8px 16px", borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 }}
           >
-            <i className="ti ti-bookmark-filled" style={{ color: "var(--teal)" }}></i> 
+            <i className="ti ti-bookmark-filled" style={{ color: "var(--teal)" }}></i>
             เปิดดูบทความที่บันทึกไว้ในคลังส่วนตัว
           </button>
         </div>
@@ -170,14 +170,14 @@ export default function Articles({ go, authState, ctx }) {
 
       {selectedSeries ? (
         <div>
-          <button 
-            className="btn btn-outline" 
-            style={{ marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }} 
+          <button
+            className="btn btn-outline"
+            style={{ marginBottom: 20, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }}
             onClick={() => updateFilters({ selectedSeriesId: "" })}
           >
             <i className="ti ti-arrow-left"></i> กลับหน้ารวมบทความ
           </button>
-          
+
           <div className="card" style={{ padding: 20, marginBottom: 24, background: "var(--teal-bg)" }}>
             <div style={{ fontSize: 12, color: "var(--teal)", marginBottom: 4, fontWeight: 500 }}>ซีรีส์บทความวิชาการ</div>
             <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)" }}>{selectedSeries.name}</h2>
@@ -263,7 +263,7 @@ export default function Articles({ go, authState, ctx }) {
                     {seriesGroups.map(s => (
                       <div key={s.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                         <div>
-                          <div 
+                          <div
                             style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer" }}
                             onClick={() => updateFilters({ selectedSeriesId: s.id })}
                           >
@@ -284,10 +284,10 @@ export default function Articles({ go, authState, ctx }) {
                             ))}
                           </div>
                         </div>
-                        
-                        <button 
+
+                        <button
                           onClick={() => updateFilters({ selectedSeriesId: s.id })}
-                          className="btn btn-outline" 
+                          className="btn btn-outline"
                           style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11, padding: "6px 0", borderColor: "rgba(15,110,86,0.2)", color: "var(--teal)" }}
                         >
                           ดูทุกตอน ({s.articles.length} ตอน) <i className="ti ti-arrow-right" style={{ fontSize: 11 }}></i>
@@ -355,7 +355,7 @@ export default function Articles({ go, authState, ctx }) {
                             {filteredSeries.map(s => (
                               <div key={s.id} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                                 <div>
-                                  <div 
+                                  <div
                                     style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer" }}
                                     onClick={() => updateFilters({ selectedSeriesId: s.id })}
                                   >
@@ -376,9 +376,9 @@ export default function Articles({ go, authState, ctx }) {
                                     ))}
                                   </div>
                                 </div>
-                                <button 
+                                <button
                                   onClick={() => updateFilters({ selectedSeriesId: s.id })}
-                                  className="btn btn-outline" 
+                                  className="btn btn-outline"
                                   style={{ width: "100%", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11, padding: "6px 0", borderColor: "rgba(15,110,86,0.2)", color: "var(--teal)" }}
                                 >
                                   ดูทุกตอน ({s.articles.length} ตอน) <i className="ti ti-arrow-right" style={{ fontSize: 11 }}></i>

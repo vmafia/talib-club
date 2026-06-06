@@ -29,7 +29,7 @@ function getDownloadUrl(url) {
 }
 
 export default function Library({ go, authState, ctx }) {
-  const { items: books, loading, error, isUsingFallback } = useContentCollection("books", BOOKS, null, { live: false })
+  const { items: books, loading, error, isUsingFallback } = useContentCollection("books", BOOKS, null, { live: false, limit: 100, orderByField: "createdAt", orderDirection: "desc" })
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 
   const filter = ctx?.filter || "all"
@@ -145,10 +145,10 @@ export default function Library({ go, authState, ctx }) {
       <div className="filter-bar">
         <div className="filter-search">
           <i className="ti ti-search"></i>
-          <input 
-            placeholder="ค้นหาชื่อหนังสือ, ผู้เขียน, หรือเนื้อหา..." 
-            value={search} 
-            onChange={e => { setSearch(e.target.value); updateFilters({ search: e.target.value }) }} 
+          <input
+            placeholder="ค้นหาชื่อหนังสือ, ผู้เขียน, หรือเนื้อหา..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); updateFilters({ search: e.target.value }) }}
           />
         </div>
         {filter === "วารสาร" ? (
@@ -170,17 +170,17 @@ export default function Library({ go, authState, ctx }) {
             <option value="oldest">ปีที่พิมพ์ เก่า ➜ ใหม่</option>
           </select>
         )}
-        
-        <button 
-          onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })} 
-          className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"} 
-          style={{ 
-            padding: "0 16px", 
-            display: "inline-flex", 
-            alignItems: "center", 
-            gap: 6, 
-            fontSize: 12, 
-            height: 40, 
+
+        <button
+          onClick={() => updateFilters({ showAdv: !showAdvancedFilters ? "true" : "false" })}
+          className={showAdvancedFilters ? "btn btn-teal" : "btn btn-outline"}
+          style={{
+            padding: "0 16px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            height: 40,
             borderRadius: 12,
             boxSizing: "border-box"
           }}
@@ -191,9 +191,9 @@ export default function Library({ go, authState, ctx }) {
 
       <div className="filter-pills">
         {types.map(t => (
-          <button 
-            key={t} 
-            onClick={() => updateFilters({ filter: t })} 
+          <button
+            key={t}
+            onClick={() => updateFilters({ filter: t })}
             className={`filter-pill ${filter === t ? 'active' : ''}`}
           >
             {t === "all" ? "ทั้งหมด" : t}
@@ -258,10 +258,10 @@ export default function Library({ go, authState, ctx }) {
             }
 
             return (
-              <div 
-                key={b.id} 
-                className="card" 
-                style={{ padding: 16, display: "flex", gap: 16, cursor: "pointer" }} 
+              <div
+                key={b.id}
+                className="card"
+                style={{ padding: 16, display: "flex", gap: 16, cursor: "pointer" }}
                 onClick={() => {
                   if (!authState?.user) {
                     toast.error("กรุณาเข้าสู่ระบบก่อนดาวน์โหลดหรือดูหนังสือ")
