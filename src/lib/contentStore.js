@@ -123,6 +123,32 @@ const LOCAL_STORAGE_CACHE_PREFIX = "talib_cache_"
 const collectionCache = new Map()
 const countCache = new Map()
 
+// Cache for user-specific single documents (e.g., last-read) to prevent repeated reads
+const USER_DOC_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const userDocumentCache = new Map()
+
+function readCachedUserDocument(collectionName, docId) {
+  const cacheKey = `${collectionName}:${docId}`
+  const entry = userDocumentCache.get(cacheKey)
+  if (entry) {
+    if (Date.now() - entry.at < USER_DOC_CACHE_TTL_MS) {
+      return entry.data
+    }
+    userDocumentCache.delete(cacheKey)
+  }
+  return null
+}
+
+function writeCachedUserDocument(collectionName, docId, data) {
+  const cacheKey = `${collectionName}:${docId}`
+  userDocumentCache.set(cacheKey, { data, at: Date.now() })
+}
+
+function invalidateUserDocumentCache(collectionName, docId) {
+  const cacheKey = `${collectionName}:${docId}`
+  userDocumentCache.delete(cacheKey)
+}
+
 // Deduplication map for in-flight requests to prevent simultaneous identical queries
 const inFlightRequests = new Map()
 
@@ -203,7 +229,7 @@ function readLocalStorageCacheEntry(key) {
 
 let cachedMetadata = null
 let cachedMetadataAt = 0
-const METADATA_TTL_MS = 60 * 1000 // 1 minute
+const METADATA_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 async function fetchContentMetadata() {
   if (cachedMetadata && (Date.now() - cachedMetadataAt < METADATA_TTL_MS)) {
@@ -239,6 +265,7 @@ export async function invalidateContentCache(collectionName = null) {
   if (!collectionName) {
     collectionCache.clear()
     countCache.clear()
+    userDocumentCache.clear()
     try {
       for (const key of Object.keys(localStorage)) {
         if (key.startsWith(LOCAL_STORAGE_CACHE_PREFIX)) {
@@ -512,16 +539,25 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
   }, [collectionName, isUserSpecific, uid])
 
   const deleteItem = useCallback(async (id) => {
-    // 🟢 Optimistic Update: ลบออกจากหน้าจอก่อนทันที
+    // 🟢 Optimistic Update: มาร์กเป็น deleted: true บนหน้าจอก่อนทันที (เพื่อแก้ปัญหา Fallback Merge ย้อนกลับมาแสดง)
     setRemoteItems(prev => {
-      if (!prev) return null
-      return prev.filter(d => String(d.id) !== String(id))
+      const list = prev || []
+      const idx = list.findIndex(d => String(d.id) === String(id))
+      if (idx >= 0) {
+        const next = [...list]
+        next[idx] = { ...next[idx], deleted: true }
+        return next
+      }
+      return [...list, { id: String(id), deleted: true }]
     })
 
-    // 🟢 ลบออกจาก Cache
+    // 🟢 มาร์กเป็น deleted: true ใน Cache
     for (const [key, entry] of collectionCache.entries()) {
       if (key.includes(`"collectionName":"${collectionName}"`)) {
-        const newItems = entry.items.filter(d => String(d.id) !== String(id))
+        const idx = entry.items.findIndex(d => String(d.id) === String(id))
+        const newItems = idx >= 0
+          ? entry.items.map(d => String(d.id) === String(id) ? { ...d, deleted: true } : d)
+          : [...entry.items, { id: String(id), deleted: true }]
         collectionCache.set(key, { ...entry, items: newItems })
         if (PUBLIC_COLLECTIONS.includes(collectionName)) {
           try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
@@ -599,10 +635,13 @@ export async function deleteContentItem(name, id) {
     updatedAt: serverTimestamp(),
   }, { merge: true })
 
-  // 🟢 Optimistic Update แทนการล้าง Cache
+  // 🟢 Optimistic Update แทนการล้าง Cache โดยระบุเป็น deleted: true เพื่อความสอดคล้อง
   for (const [key, entry] of collectionCache.entries()) {
     if (key.includes(`"collectionName":"${collectionName}"`)) {
-      const newItems = entry.items.filter(d => String(d.id) !== String(id))
+      const idx = entry.items.findIndex(d => String(d.id) === String(id))
+      const newItems = idx >= 0
+        ? entry.items.map(d => String(d.id) === String(id) ? { ...d, deleted: true } : d)
+        : [...entry.items, { id: String(id), deleted: true }]
       collectionCache.set(key, { ...entry, items: newItems })
       if (PUBLIC_COLLECTIONS.includes(collectionName)) {
         try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
@@ -834,8 +873,16 @@ export function useUserCollection(name, uid) {
  */
 export function useUserDoc(collectionKey, uid, docId, fallback = null) {
   const collectionName = CONTENT_COLLECTIONS[collectionKey]
-  const [item, setItem] = useState(fallback)
-  const [loading, setLoading] = useState(Boolean(uid && docId))
+  const [item, setItem] = useState(() => {
+    if (!collectionName || !uid || !docId) return fallback
+    const cached = readCachedUserDocument(collectionName, docId)
+    return cached !== null ? cached : fallback
+  })
+  const [loading, setLoading] = useState(() => {
+    if (!collectionName || !uid || !docId) return false
+    const cached = readCachedUserDocument(collectionName, docId)
+    return cached === null
+  })
 
   const fetchDoc = useCallback(async () => {
     if (!collectionName || !uid || !docId) {
@@ -843,13 +890,24 @@ export function useUserDoc(collectionKey, uid, docId, fallback = null) {
       setLoading(false)
       return
     }
+
+    const cached = readCachedUserDocument(collectionName, docId)
+    if (cached !== null) {
+      setItem(cached)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     try {
       const snapshot = await getDoc(doc(db, collectionName, String(docId)))
       if (snapshot.exists() && !snapshot.data()?.deleted) {
         const data = snapshot.data()
-        setItem({ ...data, id: data.id ?? snapshot.id })
+        const docData = { ...data, id: data.id ?? snapshot.id }
+        writeCachedUserDocument(collectionName, docId, docData)
+        setItem(docData)
       } else {
+        writeCachedUserDocument(collectionName, docId, null)
         setItem(null)
       }
     } catch (err) {
@@ -877,7 +935,9 @@ export function useUserDoc(collectionKey, uid, docId, fallback = null) {
       payload.createdAt = serverTimestamp()
     }
     await setDoc(doc(db, collectionName, String(docId)), payload, { merge: true })
-    setItem({ ...payload, id: String(docId) })
+    const finalData = { ...payload, id: String(docId) }
+    writeCachedUserDocument(collectionName, docId, finalData)
+    setItem(finalData)
   }, [collectionName, uid, docId])
 
   const deleteItem = useCallback(async () => {
@@ -887,6 +947,7 @@ export function useUserDoc(collectionKey, uid, docId, fallback = null) {
       deleted: true,
       updatedAt: serverTimestamp(),
     }, { merge: true })
+    invalidateUserDocumentCache(collectionName, docId)
     setItem(null)
   }, [collectionName, docId])
 

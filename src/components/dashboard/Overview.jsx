@@ -4,6 +4,13 @@ import { db } from "../../lib/firebase.js"
 import { useUserDoc } from "../../lib/contentStore.js"
 import DashboardNav from "../DashboardNav.jsx"
 
+// Module-level cache to persist data across unmount/remount when switching tabs in Dashboard
+let cachedOverviewCounts = null
+let cachedOverviewStreak = 0
+let cachedOverviewTimestamp = 0
+let cachedOverviewUid = null
+const OVERVIEW_CACHE_TTL = 60 * 1000 // 1 minute
+
 export default function Overview({ authState, go, setView, onOpenQuran, onOpenSavedVerses }) {
   const [lastRead, setLastRead] = useState(null)
 
@@ -22,6 +29,19 @@ export default function Overview({ authState, go, setView, onOpenQuran, onOpenSa
   // Memoize fetch function to prevent duplicate queries on re-render
   const fetchOverviewData = useCallback(async (userId) => {
     if (!userId) return
+
+    const now = Date.now()
+    if (
+      cachedOverviewUid === userId &&
+      cachedOverviewCounts &&
+      now - cachedOverviewTimestamp < OVERVIEW_CACHE_TTL
+    ) {
+      setCounts(cachedOverviewCounts)
+      setStreakCount(cachedOverviewStreak)
+      setLoadingCounts(false)
+      return
+    }
+
     setLoadingCounts(true)
     
     try {
@@ -44,12 +64,20 @@ export default function Overview({ authState, go, setView, onOpenQuran, onOpenSa
         streakVal = streakSnap.docs[0].data()?.streakCount || 0
       }
       
-      setCounts({
+      const newCounts = {
         activeBooks: activeBooksSnap.data().count,
         finishedBooks: finishedBooksSnap.data().count,
         bookmarkCount: bookmarkSnap.data().count,
         sessionCount: sessionSnap.data().count,
-      })
+      }
+
+      // Update cache
+      cachedOverviewCounts = newCounts
+      cachedOverviewStreak = streakVal
+      cachedOverviewTimestamp = now
+      cachedOverviewUid = userId
+      
+      setCounts(newCounts)
       setStreakCount(streakVal)
     } catch (err) {
       if (import.meta.env.DEV) {
