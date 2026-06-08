@@ -158,12 +158,17 @@ export default function AdminArticles() {
     const ok = await confirmAction({ title: `ยืนยันการลบ ${selected.length} รายการ?`, message: "ข้อมูลที่ถูกเลือกรวมถึงเนื้อหาทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้", confirmText: "ยืนยันการลบ", danger: true })
     if (!ok) return
     setBusy(true)
+    const toDelete = [...selected]
     try {
-      await Promise.all(selected.map(id => deleteItem(id)))
+      const { deleted, failed } = await bulkDeleteItems("articles", toDelete)
       setSelected([])
-      notifySuccess(`ลบ ${selected.length} บทความเรียบร้อยแล้ว`)
+      if (failed === 0) {
+        notifySuccess(`ลบ ${deleted} บทความเรียบร้อยแล้ว`)
+      } else {
+        notifyError(`ลบสำเร็จ ${deleted} รายการ แต่ล้มเหลว ${failed} รายการ — กรุณาตรวจสิทธิ์ Firestore`)
+      }
     } catch (err) {
-      notifyError("เกิดข้อผิดพลาดในการลบข้อมูลบางส่วน")
+      notifyError("เกิดข้อผิดพลาดในการลบข้อมูล")
     } finally {
       setBusy(false)
     }
