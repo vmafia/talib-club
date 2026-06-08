@@ -2305,7 +2305,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                                     }}
                                     title={`แตะเพื่อดูคำแปลและคั่นหน้า [${v.sura}:${v.aya}]`}
                                   >
-                                    <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayHtml) }} />{" "}
+                                    <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayHtml, { ADD_TAGS: ['tajweed'] }) }} />{" "}
                                   </span>
                                 )
                               })
@@ -2389,7 +2389,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                             }}
                             title={`แตะเพื่อดูคำแปลและคั่นหน้า [${v.sura}:${v.aya}]`}
                           >
-                            <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayHtml) }} />{" "}
+                            <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayHtml, { ADD_TAGS: ['tajweed'] }) }} />{" "}
                           </span>
                         )
                       })}
@@ -2516,9 +2516,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                             }}
                           >
                             {tajweedEnabled ? (
-                              <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(v.arabic_text_tajweed || v.arabic_text) }} />
+                              <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(v.arabic_text_tajweed || v.arabic_text, { ADD_TAGS: ['tajweed'] }) }} />
                             ) : (
-                              <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(stripTajweedTags(v.arabic_text_tajweed || v.arabic_text)) }} />
+                              <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(stripTajweedTags(v.arabic_text_tajweed || v.arabic_text), { ADD_TAGS: ['tajweed'] }) }} />
                             )}
                           </div>
 
