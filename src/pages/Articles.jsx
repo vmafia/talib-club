@@ -7,7 +7,8 @@ import ContentStatusBanner from "../components/ContentStatusBanner.jsx"
 import ImageWithFallback from "../components/ImageWithFallback.jsx"
 
 export default function Articles({ go, authState, ctx }) {
-  const articlesQueryOptions = useMemo(() => ({ live: false, limit: 200 }), [])
+  // Keep the public article list fresh so it reflects the current Firestore state.
+  const articlesQueryOptions = useMemo(() => ({ live: true, limit: 200 }), [])
   const { items: articles, loading, error, isUsingFallback } = useContentCollection("articles", ARTICLES, null, articlesQueryOptions)
   const { taxonomy } = useTaxonomySettings(DEFAULT_TAXONOMY)
 

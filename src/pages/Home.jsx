@@ -55,10 +55,10 @@ const SURAH_NAMES = {
 }
 
 export default function Home({ go }) {
-  // ไม่ใช้ orderByField เพราะ records เก่าบางตัวอาจไม่มี updatedAt
-  // ให้ byNewest() ใน contentStore จัดเรียงให้แทน
+  // Articles should reflect the current Firestore state immediately.
+  const articleQueryOptions = useMemo(() => ({ live: true }), [])
   const readOnlyQueryOptions = useMemo(() => ({ live: false }), [])
-  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, readOnlyQueryOptions)
+  const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, articleQueryOptions)
   const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, readOnlyQueryOptions)
   const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, readOnlyQueryOptions)
   const { count: scholarCount } = useCollectionCount("scholars")

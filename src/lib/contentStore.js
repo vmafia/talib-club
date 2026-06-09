@@ -1175,12 +1175,6 @@ export function useContentDoc(collectionKey, docId, fallback = null) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (cachedFromCollection) {
-      setItem(cachedFromCollection)
-      setLoading(false)
-      return undefined
-    }
-
     if (!collectionName || !docId) {
       setItem(stableFallback)
       setLoading(false)
@@ -1188,6 +1182,10 @@ export function useContentDoc(collectionKey, docId, fallback = null) {
     }
 
     setLoading(true)
+    if (cachedFromCollection) {
+      // Use cached data only as an immediate placeholder, then verify against Firestore.
+      setItem(cachedFromCollection)
+    }
     getDoc(doc(db, collectionName, String(docId)))
       .then(snapshot => {
         if (snapshot.exists() && !snapshot.data()?.deleted) {

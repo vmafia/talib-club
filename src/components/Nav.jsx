@@ -66,7 +66,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
   } = usePWA(authState?.user, authState?.isStaff)
 
   const uid = authState?.user?.uid
-  const latestContentQueryOptions = useMemo(() => ({ limit: 1, orderByField: "updatedAt", orderDirection: "desc", live: false }), [])
+  const latestContentQueryOptions = useMemo(() => ({ limit: 1, orderByField: "updatedAt", orderDirection: "desc", live: true }), [])
   const { items: articles } = useContentCollection("articles", ARTICLES, null, latestContentQueryOptions)
   const { items: books } = useContentCollection("books", BOOKS, null, latestContentQueryOptions)
   const readingSessions = readingSessionsProp ?? []
