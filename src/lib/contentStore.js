@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch, query, where, limit, orderBy, getCountFromServer } from "firebase/firestore"
 import { db } from "./firebase.js"
+import { getOfflineItem, setOfflineItem } from "./offlineStore.js"
 
 export const CONTENT_COLLECTIONS = {
   articles: "content_articles",
