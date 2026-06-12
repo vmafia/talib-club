@@ -1,5 +1,30 @@
 import { useEffect, useRef, useState, useMemo } from "react"
+import { Link } from "react-router-dom"
 import { SITE } from "../data/index.js"
+
+function getPagePath(id, data = null) {
+  if (id === "home" || id === "") return "/";
+  if (id === "tracking") return "/tracking-system";
+  
+  let p = "/" + id;
+  if (data) {
+    const qParams = new URLSearchParams()
+    if (["article", "library-detail", "media-detail"].includes(id) && data.id) {
+      qParams.set("id", String(data.id))
+    } else {
+      Object.entries(data).forEach(([key, val]) => {
+        if (val !== null && val !== undefined && typeof val !== "object") {
+          qParams.set(key, String(val))
+        }
+      })
+    }
+    const queryString = qParams.toString()
+    if (queryString) {
+      p += `?${queryString}`
+    }
+  }
+  return p;
+}
 import toast from "react-hot-toast"
 import { confirmAction } from "../utils/feedback.jsx"
 import { useContentCollection, useUserDoc, invalidateContentCache } from "../lib/contentStore.js"
@@ -549,15 +574,15 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
             borderRight: "1px solid var(--br2)", boxShadow: "5px 0 15px rgba(0,0,0,0.1)",
           }}>
             {NAV_LINKS.map(l => (
-              <button key={l.id} onClick={() => nav(l.id)} style={mobileButtonStyle(page, l.id)}>
+              <Link key={l.id} to={getPagePath(l.id)} onClick={() => nav(l.id)} style={mobileButtonStyle(page, l.id)}>
                 <i className={`ti ${l.icon}`} style={{ marginRight: 15 }}></i>
                 {l.label}
-              </button>
+              </Link>
             ))}
-             <button onClick={() => nav(authState?.user ? "member" : "auth")} style={mobileButtonStyle(page, authState?.user ? "member" : "auth")}>
+             <Link to={getPagePath(authState?.user ? "member" : "auth")} onClick={() => nav(authState?.user ? "member" : "auth")} style={mobileButtonStyle(page, authState?.user ? "member" : "auth")}>
               <i className={`ti ${authState?.user ? "ti-user-circle" : "ti-login"}`} style={{ marginRight: 15 }}></i>
               {authState?.user ? "บัญชีของฉัน" : "เข้าสู่ระบบ"}
-            </button>
+            </Link>
           </div>
         </div>
       )}
@@ -587,11 +612,11 @@ function AccountDropdown({ name, email, photoURL, isStaff, nav, logout, isInstal
         </div>
       </div>
 
-      <DropdownItem icon="ti-layout-dashboard" label="แดชบอร์ดสมาชิก" onClick={() => nav("member", { view: "overview" })} />
-      <DropdownItem icon="ti-device-desktop" label="ห้องอ่านหนังสือ (จับเวลา)" onClick={() => nav("reader")} />
-      <DropdownItem icon="ti-user-circle" label="โปรไฟล์ของฉัน" onClick={() => nav("member", { view: "profile" })} />
-      {isStaff && <DropdownItem icon="ti-briefcase" label="Staff Workspace" onClick={() => nav("staff")} />}
-      {isStaff && <DropdownItem icon="ti-shield-check" label="Admin Panel" onClick={() => nav("admin")} />}
+      <DropdownItem icon="ti-layout-dashboard" label="แดชบอร์ดสมาชิก" to={getPagePath("member", { view: "overview" })} onClick={() => setAccountOpen(false)} />
+      <DropdownItem icon="ti-device-desktop" label="ห้องอ่านหนังสือ (จับเวลา)" to={getPagePath("reader")} onClick={() => setAccountOpen(false)} />
+      <DropdownItem icon="ti-user-circle" label="โปรไฟล์ของฉัน" to={getPagePath("member", { view: "profile" })} onClick={() => setAccountOpen(false)} />
+      {isStaff && <DropdownItem icon="ti-briefcase" label="Staff Workspace" to={getPagePath("staff")} onClick={() => setAccountOpen(false)} />}
+      {isStaff && <DropdownItem icon="ti-shield-check" label="Admin Panel" to={getPagePath("admin")} onClick={() => setAccountOpen(false)} />}
       {isInstallable && <DropdownItem icon="ti-download" label="ติดตั้งแอป Talib" onClick={installApp} />}
 
       <div style={{ borderTop: ".5px solid var(--br2)", marginTop: 6, paddingTop: 6 }}>
@@ -601,14 +626,26 @@ function AccountDropdown({ name, email, photoURL, isStaff, nav, logout, isInstal
   )
 }
 
-function DropdownItem({ icon, label, onClick, danger }) {
+function DropdownItem({ icon, label, to, onClick, danger }) {
+  const style = {
+    width: "100%", border: "none", background: "transparent", cursor: "pointer",
+    color: danger ? "#e05555" : "var(--text)", display: "flex", alignItems: "center",
+    gap: 10, padding: "10px 8px", borderRadius: 8, textAlign: "left",
+    fontFamily: "'Prompt',sans-serif", fontSize: 12,
+    textDecoration: "none", boxSizing: "border-box"
+  };
+
+  if (to) {
+    return (
+      <Link to={to} onClick={onClick} style={style}>
+        <i className={`ti ${icon}`} style={{ fontSize: 15, color: danger ? "#e05555" : "var(--teal)" }}></i>
+        {label}
+      </Link>
+    )
+  }
+
   return (
-    <button onClick={onClick} style={{
-      width: "100%", border: "none", background: "transparent", cursor: "pointer",
-      color: danger ? "#e05555" : "var(--text)", display: "flex", alignItems: "center",
-      gap: 10, padding: "10px 8px", borderRadius: 8, textAlign: "left",
-      fontFamily: "'Prompt',sans-serif", fontSize: 12,
-    }}>
+    <button onClick={onClick} style={style}>
       <i className={`ti ${icon}`} style={{ fontSize: 15, color: danger ? "#e05555" : "var(--teal)" }}></i>
       {label}
     </button>
@@ -617,15 +654,17 @@ function DropdownItem({ icon, label, onClick, danger }) {
 
 function DesktopNavButton({ item, page, nav }) {
   return (
-    <button onClick={() => nav(item.id)} style={{
+    <Link to={getPagePath(item.id)} onClick={() => nav(item.id)} style={{
       background: page === item.id ? "var(--bg2)" : "transparent",
       border: "none", cursor: "pointer", padding: "6px 12px",
       borderRadius: 8, fontSize: 13,
       color: page === item.id ? "var(--text)" : "var(--t2)",
       fontFamily: "'Prompt',sans-serif",
+      textDecoration: "none",
+      display: "inline-block"
     }}>
       {item.label}
-    </button>
+    </Link>
   )
 }
 
@@ -635,6 +674,8 @@ function mobileButtonStyle(page, id) {
     fontSize: 16, background: "transparent", border: "none",
     color: page === id ? "var(--teal)" : "var(--text)", cursor: "pointer",
     fontFamily: "'Prompt',sans-serif",
+    textDecoration: "none",
+    boxSizing: "border-box"
   }
 }
 
@@ -729,11 +770,11 @@ function AccountDrawer({ name, email, photoURL, isStaff, nav, logout, onClose, p
           </button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <DrawerItem icon="ti-layout-dashboard" label="แดชบอร์ดสมาชิก" onClick={() => { nav("member", { view: "overview" }); onClose(); }} />
-          <DrawerItem icon="ti-device-desktop" label="ห้องอ่านหนังสือ (จับเวลา)" onClick={() => { nav("reader"); onClose(); }} />
-          <DrawerItem icon="ti-user-circle" label="โปรไฟล์ของฉัน" onClick={() => { nav("member", { view: "profile" }); onClose(); }} />
-          {isStaff && <DrawerItem icon="ti-briefcase" label="Staff Workspace" onClick={() => { nav("staff"); onClose(); }} />}
-          {isStaff && <DrawerItem icon="ti-shield-check" label="Admin Panel" onClick={() => { nav("admin"); onClose(); }} />}
+          <DrawerItem icon="ti-layout-dashboard" label="แดชบอร์ดสมาชิก" to={getPagePath("member", { view: "overview" })} onClick={onClose} />
+          <DrawerItem icon="ti-device-desktop" label="ห้องอ่านหนังสือ (จับเวลา)" to={getPagePath("reader")} onClick={onClose} />
+          <DrawerItem icon="ti-user-circle" label="โปรไฟล์ของฉัน" to={getPagePath("member", { view: "profile" })} onClick={onClose} />
+          {isStaff && <DrawerItem icon="ti-briefcase" label="Staff Workspace" to={getPagePath("staff")} onClick={onClose} />}
+          {isStaff && <DrawerItem icon="ti-shield-check" label="Admin Panel" to={getPagePath("admin")} onClick={onClose} />}
           {isInstallable && <DrawerItem icon="ti-download" label="ติดตั้งแอป Talib" onClick={() => { installApp(); onClose(); }} />}
         </div>
         <div style={{ borderTop: ".5px solid var(--br2)", paddingTop: 12 }}>
@@ -744,25 +785,39 @@ function AccountDrawer({ name, email, photoURL, isStaff, nav, logout, onClose, p
   )
 }
 
-function DrawerItem({ icon, label, onClick, danger }) {
+function DrawerItem({ icon, label, to, onClick, danger }) {
+  const style = {
+    width: "100%",
+    border: "none",
+    background: danger ? "rgba(224, 85, 85, 0.08)" : "var(--bg2)",
+    cursor: "pointer",
+    color: danger ? "#e05555" : "var(--text)",
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "14px 16px",
+    borderRadius: 12,
+    textAlign: "left",
+    fontFamily: "'Prompt',sans-serif",
+    fontSize: 14,
+    fontWeight: 500,
+    transition: "background 0.2s",
+    textDecoration: "none",
+    boxSizing: "border-box"
+  };
+
+  if (to) {
+    return (
+      <Link to={to} onClick={onClick} style={style}>
+        <i className={`ti ${icon}`} style={{ fontSize: 18, color: danger ? "#e05555" : "var(--teal)" }}></i>
+        <span style={{ flex: 1 }}>{label}</span>
+        <i className="ti ti-chevron-right" style={{ fontSize: 14, opacity: 0.4 }}></i>
+      </Link>
+    )
+  }
+
   return (
-    <button onClick={onClick} style={{
-      width: "100%",
-      border: "none",
-      background: danger ? "rgba(224, 85, 85, 0.08)" : "var(--bg2)",
-      cursor: "pointer",
-      color: danger ? "#e05555" : "var(--text)",
-      display: "flex",
-      alignItems: "center",
-      gap: 14,
-      padding: "14px 16px",
-      borderRadius: 12,
-      textAlign: "left",
-      fontFamily: "'Prompt',sans-serif",
-      fontSize: 14,
-      fontWeight: 500,
-      transition: "background 0.2s"
-    }}>
+    <button onClick={onClick} style={style}>
       <i className={`ti ${icon}`} style={{ fontSize: 18, color: danger ? "#e05555" : "var(--teal)" }}></i>
       <span style={{ flex: 1 }}>{label}</span>
       <i className="ti ti-chevron-right" style={{ fontSize: 14, opacity: 0.4 }}></i>
