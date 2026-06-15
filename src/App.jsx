@@ -344,7 +344,7 @@ export default function App() {
           <i className="ti ti-chevron-right" style={{ fontSize: 14, opacity: 0.7 }} />
         </div>
       )}
-      <main className={`${page === "quran" || page === "member" ? "wide" : ""} fade-in-active`} key={page}>
+      <main className={`${page === "quran" || page === "member" ? "wide" : ""} fade-in-active`}>
         <PageErrorBoundary resetKey={`${page}:${JSON.stringify(ctx || {})}`} go={go}>
           <Suspense fallback={<LoadingState />}>
             <Routes>

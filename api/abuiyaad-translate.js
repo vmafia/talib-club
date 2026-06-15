@@ -355,13 +355,15 @@ export default async function handler(req, res) {
     const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY
     const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
     const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY
+    let lastError = null;
 
     if (openaiKey) {
       try {
         translationResult = await translateWithOpenAI(elements, openaiKey)
         source = "openai"
       } catch (err) {
-        console.error("OpenAI translation failed, trying Anthropic/Gemini:", err)
+        lastError = err.message;
+        console.error("OpenAI translation failed:", err)
       }
     }
 
@@ -370,7 +372,8 @@ export default async function handler(req, res) {
         translationResult = await translateWithAnthropic(elements, anthropicKey)
         source = "anthropic"
       } catch (err) {
-        console.error("Anthropic translation failed, trying Gemini:", err)
+        lastError = err.message;
+        console.error("Anthropic translation failed:", err)
       }
     }
 
@@ -379,11 +382,15 @@ export default async function handler(req, res) {
         translationResult = await translateWithGemini(elements, geminiKey)
         source = "gemini"
       } catch (err) {
+        lastError = err.message;
         console.error("Gemini translation failed:", err)
       }
     }
 
     if (!translationResult) {
+      if (lastError) {
+        return send(res, 500, { error: `AI translation failed: ${lastError}` })
+      }
       return send(res, 500, { error: "AI translation service is currently unavailable. Set up API keys." })
     }
 
