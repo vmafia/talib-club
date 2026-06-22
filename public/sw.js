@@ -1,4 +1,4 @@
-const CACHE_NAME = 'talib-club-cache-v2';
+const CACHE_NAME = 'talib-club-cache-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -43,8 +43,15 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   
-  // Skip dev files if running in dev mode
-  if (e.request.url.includes('/@vite') || e.request.url.includes('/node_modules/')) {
+  // Skip dev files, built assets, APIs, and auth endpoints from caching
+  const url = new URL(e.request.url);
+  if (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/__/auth/') ||
+    e.request.url.includes('/@vite') ||
+    e.request.url.includes('/node_modules/')
+  ) {
     return;
   }
 

@@ -19,6 +19,12 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
     return null
   }, [initialItem, remoteMedia])
 
+  useEffect(() => {
+    if (item?.title) {
+      document.title = `${item.title} | Talib Club`
+    }
+  }, [item])
+
   const spotifyEmbedSrc = useMemo(() => {
     let url = item?.spotifyUrl || "";
     if (!url) return "";

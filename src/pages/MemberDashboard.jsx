@@ -34,6 +34,9 @@ export default function MemberDashboard({ authState, go, initialView = "overview
       return
     }
 
+    const resolved = resolveDashboardView(initialView)
+    setCurrentView(resolved)
+
     const searchParams = new URLSearchParams(window.location.search)
     const sura = searchParams.get("sura") || ctx?.sura
     const ayah = searchParams.get("ayah") || ctx?.ayah

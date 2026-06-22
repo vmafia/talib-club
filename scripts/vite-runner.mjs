@@ -47,6 +47,12 @@ const viteConfig = {
 
 if (command === "build") {
   await build(viteConfig)
+  try {
+    console.log("Running sitemap generator...")
+    await import("./generate-sitemap.mjs")
+  } catch (err) {
+    console.error("Failed to run sitemap generator:", err)
+  }
 } else if (command === "preview") {
   const server = await preview(viteConfig)
   server.printUrls()

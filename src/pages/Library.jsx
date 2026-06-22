@@ -113,13 +113,44 @@ export default function Library({ go, authState, ctx }) {
           return issueB - issueA
         }
       }
-      const yearA = Number(a.year) || 0
-      const yearB = Number(b.year) || 0
+      const normalizeYear = (yr) => {
+        let y = Number(yr) || 0
+        if (y > 2400) y -= 543
+        return y
+      }
+      const yearA = normalizeYear(a.year)
+      const yearB = normalizeYear(b.year)
       if (sortBy === "oldest") {
         if (yearA !== yearB) return yearA - yearB
+        
+        // If years are equal, try to sort by issueNumber if available
+        const issueA = Number(a.issueNumber) || 0
+        const issueB = Number(b.issueNumber) || 0
+        if (issueA !== issueB && (issueA > 0 || issueB > 0)) {
+          return issueA - issueB
+        }
+        
+        // Fallback to creation time
+        const timeA = a.createdAt?.seconds || a.createdAt?.seconds || 0
+        const timeB = b.createdAt?.seconds || b.createdAt?.seconds || 0
+        if (timeA !== timeB) return timeA - timeB
+        
         return String(a.id || "").localeCompare(String(b.id || ""))
       } else {
         if (yearA !== yearB) return yearB - yearA
+        
+        // If years are equal, try to sort by issueNumber (descending) if available
+        const issueA = Number(a.issueNumber) || 0
+        const issueB = Number(b.issueNumber) || 0
+        if (issueA !== issueB && (issueA > 0 || issueB > 0)) {
+          return issueB - issueA
+        }
+        
+        // Fallback to creation time (newest first)
+        const timeA = a.createdAt?.seconds || 0
+        const timeB = b.createdAt?.seconds || 0
+        if (timeA !== timeB) return timeB - timeA
+        
         return String(b.id || "").localeCompare(String(a.id || ""))
       }
     })

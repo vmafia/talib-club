@@ -202,6 +202,74 @@ export default function App() {
     window.sessionStorage.removeItem("chunk-reload");
   }, [])
 
+  // --- Dynamic SEO: Title & Canonical URL Management ---
+  useEffect(() => {
+    const baseUrl = "https://talib.club"
+    const path = location.pathname
+    
+    // Normalize path by removing trailing slash (unless it is just "/")
+    let cleanPath = path
+    if (cleanPath.endsWith("/") && cleanPath !== "/") {
+      cleanPath = cleanPath.slice(0, -1)
+    }
+    
+    let canonicalUrl = baseUrl + cleanPath
+    
+    // Keep only the 'id' parameter for dynamic pages
+    const searchParams = new URLSearchParams(location.search)
+    const id = searchParams.get("id")
+    if (id && ["/article", "/library-detail", "/media-detail"].includes(cleanPath)) {
+      canonicalUrl += `?id=${id}`
+    }
+    
+    // Find or create the link rel="canonical" element
+    let link = document.querySelector("link[rel='canonical']")
+    if (!link) {
+      link = document.createElement("link")
+      link.setAttribute("rel", "canonical")
+      document.head.appendChild(link)
+    }
+    link.setAttribute("href", canonicalUrl)
+
+    // Determine the page title dynamically
+    let pageTitle = "Talib Club | แหล่งศึกษาแนวทางสะลัฟ"
+    const cleanLowerPath = cleanPath.toLowerCase()
+
+    if (cleanLowerPath === "/articles") {
+      pageTitle = "บทความวิชาการ | Talib Club"
+    } else if (cleanLowerPath === "/article") {
+      pageTitle = "อ่านบทความ | Talib Club"
+    } else if (cleanLowerPath === "/library") {
+      pageTitle = "ห้องสมุดและตำราเรียน | Talib Club"
+    } else if (cleanLowerPath === "/library-detail") {
+      pageTitle = "รายละเอียดหนังสือ | Talib Club"
+    } else if (cleanLowerPath === "/media") {
+      pageTitle = "สื่อการเรียนรู้และมีเดีย | Talib Club"
+    } else if (cleanLowerPath === "/media-detail") {
+      pageTitle = "ชมวิดีโอการเรียนรู้ | Talib Club"
+    } else if (cleanLowerPath === "/scholars") {
+      pageTitle = "ทำเนียบบุคคลและอุลามาอ์ | Talib Club"
+    } else if (cleanLowerPath === "/tracking-system") {
+      pageTitle = "ตรวจสอบสถานะพัสดุ | Talib Club"
+    } else if (cleanLowerPath === "/auth") {
+      pageTitle = "เข้าสู่ระบบ / สมัครสมาชิก | Talib Club"
+    } else if (cleanLowerPath === "/member") {
+      pageTitle = "แดชบอร์ดสมาชิก | Talib Club"
+    } else if (cleanLowerPath === "/staff") {
+      pageTitle = "ระบบงานเจ้าหน้าที่ | Talib Club"
+    } else if (cleanLowerPath === "/admin") {
+      pageTitle = "ระบบผู้ดูแลระบบ | Talib Club"
+    } else if (cleanLowerPath === "/donate") {
+      pageTitle = "ร่วมบริจาคและสนับสนุน | Talib Club"
+    } else if (cleanLowerPath === "/reader") {
+      pageTitle = "ระบบอ่านและพัฒนาตนเอง | Talib Club"
+    } else if (cleanLowerPath === "/quran") {
+      pageTitle = "อัลกุรอานและการแปล | Talib Club"
+    }
+
+    document.title = pageTitle
+  }, [location.pathname, location.search])
+
   const go = (p, data = null, options = {}) => {
     let urlPath = "/";
     if (p === "tracking") {
@@ -276,7 +344,7 @@ export default function App() {
           <i className="ti ti-chevron-right" style={{ fontSize: 14, opacity: 0.7 }} />
         </div>
       )}
-      <main className={`${page === "quran" || page === "member" ? "wide" : ""} fade-in-active`} key={page}>
+      <main className={`${page === "quran" || page === "member" ? "wide" : ""} fade-in-active`}>
         <PageErrorBoundary resetKey={`${page}:${JSON.stringify(ctx || {})}`} go={go}>
           <Suspense fallback={<LoadingState />}>
             <Routes>

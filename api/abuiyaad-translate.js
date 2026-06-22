@@ -1,4 +1,4 @@
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+const OPENAI_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1/chat/completions"
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 
 function send(res, status, data) {
@@ -148,9 +148,8 @@ Return ONLY a valid JSON object with the "translations" array, no markdown block
   return JSON.parse(jsonText)
 }
 
-async function translateWithGemini(elements, apiKey) {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash"
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+async function translateWithGemini(elements, apiKey, modelName = "gemini-2.5-flash") {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
 
   const response = await fetch(url, {
     method: "POST",
@@ -241,18 +240,26 @@ async function translateWithGemini(elements, apiKey) {
 async function verifyFirebaseIdToken(idToken) {
   const apiKey = process.env.VITE_WEB_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || "AIzaSyC8HoWaAu0XWy3he_pMxqUIWwREDPdeUpg"
   try {
-    const url = `https://identitytoolkit.googleapis.com/v1/getAccountInfo?key=${apiKey}`
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`
     const response = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { 
+        "content-type": "application/json",
+        "referer": "https://talib.club/",
+        "origin": "https://talib.club"
+      },
       body: JSON.stringify({ idToken })
     })
-    if (!response.ok) return null
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Token verification failed with status:", response.status, errText);
+      throw new Error(`Token API Error ${response.status}: ${errText}`);
+    }
     const data = await response.json()
     return data.users?.[0]?.localId || null
   } catch (err) {
     console.error("Token verification failed", err)
-    return null
+    throw err
   }
 }
 
@@ -277,7 +284,13 @@ export default async function handler(req, res) {
     return send(res, 401, { error: "Unauthorized: Missing authentication token" })
   }
 
-  const uid = await verifyFirebaseIdToken(idToken)
+  let uid;
+  try {
+    uid = await verifyFirebaseIdToken(idToken);
+  } catch (err) {
+    return send(res, 401, { error: `Unauthorized: Token error. ${err.message}` });
+  }
+
   if (!uid) {
     return send(res, 401, { error: "Unauthorized: Invalid authentication token" })
   }
@@ -341,13 +354,15 @@ export default async function handler(req, res) {
     const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY
     const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
     const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY
+    let lastError = null;
 
     if (openaiKey) {
       try {
         translationResult = await translateWithOpenAI(elements, openaiKey)
         source = "openai"
       } catch (err) {
-        console.error("OpenAI translation failed, trying Anthropic/Gemini:", err)
+        lastError = err.message;
+        console.error("OpenAI translation failed:", err)
       }
     }
 
@@ -356,20 +371,37 @@ export default async function handler(req, res) {
         translationResult = await translateWithAnthropic(elements, anthropicKey)
         source = "anthropic"
       } catch (err) {
-        console.error("Anthropic translation failed, trying Gemini:", err)
+        lastError = err.message;
+        console.error("Anthropic translation failed:", err)
       }
     }
 
     if (!translationResult && geminiKey) {
-      try {
-        translationResult = await translateWithGemini(elements, geminiKey)
-        source = "gemini"
-      } catch (err) {
-        console.error("Gemini translation failed:", err)
+      const geminiModels = [
+        process.env.GEMINI_MODEL || "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash"
+      ];
+
+      for (const model of geminiModels) {
+        try {
+          translationResult = await translateWithGemini(elements, geminiKey, model)
+          source = "gemini"
+          lastError = null; // Clear error on success
+          console.log(`Successfully translated using ${model}`);
+          break; // Stop looping when successful
+        } catch (err) {
+          lastError = err.message;
+          console.warn(`Gemini (${model}) translation failed:`, err.message)
+        }
       }
     }
 
     if (!translationResult) {
+      if (lastError) {
+        return send(res, 500, { error: `AI translation failed: ${lastError}` })
+      }
       return send(res, 500, { error: "AI translation service is currently unavailable. Set up API keys." })
     }
 

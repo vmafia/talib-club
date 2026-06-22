@@ -71,8 +71,8 @@ export default function AdminScholars() {
       const parsed = Date.parse(val)
       return isNaN(parsed) ? 0 : parsed
     }
-    const timeA = getMs(a.createdAt || a.updatedAt)
-    const timeB = getMs(b.createdAt || b.updatedAt)
+    const timeA = getMs(a.createdAt) || getMs(a.updatedAt)
+    const timeB = getMs(b.createdAt) || getMs(b.updatedAt)
     if (timeA || timeB) {
       if (timeA && timeB) return timeB - timeA
       return timeA ? -1 : 1

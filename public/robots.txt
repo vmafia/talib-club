@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Allow: /articles
+Allow: /article?id=
+Allow: /library
+Allow: /library-detail?id=
+Allow: /media
+Allow: /media-detail?id=
+Allow: /scholars
+Allow: /donate
+Disallow: /admin
+Disallow: /staff
+Disallow: /member
+Disallow: /quran
+Disallow: /reader
+Disallow: /auth
+Disallow: /tracking-system
+
+Sitemap: https://talib.club/sitemap.xml

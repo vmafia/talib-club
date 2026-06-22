@@ -123,8 +123,9 @@ export default function StaffTranslation({ go }) {
     try {
       const snap = await getDocs(collection(db, COLLECTION))
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    } catch {
-      notifyError("โหลดฐานข้อมูลงานแปลไม่สำเร็จ")
+    } catch (err) {
+      console.error("Failed to load translation items:", err)
+      notifyError("โหลดฐานข้อมูลงานแปลไม่สำเร็จ: " + (err.message || err))
     } finally {
       setLoading(false)
     }
@@ -165,7 +166,14 @@ export default function StaffTranslation({ go }) {
         },
         body: JSON.stringify({ url: activeWorkspaceItem.url }),
       })
-      if (!res.ok) throw new Error(`HTTP Error Status ${res.status}`)
+      if (!res.ok) {
+        let errMessage = `HTTP Error Status ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errMessage += ` - ${errData.error}`;
+        } catch { /* ignore parse error */ }
+        throw new Error(errMessage);
+      }
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       
@@ -242,8 +250,9 @@ export default function StaffTranslation({ go }) {
       delete localPatch.claimedAt
       setItems(prev => prev.map(r => r.id === item.id ? { ...r, ...localPatch } : r))
       return true
-    } catch {
-      notifyError("อัปเดตไม่สำเร็จ")
+    } catch (err) {
+      console.error("Failed to update translation item:", err)
+      notifyError("อัปเดตไม่สำเร็จ: " + (err.message || err))
       return false
     }
   }
@@ -304,23 +313,33 @@ export default function StaffTranslation({ go }) {
         {/* Print Stylesheet */}
         <style>{`
           @media print {
-            body * {
-              visibility: hidden !important;
+            html, body, #root, .app, main, .translation-page {
+              height: auto !important;
+              min-height: auto !important;
+              max-height: none !important;
+              overflow: visible !important;
+              display: block !important;
+              position: static !important;
             }
-            #print-area, #print-area * {
-              visibility: visible !important;
+            body {
+              background: #fff !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              color: #000 !important;
+            }
+            nav, .countdown-banner, .no-print {
+              display: none !important;
             }
             #print-area {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 100% !important;
-              color: #000 !important;
-              background: #fff !important;
               display: block !important;
+              position: relative !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              page-break-after: auto;
             }
-            .no-print {
-              display: none !important;
+            #print-area * {
+              visibility: visible !important;
             }
           }
         `}</style>

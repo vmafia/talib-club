@@ -76,8 +76,8 @@ function getMs(val) {
 }
 
 function byNewest(a, b) {
-  const timeA = getMs(a.createdAt || a.updatedAt || a.date)
-  const timeB = getMs(b.createdAt || b.updatedAt || b.date)
+  const timeA = getMs(a.createdAt) || getMs(a.updatedAt) || getMs(a.date)
+  const timeB = getMs(b.createdAt) || getMs(b.updatedAt) || getMs(b.date)
   if (timeA && timeB) {
     if (timeA !== timeB) return timeB - timeA // Newer first
   } else if (timeA || timeB) {

@@ -62,8 +62,13 @@ export default function AdminLibrary() {
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    const yearA = Number(a.year) || 0
-    const yearB = Number(b.year) || 0
+    const normalizeYear = (yr) => {
+      let y = Number(yr) || 0
+      if (y > 2400) y -= 543
+      return y
+    }
+    const yearA = normalizeYear(a.year)
+    const yearB = normalizeYear(b.year)
     if (sortOrder === "newest") {
       if (yearA !== yearB) return yearB - yearA
       const getMs = (val) => {
@@ -74,8 +79,8 @@ export default function AdminLibrary() {
         const parsed = Date.parse(val)
         return isNaN(parsed) ? 0 : parsed
       }
-      const timeA = getMs(a.createdAt || a.updatedAt)
-      const timeB = getMs(b.createdAt || b.updatedAt)
+      const timeA = getMs(a.createdAt) || getMs(a.updatedAt)
+      const timeB = getMs(b.createdAt) || getMs(b.updatedAt)
       if (timeA !== timeB) return timeB - timeA
       return String(b.id || "").localeCompare(String(a.id || ""))
     } else {
@@ -88,8 +93,8 @@ export default function AdminLibrary() {
         const parsed = Date.parse(val)
         return isNaN(parsed) ? 0 : parsed
       }
-      const timeA = getMs(a.createdAt || a.updatedAt)
-      const timeB = getMs(b.createdAt || b.updatedAt)
+      const timeA = getMs(a.createdAt) || getMs(a.updatedAt)
+      const timeB = getMs(b.createdAt) || getMs(b.updatedAt)
       if (timeA !== timeB) return timeA - timeB
       return String(a.id || "").localeCompare(String(a.id || ""))
     }

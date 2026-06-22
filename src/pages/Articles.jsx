@@ -37,14 +37,30 @@ export default function Articles({ go, authState, ctx }) {
   })
 
   const sortedFiltered = useMemo(() => {
+    const parseDateToMs = (dateStr) => {
+      if (!dateStr || typeof dateStr !== "string") return 0
+      const match = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (match) {
+        let year = parseInt(match[1], 10)
+        const month = parseInt(match[2], 10) - 1
+        const day = parseInt(match[3], 10)
+        if (year > 2400) year -= 543
+        return new Date(year, month, day).getTime()
+      }
+      const parsed = Date.parse(dateStr)
+      return isNaN(parsed) ? 0 : parsed
+    }
+
     return [...filtered].sort((a, b) => {
       const dateA = a.date || ""
       const dateB = b.date || ""
+      const timeA = parseDateToMs(dateA)
+      const timeB = parseDateToMs(dateB)
       if (sortOrder === "newest") {
-        if (dateA !== dateB) return dateB.localeCompare(dateA)
+        if (timeA !== timeB) return timeB - timeA
         return String(b.id || "").localeCompare(String(a.id || ""))
       } else {
-        if (dateA !== dateB) return dateA.localeCompare(dateB)
+        if (timeA !== timeB) return timeA - timeB
         return String(a.id || "").localeCompare(String(b.id || ""))
       }
     })

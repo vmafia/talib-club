@@ -129,7 +129,7 @@ export function useAuth() {
     user,
     profile,
     loading,
-    isStaff: profile?.role === "staff",
+    isStaff: profile?.role === "staff" || profile?.role === "admin",
     async login(email, password) {
       return signInWithEmailAndPassword(auth, email, password)
     },

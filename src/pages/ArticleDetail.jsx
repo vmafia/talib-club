@@ -48,6 +48,12 @@ export default function ArticleDetail({ item, go, authState }) {
   }, [item, remoteArticle])
 
   useEffect(() => {
+    if (displayItem?.title) {
+      document.title = `${displayItem.title} | Talib Club`
+    }
+  }, [displayItem])
+
+  useEffect(() => {
     if (!displayItem) return
 
     // 1. Fetch related articles (Check sessionStorage cache first)
@@ -238,21 +244,54 @@ export default function ArticleDetail({ item, go, authState }) {
 
   // ระบบแกะข้อความสร้างสารบัญอัตโนมัติ
   const toc = [];
-  const parsedBody = (displayItem.body || "").split("\n\n").map((para, index) => {
-    if (para.startsWith("## ")) {
-      const title = para.replace("## ", "");
-      const id = `toc-${index}`;
-      toc.push({ id, title, level: 2 });
-      return <h2 key={index} id={id} style={{ marginTop: 36, marginBottom: 16, fontSize: 22, color: "var(--teal)" }}>{title}</h2>;
+  const parsedBody = [];
+  let currentParagraphLines = [];
+
+  const flushParagraph = (keyIndex) => {
+    if (currentParagraphLines.length > 0) {
+      parsedBody.push(
+        <p key={`p-${keyIndex}`}>
+          {currentParagraphLines.map((line, idx) => (
+            <span key={idx}>
+              {line}
+              {idx < currentParagraphLines.length - 1 && <br />}
+            </span>
+          ))}
+        </p>
+      );
+      currentParagraphLines = [];
     }
-    if (para.startsWith("### ")) {
-      const title = para.replace("### ", "");
+  };
+
+  const lines = (displayItem.body || "").split(/\r?\n/);
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    const matchH3 = trimmed.match(/^###([^#].*)$/);
+    if (matchH3) {
+      flushParagraph(index);
+      const title = matchH3[1].trim();
       const id = `toc-${index}`;
       toc.push({ id, title, level: 3 });
-      return <h3 key={index} id={id} style={{ marginTop: 24, marginBottom: 12, fontSize: 18 }}>{title}</h3>;
+      parsedBody.push(<h3 key={`h3-${index}`} id={id} style={{ marginTop: 24, marginBottom: 12, fontSize: 18 }}>{title}</h3>);
+      return;
     }
-    return <p key={index}>{para}</p>;
+    const matchH2 = trimmed.match(/^##([^#].*)$/);
+    if (matchH2) {
+      flushParagraph(index);
+      const title = matchH2[1].trim();
+      const id = `toc-${index}`;
+      toc.push({ id, title, level: 2 });
+      parsedBody.push(<h2 key={`h2-${index}`} id={id} style={{ marginTop: 36, marginBottom: 16, fontSize: 22, color: "var(--teal)" }}>{title}</h2>);
+      return;
+    }
+
+    if (trimmed === "") {
+      flushParagraph(index);
+    } else {
+      currentParagraphLines.push(line);
+    }
   });
+  flushParagraph(lines.length);
 
   const related = relatedArticles
   const readerClass = `article-body reader-size-${readerPrefs.size} reader-tone-${readerPrefs.tone}`
@@ -326,23 +365,76 @@ export default function ArticleDetail({ item, go, authState }) {
       </div>
 
       {toc.length > 0 && (
-        <div className="card" style={{ padding: "20px 24px", marginBottom: 32, background: "var(--bg2)", border: ".5px solid var(--br2)" }}>
-          <h3 style={{ fontSize: 16, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            <i className="ti ti-list" style={{ color: "var(--teal)" }}></i> สารบัญเนื้อหา (Table Of Contents)
+        <div className="card" style={{ padding: "24px 28px", marginBottom: 32, background: "var(--bg2)", border: ".5px solid var(--br2)", borderRadius: 16 }}>
+          <style>{`
+            .toc-link {
+              transition: all 0.2s ease;
+            }
+            .toc-link:hover {
+              color: var(--teal) !important;
+              transform: translateX(4px);
+            }
+          `}</style>
+          <h3 style={{ fontSize: 16, marginBottom: 20, display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "var(--text)" }}>
+            <i className="ti ti-list" style={{ color: "var(--teal)", fontSize: 18 }}></i> สารบัญเนื้อหา (Table Of Contents)
           </h3>
-          <ul style={{ margin: 0, paddingLeft: 24, display: "flex", flexDirection: "column", gap: 10 }}>
-            {toc.map(t => (
-              <li key={t.id} style={{ fontSize: t.level === 2 ? 14 : 13, color: "var(--text)" }}>
-                <a href={`#${t.id}`} onClick={(e) => { e.preventDefault(); document.getElementById(t.id)?.scrollIntoView({ behavior: 'smooth' }); }} style={{ color: "var(--teal)", textDecoration: "none", opacity: t.level === 3 ? 0.8 : 1 }}>
-                  {t.title}
-                </a>
-              </li>
-            ))}
+          <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+            {toc.map(t => {
+              const isH3 = t.level === 3;
+              return (
+                <li key={t.id} style={{ 
+                  paddingLeft: isH3 ? 24 : 0, 
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  lineHeight: 1.5
+                }}>
+                  {isH3 ? (
+                    <span style={{
+                      position: "absolute",
+                      left: 8,
+                      top: 0,
+                      width: 8,
+                      height: 10,
+                      borderLeft: "1.5px solid rgba(128,128,128,0.25)",
+                      borderBottom: "1.5px solid rgba(128,128,128,0.25)",
+                      borderBottomLeftRadius: 4,
+                    }} />
+                  ) : (
+                    <span style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--teal)",
+                      marginTop: 8,
+                      marginRight: 12,
+                      flexShrink: 0
+                    }} />
+                  )}
+                  <a 
+                    href={`#${t.id}`} 
+                    onClick={(e) => { 
+                      e.preventDefault(); 
+                      document.getElementById(t.id)?.scrollIntoView({ behavior: 'smooth' }); 
+                    }} 
+                    className="toc-link"
+                    style={{ 
+                      fontSize: isH3 ? 13 : 14, 
+                      color: isH3 ? "var(--t3)" : "var(--text)", 
+                      fontWeight: isH3 ? 300 : 500,
+                      textDecoration: "none",
+                      display: "inline-block"
+                    }}
+                  >
+                    {t.title}
+                  </a>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
 
-      <div className="article-excerpt"><p>{displayItem.excerpt}</p></div>
       <div className={readerClass} style={{ scrollBehavior: "smooth" }}>{parsedBody}</div>
 
       {displayItem.tags && displayItem.tags.length > 0 && (

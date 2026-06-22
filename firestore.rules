@@ -7,15 +7,15 @@ service cloud.firestore {
 
     function isStaff() {
       return signedIn()
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "staff" ||
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-            request.auth.token.email == "islamofwhite@gmail.com");
+        && (request.auth.token.email == "islamofwhite@gmail.com" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "staff" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
     }
 
     function isAdmin() {
       return signedIn()
-        && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-            request.auth.token.email == "islamofwhite@gmail.com");
+        && (request.auth.token.email == "islamofwhite@gmail.com" ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
     }
 
     function isOwner() {

@@ -45,6 +45,12 @@ export default function LibraryDetail({ item, go, authState }) {
     return null
   }, [item, remoteBook])
 
+  useEffect(() => {
+    if (displayItem?.title) {
+      document.title = `${displayItem.title} | Talib Club`
+    }
+  }, [displayItem])
+
   // บันทึกประวัติการดูหนังสือ
   useEffect(() => {
     if (displayItem && authState?.user?.uid && hasSavedHistory.current !== displayItem.id) {
