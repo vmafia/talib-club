@@ -14,7 +14,7 @@ export default function StaffCalendar({ currentUser, staffTeam }) {
   
   // Modal/Form for adding an event
   const [selectedDate, setSelectedDate] = useState(null)
-  const [form, setForm] = useState({ title: "", assignee: currentUser, platform: "Facebook" })
+  const [form, setForm] = useState({ title: "", assignee: currentUser, platforms: ["Facebook"] })
   const [editingId, setEditingId] = useState(null)
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function StaffCalendar({ currentUser, staffTeam }) {
   const handleDayClick = (day) => {
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
     setSelectedDate(d)
-    setForm({ title: "", assignee: currentUser, platform: "Facebook" })
+    setForm({ title: "", assignee: currentUser, platforms: ["Facebook"] })
     setEditingId(null)
   }
 
@@ -92,7 +92,7 @@ export default function StaffCalendar({ currentUser, staffTeam }) {
 
   const handleEditEvent = (ev, dayDate) => {
     setSelectedDate(dayDate)
-    setForm({ title: ev.title, assignee: ev.assignee, platform: ev.platform })
+    setForm({ title: ev.title, assignee: ev.assignee, platforms: ev.platforms || [ev.platform || "Facebook"] })
     setEditingId(ev.id)
   }
 
@@ -160,25 +160,29 @@ export default function StaffCalendar({ currentUser, staffTeam }) {
               >
                 <div style={{ fontWeight: "bold", fontSize: 14, color: isToday ? "var(--teal)" : "var(--text)" }}>{day}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", flex: 1 }}>
-                  {dayEvents.map(ev => (
-                    <div 
-                      key={ev.id} 
-                      onClick={(e) => { e.stopPropagation(); handleEditEvent(ev, d); }}
-                      style={{ 
-                        fontSize: 11, 
-                        background: getPlatformColor(ev.platform), 
-                        color: "#fff", 
-                        padding: "4px 6px", 
-                        borderRadius: 4,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis"
-                      }}
-                      title={`${ev.title} (${ev.assignee})`}
-                    >
-                      {ev.title}
-                    </div>
-                  ))}
+                  {dayEvents.map(ev => {
+                    const plats = ev.platforms || [ev.platform || "Facebook"]
+                    return plats.map(p => (
+                      <div 
+                        key={`${ev.id}-${p}`} 
+                        onClick={(e) => { e.stopPropagation(); handleEditEvent(ev, d); }}
+                        style={{ 
+                          fontSize: 11, 
+                          background: getPlatformColor(p), 
+                          color: "#fff", 
+                          padding: "4px 6px", 
+                          borderRadius: 4,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          marginBottom: 2
+                        }}
+                        title={`${ev.title} (${ev.assignee})`}
+                      >
+                        {ev.title}
+                      </div>
+                    ))
+                  })}
                 </div>
               </div>
             )
@@ -203,10 +207,25 @@ export default function StaffCalendar({ currentUser, staffTeam }) {
                 </select>
               </label>
               <label>
-                <span className="label-text">แพลตฟอร์ม</span>
-                <select required value={form.platform} onChange={e => setForm({...form, platform: e.target.value})}>
-                  {["Facebook", "Instagram", "YouTube", "TikTok", "Spotify", "Website", "อื่นๆ"].map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <span className="label-text" style={{ marginBottom: 8, display: "block" }}>แพลตฟอร์ม</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {["Facebook", "Instagram", "YouTube", "TikTok", "Spotify", "Website", "อื่นๆ"].map(p => (
+                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, cursor: "pointer", background: "var(--bg2)", padding: "4px 8px", borderRadius: 4 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={form.platforms.includes(p)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setForm({...form, platforms: [...form.platforms, p]})
+                          } else {
+                            setForm({...form, platforms: form.platforms.filter(x => x !== p)})
+                          }
+                        }}
+                      />
+                      {p}
+                    </label>
+                  ))}
+                </div>
               </label>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
