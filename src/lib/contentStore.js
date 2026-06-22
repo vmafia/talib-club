@@ -1289,7 +1289,6 @@ export function useSiteSettings(fallbackSite) {
         setError(err)
         setLoading(false)
       })
-      })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(fallbackSite)])
@@ -1343,7 +1342,6 @@ export function useTaxonomySettings(fallbackTaxonomy) {
         setTaxonomy(fallbackTaxonomy)
         setError(err)
         setLoading(false)
-      })
       })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
