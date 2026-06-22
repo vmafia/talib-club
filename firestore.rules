@@ -114,6 +114,14 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
+    match /staff_tasks/{docId} {
+      allow read, write: if isStaff();
+    }
+
+    match /content_calendar/{docId} {
+      allow read, write: if isStaff();
+    }
+
     match /settings/{docId} {
       allow read: if true;
       allow write: if isStaff();
