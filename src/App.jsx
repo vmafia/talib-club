@@ -466,13 +466,13 @@ function RequireLogin({ authState, children }) {
 
 function RequireOwner({ authState, children }) {
   const location = useLocation()
+  const navigate = useNavigate()
   if (authState.loading) return <LoadingState />
   if (!authState.user) {
     const fullPath = location.pathname + location.search
     return <Navigate to="/auth" replace state={{ from: fullPath }} />
   }
   if (authState.user.email !== "islamofwhite@gmail.com") {
-    const navigate = useNavigate()
     return (
       <div className="card" style={{ maxWidth: 520, margin: "44px auto", padding: 24, textAlign: "center" }}>
         <i className="ti ti-lock" style={{ fontSize: 28, color: "var(--red)", marginBottom: 10 }}></i>

@@ -66,9 +66,9 @@ export default function Home({ go }) {
   const { count: bookCount } = useCollectionCount("books")
   const { count: mediaCount } = useCollectionCount("media")
   const { site } = useSiteSettings(SITE)
-  const recent     = articles.slice(0, 3)
-  const newBooks   = books.slice(0, 4)
-  const recentMedia= media.slice(0, 3)
+  const recent     = (articles || []).slice(0, 3)
+  const newBooks   = (books || []).slice(0, 4)
+  const recentMedia= (media || []).slice(0, 3)
 
   const [dailyDua, setDailyDua] = useState(null)
 

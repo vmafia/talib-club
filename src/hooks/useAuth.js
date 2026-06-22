@@ -160,7 +160,7 @@ export function useAuth() {
     },
     async updateUserProfile({ displayName }) {
       if (!auth.currentUser) throw new Error("Missing current user")
-      const cleanDisplayName = displayName.trim()
+      const cleanDisplayName = (displayName || "").trim()
       await updateProfile(auth.currentUser, { displayName: cleanDisplayName })
       const nextProfile = {
         displayName: cleanDisplayName,
