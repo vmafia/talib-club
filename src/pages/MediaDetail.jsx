@@ -138,14 +138,12 @@ export default function MediaDetail({ item: initialItem, go, authState }) {
           width: "100%", position: "relative", paddingBottom: "56.25%", height: 0
         }}>
           <video
+            src={item.videoUrl}
             controls
             autoPlay
             playsInline
             style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "contain" }}
-          >
-            <source src={item.videoUrl} type="video/mp4" />
-            เบราว์เซอร์ของคุณไม่รองรับการเล่นวิดีโอนี้
-          </video>
+          />
         </div>
       )}
 

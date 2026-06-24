@@ -262,9 +262,46 @@ export default function StaffTasks({ currentUser, staffTeam, sendBotNotification
               {task.files && task.files.length > 0 && (
                 <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {task.files.map((f, i) => (
-                    <a key={i} href={f.url} target="_blank" rel="noreferrer" className="pill" style={{ fontSize: 12, textDecoration: "none" }}>
-                      📎 {f.name}
-                    </a>
+                    <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 16 }}>
+                      <span style={{ fontSize: 12, color: "var(--text)" }}>📎 {f.name}</span>
+                      <div style={{ display: "flex", gap: 6, borderLeft: "1px solid var(--border)", paddingLeft: 8, marginLeft: 2 }}>
+                        <button 
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            try {
+                              const loadingToast = toast.loading(`กำลังดึงไฟล์ ${f.name}...`);
+                              const response = await fetch(f.url);
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.style.display = 'none';
+                              a.href = url;
+                              a.download = f.name;
+                              document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              toast.dismiss(loadingToast);
+                            } catch (err) {
+                              window.open(f.url, '_blank');
+                            }
+                          }}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 2, color: "var(--teal)" }}
+                          title="ดาวน์โหลดไฟล์"
+                        >
+                          ⬇️
+                        </button>
+                        <a 
+                          href={f.url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, textDecoration: "none", padding: 2 }}
+                          title="เปิดดู (Preview)"
+                        >
+                          👁️
+                        </a>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
