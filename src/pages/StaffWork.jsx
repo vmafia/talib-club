@@ -585,25 +585,47 @@ export default function StaffWork({ authState, go }) {
                               <div style={{ display: "flex", gap: 6, borderLeft: "1px solid var(--border)", paddingLeft: 8, marginLeft: 2 }}>
                                 <button 
                                   type="button"
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                     e.preventDefault();
-                                    // สำหรับไฟล์ขนาดใหญ่ การใช้ fetch จะช้ามากและค้าง ให้เปิดแท็บใหม่แทน
-                                    window.open(file.url, '_blank');
+                                    const btn = e.currentTarget;
+                                    const originalText = btn.innerHTML;
+                                    btn.innerHTML = '<i class="ti ti-loader spin"></i>';
+                                    btn.disabled = true;
+                                    try {
+                                      const res = await fetch(file.url);
+                                      const blob = await res.blob();
+                                      const blobUrl = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = blobUrl;
+                                      a.download = file.name || 'download';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      URL.revokeObjectURL(blobUrl);
+                                    } catch (err) {
+                                      console.error(err);
+                                      window.open(file.url, '_blank');
+                                    } finally {
+                                      btn.innerHTML = originalText;
+                                      btn.disabled = false;
+                                    }
                                   }}
                                   style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 2, color: "var(--teal)" }}
-                                  title="ดาวน์โหลดไฟล์ (หรือเปิดดู)"
+                                  title="ดาวน์โหลดไฟล์ลงเครื่อง"
                                 >
                                   ⬇️
                                 </button>
-                                <a 
-                                  href={file.url} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, textDecoration: "none", padding: 2 }}
-                                  title="เปิดดู (Preview)"
+                                <button 
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setPreviewModal({ open: true, file: file });
+                                  }}
+                                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: 2, color: "var(--orange)" }}
+                                  title="เปิดดูพรีวิว"
                                 >
                                   👁️
-                                </a>
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -917,7 +939,33 @@ export default function StaffWork({ authState, go }) {
             )}
 
             <div style={{ marginTop: 20, textAlign: "center", display: "flex", justifyContent: "center", gap: 12 }}>
-              <button onClick={() => window.open(previewModal.file.url, '_blank')} className="btn btn-teal">
+              <button 
+                onClick={async (e) => {
+                  const btn = e.currentTarget;
+                  const originalText = btn.innerHTML;
+                  btn.innerHTML = '<i class="ti ti-loader spin"></i> กำลังดาวน์โหลด...';
+                  btn.disabled = true;
+                  try {
+                    const res = await fetch(previewModal.file.url);
+                    const blob = await res.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = previewModal.file.name || 'download';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                  } catch (err) {
+                    console.error(err);
+                    window.open(previewModal.file.url, '_blank');
+                  } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                  }
+                }} 
+                className="btn btn-teal"
+              >
                 <i className="ti ti-download"></i> ดาวน์โหลดไฟล์ต้นฉบับ
               </button>
             </div>
