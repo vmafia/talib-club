@@ -1253,18 +1253,20 @@ export function useContentDoc(collectionKey, docId, fallback = null) {
       return undefined
     }
 
-    setLoading(true)
+    setLoading(!cachedFromCollection)
     if (cachedFromCollection) {
       setItem(cachedFromCollection)
-      setLoading(false)
-      return undefined // skip Firestore read if cached
+      // Do not return here; we want to fetch the live document in the background
+      // to get the most up-to-date views and downloads metrics.
     }
+
     getDoc(doc(db, collectionName, String(docId)))
       .then(snapshot => {
         if (snapshot.exists() && !snapshot.data()?.deleted) {
           const data = snapshot.data()
           setItem({ ...data, id: data.id ?? snapshot.id })
         } else {
+          // If we had cached data but the doc is missing from DB, we fall back
           setItem(stableFallback)
         }
         setError(null)
@@ -1273,7 +1275,9 @@ export function useContentDoc(collectionKey, docId, fallback = null) {
       .catch(err => {
         console.error(`Cannot load ${collectionName}/${docId}`, err)
         setError(err)
-        setItem(stableFallback)
+        if (!cachedFromCollection) {
+          setItem(stableFallback)
+        }
         setLoading(false)
       })
     return undefined
