@@ -276,27 +276,35 @@ export default function AdminBookCampaigns() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {campaigns.map(c => (
-            <div key={c.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <h3 style={{ margin: 0, fontSize: 16 }}>{c.title}</h3>
-                  <span className="badge" style={{ background: c.status === "active" ? "var(--teal-bg)" : "var(--bg3)", color: c.status === "active" ? "var(--teal)" : "var(--t2)" }}>
+            <div key={c.id} className="card" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <h3 style={{ margin: 0, fontSize: 18, color: "var(--text)" }}>{c.title}</h3>
+                  <span className="badge" style={{ background: c.status === "active" ? "var(--teal-bg)" : "var(--bg3)", color: c.status === "active" ? "var(--teal)" : "var(--t2)", padding: "4px 10px", fontSize: 12, fontWeight: 500 }}>
                     {c.status === "active" ? "เปิดรับลงทะเบียน" : "ปิดแล้ว"}
                   </span>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--t2)" }}>
-                  โควตา: {c.quota} สิทธิ์ | เวลาโอน: {c.timeLimit} นาที | หนังสือ: {c.items?.length || 0} เล่ม
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--br)", padding: "4px 10px", borderRadius: 20, fontSize: 13, color: "var(--t2)" }}>
+                    <i className="ti ti-ticket" style={{ color: "var(--teal)" }}></i> โควตา <strong>{c.quota}</strong> สิทธิ์
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--br)", padding: "4px 10px", borderRadius: 20, fontSize: 13, color: "var(--t2)" }}>
+                    <i className="ti ti-clock" style={{ color: "#e05555" }}></i> ให้เวลาโอน <strong>{c.timeLimit}</strong> นาที
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg)", border: "1px solid var(--br)", padding: "4px 10px", borderRadius: 20, fontSize: 13, color: "var(--t2)" }}>
+                    <i className="ti ti-books" style={{ color: "#f59e0b" }}></i> แจก <strong>{c.items?.length || 0}</strong> เล่ม
+                  </span>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <button className="btn btn-outline" onClick={() => toast("ระบบดูรายชื่อกำลังจะมาเร็วๆ นี้", { icon: "🚧" })} style={{ padding: "6px 12px", fontSize: 12, color: "var(--teal)", borderColor: "var(--teal-bg)" }}>
-                  <i className="ti ti-users" style={{ marginRight: 4 }}></i> รายชื่อ
+              <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+                <button className="btn btn-outline" onClick={() => toast("ระบบดูรายชื่อกำลังจะมาเร็วๆ นี้", { icon: "🚧" })} style={{ padding: "8px 16px", fontSize: 13, color: "var(--teal)", borderColor: "var(--teal-bg)", background: "var(--teal-bg)", borderRadius: 20, display: "flex", alignItems: "center", gap: 6 }}>
+                  <i className="ti ti-users"></i> รายชื่อ
                 </button>
-                <button className="btn btn-outline" onClick={() => handleOpenForm(c)} style={{ padding: "6px 12px", fontSize: 12 }}>
-                  <i className="ti ti-pencil"></i>
+                <button className="btn btn-outline" onClick={() => handleOpenForm(c)} style={{ width: 36, height: 36, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", background: "var(--bg)", borderColor: "var(--br)", color: "var(--text)" }}>
+                  <i className="ti ti-pencil" style={{ fontSize: 16 }}></i>
                 </button>
-                <button className="btn btn-outline" onClick={() => handleDelete(c.id)} style={{ color: "#e05555", borderColor: "rgba(224,85,85,.3)", padding: "6px 12px", fontSize: 12 }}>
-                  <i className="ti ti-trash"></i>
+                <button className="btn btn-outline" onClick={() => handleDelete(c.id)} style={{ width: 36, height: 36, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", color: "#e05555", borderColor: "rgba(224,85,85,.3)", background: "rgba(224,85,85,.05)" }}>
+                  <i className="ti ti-trash" style={{ fontSize: 16 }}></i>
                 </button>
               </div>
             </div>
