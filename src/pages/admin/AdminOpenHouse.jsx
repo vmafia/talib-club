@@ -275,113 +275,162 @@ export default function AdminOpenHouse() {
       </div>
 
       {showBoothForm && (
-        <form onSubmit={handleSaveBooth} className="card" style={{ background: "var(--bg2)", padding: 20, marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 16 }}>{editingBoothId ? "แก้ไขบูธ" : "สร้างบูธใหม่"}</h3>
-          <div className="grid2">
-            <label>
-              <span className="label-text">ชื่อบูธ / ชื่อช่อง *</span>
-              <input required type="text" value={boothForm.name} onChange={e => setBoothForm({...boothForm, name: e.target.value})} placeholder="เช่น Salafi Publications" />
-            </label>
-            <label>
-              <span className="label-text">แพลตฟอร์ม (เลือกได้หลายอัน) *</span>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+        <form onSubmit={handleSaveBooth} className="card" style={{ background: "var(--bg)", padding: 0, marginBottom: 24, overflow: "hidden" }}>
+          <div style={{ background: "var(--bg2)", padding: "16px 20px", borderBottom: "1px solid var(--br)", display: "flex", alignItems: "center", gap: 8 }}>
+            <i className={`ti ${editingBoothId ? 'ti-edit' : 'ti-plus'}`} style={{ color: "var(--teal)", fontSize: 18 }}></i>
+            <h3 style={{ margin: 0, fontSize: 16 }}>{editingBoothId ? "แก้ไขข้อมูลบูธ" : "สร้างบูธ/ช่องใหม่"}</h3>
+          </div>
+
+          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Section 1: General Info */}
+            <div style={{ background: "var(--bg2)", padding: 16, borderRadius: 12, border: "1px solid var(--br)" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--teal)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="ti ti-info-circle"></i> ข้อมูลทั่วไป
+              </div>
+              <div className="grid2">
+                <label>
+                  <span className="label-text">ชื่อบูธ / ชื่อช่อง *</span>
+                  <input required type="text" value={boothForm.name} onChange={e => setBoothForm({...boothForm, name: e.target.value})} placeholder="เช่น Salafi Publications" />
+                </label>
+                <label>
+                  <span className="label-text">ภาษาหลัก</span>
+                  <select value={boothForm.language} onChange={e => setBoothForm({...boothForm, language: e.target.value})}>
+                    <option value="Thai">ภาษาไทย</option>
+                    <option value="English">ภาษาอังกฤษ</option>
+                    <option value="Arabic">ภาษาอาหรับ</option>
+                    <option value="Indonesian">ภาษาอินโด</option>
+                    <option value="Malay">ภาษามลายู</option>
+                  </select>
+                </label>
+              </div>
+              <label style={{ marginTop: 12, display: "block" }}>
+                <span className="label-text">คำอธิบายสั้นๆ เกี่ยวกับช่อง</span>
+                <textarea value={boothForm.description} onChange={e => setBoothForm({...boothForm, description: e.target.value})} rows={2} placeholder="จุดเด่นของช่องนี้คืออะไร..."></textarea>
+              </label>
+            </div>
+
+            {/* Section 2: Platforms & Links */}
+            <div style={{ background: "var(--bg2)", padding: 16, borderRadius: 12, border: "1px solid var(--br)" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--teal)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="ti ti-link"></i> แพลตฟอร์มและโซเชียลมีเดีย *
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
                 {["YouTube", "Website", "Facebook", "Telegram", "Podcast", "TikTok", "Instagram", "Other"].map(p => {
                   const isChecked = boothForm.platforms.includes(p)
                   return (
-                  <div key={p} style={{ background: "var(--bg)", padding: "8px", borderRadius: 8, border: isChecked ? "1px solid var(--teal)" : "1px solid var(--br)", flex: "1 1 200px" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: isChecked ? 8 : 0 }}>
-                      <input 
-                        type="checkbox" 
-                        checked={isChecked}
-                        onChange={e => {
-                          if (e.target.checked) {
-                            setBoothForm({...boothForm, platforms: [...boothForm.platforms, p]})
-                          } else {
-                            const newLinks = {...boothForm.socialLinks}
-                            delete newLinks[p]
-                            setBoothForm({...boothForm, platforms: boothForm.platforms.filter(plat => plat !== p), socialLinks: newLinks})
-                          }
-                        }}
-                        style={{ margin: 0, accentColor: "var(--teal)" }}
-                      />
-                      <span style={{ fontSize: 13, fontWeight: isChecked ? 600 : 400 }}>{p}</span>
-                    </label>
-                    {isChecked && (
-                      <input 
-                        type="text" 
-                        placeholder={`ลิงก์ ${p} (ถ้ามี)`} 
-                        value={boothForm.socialLinks[p] || ""}
-                        onChange={e => setBoothForm({...boothForm, socialLinks: {...boothForm.socialLinks, [p]: e.target.value}})}
-                        style={{ height: 32, fontSize: 12, width: "100%", marginTop: 4 }}
-                      />
-                    )}
-                  </div>
-                )})}
-              </div>
-            </label>
-            <label>
-              <span className="label-text">ภาษา</span>
-              <select value={boothForm.language} onChange={e => setBoothForm({...boothForm, language: e.target.value})}>
-                <option value="Thai">ภาษาไทย</option>
-                <option value="English">ภาษาอังกฤษ</option>
-                <option value="Arabic">ภาษาอาหรับ</option>
-                <option value="Indonesian">ภาษาอินโด</option>
-                <option value="Malay">ภาษามลายู</option>
-              </select>
-            </label>
-            <label>
-              <span className="label-text">ลิงก์ Logo (URL)</span>
-              <input type="text" value={boothForm.logoUrl} onChange={e => setBoothForm({...boothForm, logoUrl: e.target.value})} placeholder="https://..." />
-            </label>
-            <label>
-              <span className="label-text">สีประจำบูธ (Theme Color)</span>
-              <input type="color" value={boothForm.themeColor} onChange={e => setBoothForm({...boothForm, themeColor: e.target.value})} style={{ width: "100%", height: 42, padding: 0, border: "none" }} />
-            </label>
-            <label>
-              <span className="label-text">ลำดับการแสดงผล</span>
-              <input type="number" value={boothForm.order} onChange={e => setBoothForm({...boothForm, order: Number(e.target.value)})} />
-            </label>
-          </div>
-          <label style={{ marginTop: 16, display: "block" }}>
-            <span className="label-text">คำอธิบายสั้นๆ เกี่ยวกับช่อง</span>
-            <textarea value={boothForm.description} onChange={e => setBoothForm({...boothForm, description: e.target.value})} rows={2} placeholder="จุดเด่นของช่องนี้คืออะไร..."></textarea>
-          </label>
-          
-          <label style={{ marginTop: 16, display: "block" }}>
-            <span className="label-text">เครือข่าย / พันธมิตร (เลือกช่องอื่นๆ ที่เป็นเครือข่ายเดียวกัน)</span>
-            {booths.filter(b => b.id !== editingBoothId).length === 0 ? (
-              <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 4 }}>ยังไม่มีช่องอื่นๆ ในระบบให้เลือก</div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8, marginTop: 8 }}>
-                {booths.filter(b => b.id !== editingBoothId).map(b => (
-                  <label key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg)", padding: "6px 10px", borderRadius: 8, border: "1px solid var(--br)", cursor: "pointer" }}>
-                    <input 
-                      type="checkbox"
-                      checked={boothForm.networks.includes(b.id)}
-                      onChange={e => {
-                        if (e.target.checked) {
-                          setBoothForm({...boothForm, networks: [...boothForm.networks, b.id]})
-                        } else {
-                          setBoothForm({...boothForm, networks: boothForm.networks.filter(id => id !== b.id)})
-                        }
-                      }}
-                      style={{ margin: 0, accentColor: "var(--teal)" }}
-                    />
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
-                      <div style={{ width: 20, height: 20, borderRadius: 4, background: b.themeColor, flexShrink: 0, overflow: "hidden" }}>
-                        {b.logoUrl && <img src={b.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                      </div>
-                      <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.name}</span>
+                    <div key={p} style={{ background: "var(--bg)", padding: 12, borderRadius: 8, border: isChecked ? "1px solid var(--teal)" : "1px solid var(--br)", transition: "all 0.2s" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: isChecked ? 8 : 0 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setBoothForm({...boothForm, platforms: [...boothForm.platforms, p]})
+                            } else {
+                              const newLinks = {...boothForm.socialLinks}
+                              delete newLinks[p]
+                              setBoothForm({...boothForm, platforms: boothForm.platforms.filter(plat => plat !== p), socialLinks: newLinks})
+                            }
+                          }}
+                          style={{ margin: 0, accentColor: "var(--teal)", width: 16, height: 16 }}
+                        />
+                        <span style={{ fontSize: 14, fontWeight: isChecked ? 600 : 400, color: isChecked ? "var(--teal)" : "var(--text)" }}>{p}</span>
+                      </label>
+                      {isChecked && (
+                        <div style={{ paddingLeft: 24 }}>
+                          <input 
+                            type="text" 
+                            placeholder={`https://...`} 
+                            value={boothForm.socialLinks[p] || ""}
+                            onChange={e => setBoothForm({...boothForm, socialLinks: {...boothForm.socialLinks, [p]: e.target.value}})}
+                            style={{ height: 36, fontSize: 13, width: "100%", background: "var(--bg2)" }}
+                          />
+                        </div>
+                      )}
                     </div>
-                  </label>
-                ))}
+                  )
+                })}
               </div>
-            )}
-          </label>
+            </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-            <button type="submit" className="btn btn-teal">บันทึกข้อมูลบูธ</button>
+            {/* Section 3: Branding */}
+            <div style={{ background: "var(--bg2)", padding: 16, borderRadius: 12, border: "1px solid var(--br)" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--teal)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="ti ti-palette"></i> การตกแต่ง (Branding)
+              </div>
+              <div className="grid2">
+                <label>
+                  <span className="label-text">ลิงก์ภาพ Logo (URL)</span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: boothForm.themeColor || "var(--br)", flexShrink: 0, overflow: "hidden", border: "1px solid var(--br)" }}>
+                      {boothForm.logoUrl && <img src={boothForm.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                    </div>
+                    <input type="text" value={boothForm.logoUrl} onChange={e => setBoothForm({...boothForm, logoUrl: e.target.value})} placeholder="https://..." style={{ flex: 1 }} />
+                  </div>
+                </label>
+                <label>
+                  <span className="label-text">สีประจำบูธ (Theme Color)</span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input type="color" value={boothForm.themeColor} onChange={e => setBoothForm({...boothForm, themeColor: e.target.value})} style={{ width: 40, height: 40, padding: 0, border: "none", borderRadius: 8, cursor: "pointer", background: "none" }} />
+                    <input type="text" value={boothForm.themeColor} onChange={e => setBoothForm({...boothForm, themeColor: e.target.value})} style={{ flex: 1, textTransform: "uppercase" }} />
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Section 4: Advanced */}
+            <div style={{ background: "var(--bg2)", padding: 16, borderRadius: 12, border: "1px solid var(--br)" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--teal)", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <i className="ti ti-settings"></i> การตั้งค่าเพิ่มเติม
+              </div>
+              
+              <label>
+                <span className="label-text">เครือข่าย / พันธมิตร (เลือกช่องอื่นๆ ที่เป็นเครือข่ายเดียวกัน)</span>
+                {booths.filter(b => b.id !== editingBoothId).length === 0 ? (
+                  <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 4, padding: "12px", background: "var(--bg)", borderRadius: 8, border: "1px dashed var(--br)" }}>
+                    ยังไม่มีช่องอื่นๆ ในระบบให้เลือก
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10, marginTop: 8 }}>
+                    {booths.filter(b => b.id !== editingBoothId).map(b => (
+                      <label key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg)", padding: "8px 12px", borderRadius: 8, border: boothForm.networks.includes(b.id) ? "1px solid var(--teal)" : "1px solid var(--br)", cursor: "pointer", transition: "all 0.2s" }}>
+                        <input 
+                          type="checkbox"
+                          checked={boothForm.networks.includes(b.id)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setBoothForm({...boothForm, networks: [...boothForm.networks, b.id]})
+                            } else {
+                              setBoothForm({...boothForm, networks: boothForm.networks.filter(id => id !== b.id)})
+                            }
+                          }}
+                          style={{ margin: 0, accentColor: "var(--teal)", width: 16, height: 16 }}
+                        />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 6, background: b.themeColor || "var(--br)", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {b.logoUrl ? <img src={b.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="ti ti-photo" style={{ fontSize: 12, color: "#fff" }}></i>}
+                          </div>
+                          <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: boothForm.networks.includes(b.id) ? 500 : 400 }}>{b.name}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </label>
+
+              <label style={{ marginTop: 16, display: "block" }}>
+                <span className="label-text">ลำดับการแสดงผล</span>
+                <input type="number" value={boothForm.order} onChange={e => setBoothForm({...boothForm, order: Number(e.target.value)})} style={{ width: 120 }} />
+                <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>ตัวเลขยิ่งน้อยยิ่งอยู่ลำดับแรกๆ</div>
+              </label>
+            </div>
+          </div>
+
+          <div style={{ background: "var(--bg2)", padding: "16px 20px", borderTop: "1px solid var(--br)", display: "flex", gap: 12, justifyContent: "flex-end" }}>
             <button type="button" className="btn btn-outline" onClick={() => setShowBoothForm(false)}>ยกเลิก</button>
+            <button type="submit" className="btn btn-teal" style={{ padding: "0 24px" }}>
+              <i className="ti ti-device-floppy" style={{ marginRight: 6 }}></i> บันทึกข้อมูล
+            </button>
           </div>
         </form>
       )}
