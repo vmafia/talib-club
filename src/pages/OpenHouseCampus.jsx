@@ -108,6 +108,37 @@ export default function OpenHouseCampus({ go, ctx }) {
               </div>
               <h1 className="campus-title">{booth.name}</h1>
               {booth.description && <p className="campus-desc">{booth.description}</p>}
+              
+              {booth.socialLinks && Object.keys(booth.socialLinks).length > 0 && (
+                <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+                  {Object.entries(booth.socialLinks).map(([platform, url]) => {
+                    if (!url) return null;
+                    let icon = "ti-world"
+                    if (platform === "YouTube") icon = "ti-brand-youtube"
+                    if (platform === "Facebook") icon = "ti-brand-facebook"
+                    if (platform === "Telegram") icon = "ti-brand-telegram"
+                    if (platform === "Instagram") icon = "ti-brand-instagram"
+                    if (platform === "TikTok") icon = "ti-brand-tiktok"
+                    if (platform === "Podcast") icon = "ti-microphone"
+                    
+                    return (
+                      <a key={platform} href={url} target="_blank" rel="noreferrer" 
+                         style={{ 
+                           display: "flex", alignItems: "center", gap: 6, 
+                           padding: "6px 12px", background: "var(--bg)", 
+                           border: "1px solid var(--br)", borderRadius: 20,
+                           fontSize: 13, color: "var(--text)", textDecoration: "none",
+                           transition: "all 0.2s ease"
+                         }}
+                         className="social-link-hover"
+                      >
+                        <i className={`ti ${icon}`} style={{ color: booth.themeColor || "var(--teal)" }}></i>
+                        {platform}
+                      </a>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

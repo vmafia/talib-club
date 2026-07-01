@@ -61,6 +61,11 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    match /openhouse_booths/{document=**} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
     match /content_settings/{docId} {
       allow read: if true;
       allow write: if isStaff();

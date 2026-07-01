@@ -12,7 +12,7 @@ export default function AdminOpenHouse() {
   const [loading, setLoading] = useState(true)
   const [showBoothForm, setShowBoothForm] = useState(false)
   const [editingBoothId, setEditingBoothId] = useState(null)
-  const [boothForm, setBoothForm] = useState({ name: "", platforms: ["YouTube"], language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
+  const [boothForm, setBoothForm] = useState({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
 
   // Campus Management State
   const [activeBooth, setActiveBooth] = useState(null)
@@ -66,7 +66,7 @@ export default function AdminOpenHouse() {
       }
       setShowBoothForm(false)
       setEditingBoothId(null)
-      setBoothForm({ name: "", platforms: ["YouTube"], language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
+      setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
     } catch (err) {
       console.error(err)
       notifyError("เกิดข้อผิดพลาดในการบันทึก")
@@ -90,7 +90,7 @@ export default function AdminOpenHouse() {
   const openEditBooth = (b) => {
     setEditingBoothId(b.id)
     const plats = b.platforms || (b.platform ? [b.platform] : ["YouTube"])
-    setBoothForm({ name: b.name, platforms: plats, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1, networks: b.networks || [] })
+    setBoothForm({ name: b.name, platforms: plats, socialLinks: b.socialLinks || {}, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1, networks: b.networks || [] })
     setShowBoothForm(true)
   }
 
@@ -269,7 +269,7 @@ export default function AdminOpenHouse() {
         <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <i className="ti ti-map" style={{ color: "var(--teal)" }}></i> ระบบนิทรรศการ (Open House)
         </h2>
-        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ padding: "6px 12px", fontSize: 13 }}>
+        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ padding: "6px 12px", fontSize: 13 }}>
           + เพิ่มบูธใหม่
         </button>
       </div>
@@ -285,23 +285,38 @@ export default function AdminOpenHouse() {
             <label>
               <span className="label-text">แพลตฟอร์ม (เลือกได้หลายอัน) *</span>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                {["YouTube", "Website", "Facebook", "Telegram", "Podcast", "TikTok", "Instagram", "Other"].map(p => (
-                  <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: "var(--bg)", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--br)" }}>
-                    <input 
-                      type="checkbox" 
-                      checked={boothForm.platforms.includes(p)}
-                      onChange={e => {
-                        if (e.target.checked) {
-                          setBoothForm({...boothForm, platforms: [...boothForm.platforms, p]})
-                        } else {
-                          setBoothForm({...boothForm, platforms: boothForm.platforms.filter(plat => plat !== p)})
-                        }
-                      }}
-                      style={{ margin: 0, accentColor: "var(--teal)" }}
-                    />
-                    <span style={{ fontSize: 13 }}>{p}</span>
-                  </label>
-                ))}
+                {["YouTube", "Website", "Facebook", "Telegram", "Podcast", "TikTok", "Instagram", "Other"].map(p => {
+                  const isChecked = boothForm.platforms.includes(p)
+                  return (
+                  <div key={p} style={{ background: "var(--bg)", padding: "8px", borderRadius: 8, border: isChecked ? "1px solid var(--teal)" : "1px solid var(--br)", flex: "1 1 200px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", marginBottom: isChecked ? 8 : 0 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setBoothForm({...boothForm, platforms: [...boothForm.platforms, p]})
+                          } else {
+                            const newLinks = {...boothForm.socialLinks}
+                            delete newLinks[p]
+                            setBoothForm({...boothForm, platforms: boothForm.platforms.filter(plat => plat !== p), socialLinks: newLinks})
+                          }
+                        }}
+                        style={{ margin: 0, accentColor: "var(--teal)" }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: isChecked ? 600 : 400 }}>{p}</span>
+                    </label>
+                    {isChecked && (
+                      <input 
+                        type="text" 
+                        placeholder={`ลิงก์ ${p} (ถ้ามี)`} 
+                        value={boothForm.socialLinks[p] || ""}
+                        onChange={e => setBoothForm({...boothForm, socialLinks: {...boothForm.socialLinks, [p]: e.target.value}})}
+                        style={{ height: 32, fontSize: 12, width: "100%", marginTop: 4 }}
+                      />
+                    )}
+                  </div>
+                )})}
               </div>
             </label>
             <label>
