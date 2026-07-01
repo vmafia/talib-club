@@ -26,9 +26,18 @@ export default function OpenHouse({ go }) {
         setBooths(allBooths)
         
         // Extract unique platforms
-        const uniquePlatforms = [...new Set(allBooths.map(b => b.platform))]
-        const platformData = uniquePlatforms.map(p => {
-          const count = allBooths.filter(b => b.platform === p).length
+        const uniquePlatforms = new Set()
+        allBooths.forEach(b => {
+          const plats = b.platforms || (b.platform ? [b.platform] : [])
+          plats.forEach(p => uniquePlatforms.add(p))
+        })
+        
+        const platformData = Array.from(uniquePlatforms).map(p => {
+          const count = allBooths.filter(b => {
+            const plats = b.platforms || (b.platform ? [b.platform] : [])
+            return plats.includes(p)
+          }).length
+          
           let icon = "ti-world"
           let title = p
           if (p === "YouTube") { icon = "ti-brand-youtube"; title = "โซนวิดีโอ (YouTube)"; }
@@ -117,7 +126,10 @@ export default function OpenHouse({ go }) {
                 </div>
                 
                 <div className="booths-grid">
-                  {booths.filter(b => b.platform === selectedPlatform.id).map(booth => (
+                  {booths.filter(b => {
+                    const plats = b.platforms || (b.platform ? [b.platform] : [])
+                    return plats.includes(selectedPlatform.id)
+                  }).map(booth => (
                     <div key={booth.id} className="booth-card" onClick={() => enterBooth(booth.id)}>
                       <div className="booth-color-top" style={{ background: booth.themeColor || "var(--teal)" }}></div>
                       <div className="booth-logo-wrapper">

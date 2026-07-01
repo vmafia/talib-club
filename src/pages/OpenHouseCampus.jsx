@@ -7,6 +7,7 @@ export default function OpenHouseCampus({ go, ctx }) {
   const boothId = ctx?.boothId
   const [booth, setBooth] = useState(null)
   const [campuses, setCampuses] = useState([])
+  const [networkBooths, setNetworkBooths] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -21,18 +22,35 @@ export default function OpenHouseCampus({ go, ctx }) {
         // Fetch Booth Info
         const boothRef = doc(db, "openhouse_booths", boothId)
         const boothSnap = await getDoc(boothRef)
+        
+        let boothData = null;
         if (boothSnap.exists()) {
-          setBooth({ id: boothSnap.id, ...boothSnap.data() })
+          boothData = { id: boothSnap.id, ...boothSnap.data() }
+          setBooth(boothData)
         } else {
           go("openhouse")
           return
         }
-
         // Fetch Campuses (Buildings)
         const q = query(collection(db, `openhouse_booths/${boothId}/campuses`), orderBy("order", "asc"))
         const campusSnap = await getDocs(q)
         setCampuses(campusSnap.docs.map(d => ({ id: d.id, ...d.data() })))
         
+        // Fetch Networks
+        const netIds = boothData.networks || []
+        if (netIds.length > 0) {
+          try {
+            const netPromises = netIds.map(nid => getDoc(doc(db, "openhouse_booths", nid)))
+            const netSnaps = await Promise.all(netPromises)
+            const nets = netSnaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }))
+            setNetworkBooths(nets)
+          } catch (e) {
+            console.error("Failed to fetch network booths", e)
+          }
+        } else {
+          setNetworkBooths([])
+        }
+
         setLoading(false)
       } catch (err) {
         console.error("Error fetching campus data", err)
@@ -81,9 +99,11 @@ export default function OpenHouseCampus({ go, ctx }) {
             </div>
             <div className="campus-info">
               <div className="campus-badges">
-                <span className="campus-badge" style={{ background: booth.themeColor || "var(--teal)", color: "#fff" }}>
-                  {booth.platform}
-                </span>
+                {(booth.platforms || (booth.platform ? [booth.platform] : [])).map(p => (
+                  <span key={p} className="campus-badge" style={{ background: booth.themeColor || "var(--teal)", color: "#fff" }}>
+                    {p}
+                  </span>
+                ))}
                 {booth.language && <span className="campus-badge" style={{ background: "var(--bg2)", color: "var(--text)", border: "1px solid var(--br)" }}>{booth.language}</span>}
               </div>
               <h1 className="campus-title">{booth.name}</h1>
@@ -92,9 +112,39 @@ export default function OpenHouseCampus({ go, ctx }) {
           </div>
         </div>
 
+        {/* Network Booths (Affiliates) */}
+        {networkBooths.length > 0 && (
+          <div className="campus-networks slide-in-bottom" style={{ marginBottom: 40, animationDelay: "0.1s" }}>
+            <h3 style={{ fontSize: 15, color: "var(--t2)", marginBottom: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-link"></i> เครือข่ายพันธมิตร
+            </h3>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {networkBooths.map(net => (
+                <div 
+                  key={net.id} 
+                  onClick={() => go("openhouse-campus", { boothId: net.id })}
+                  style={{ 
+                    display: "flex", alignItems: "center", gap: 8, 
+                    background: "var(--bg2)", padding: "8px 16px", borderRadius: 12, 
+                    border: "1px solid var(--br)", cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.03)"
+                  }}
+                  className="network-badge-hover"
+                >
+                  <div style={{ width: 24, height: 24, borderRadius: 6, background: net.themeColor || "var(--teal)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {net.logoUrl ? <img src={net.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <i className="ti ti-building" style={{ fontSize: 12, color: "#fff" }}></i>}
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>{net.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Campuses (Buildings) Grid */}
-        <div className="campus-buildings slide-in-bottom">
-          <h2 className="section-heading" style={{ marginTop: 40 }}>
+        <div className="campus-buildings slide-in-bottom" style={{ animationDelay: "0.2s" }}>
+          <h2 className="section-heading" style={{ marginTop: 0 }}>
             <i className="ti ti-map-2" style={{ marginRight: 8, color: booth.themeColor || "var(--teal)" }}></i>
             แผนผังอาคารเรียน
           </h2>

@@ -12,7 +12,7 @@ export default function AdminOpenHouse() {
   const [loading, setLoading] = useState(true)
   const [showBoothForm, setShowBoothForm] = useState(false)
   const [editingBoothId, setEditingBoothId] = useState(null)
-  const [boothForm, setBoothForm] = useState({ name: "", platform: "YouTube", language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1 })
+  const [boothForm, setBoothForm] = useState({ name: "", platforms: ["YouTube"], language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
 
   // Campus Management State
   const [activeBooth, setActiveBooth] = useState(null)
@@ -50,8 +50,8 @@ export default function AdminOpenHouse() {
 
   const handleSaveBooth = async (e) => {
     e.preventDefault()
-    if (!boothForm.name || !boothForm.platform) {
-      notifyError("กรุณากรอกชื่อและแพลตฟอร์ม")
+    if (!boothForm.name || !boothForm.platforms || boothForm.platforms.length === 0) {
+      notifyError("กรุณากรอกชื่อและเลือกอย่างน้อย 1 แพลตฟอร์ม")
       return
     }
     try {
@@ -66,7 +66,7 @@ export default function AdminOpenHouse() {
       }
       setShowBoothForm(false)
       setEditingBoothId(null)
-      setBoothForm({ name: "", platform: "YouTube", language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1 })
+      setBoothForm({ name: "", platforms: ["YouTube"], language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
     } catch (err) {
       console.error(err)
       notifyError("เกิดข้อผิดพลาดในการบันทึก")
@@ -89,7 +89,8 @@ export default function AdminOpenHouse() {
 
   const openEditBooth = (b) => {
     setEditingBoothId(b.id)
-    setBoothForm({ name: b.name, platform: b.platform, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1 })
+    const plats = b.platforms || (b.platform ? [b.platform] : ["YouTube"])
+    setBoothForm({ name: b.name, platforms: plats, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1, networks: b.networks || [] })
     setShowBoothForm(true)
   }
 
@@ -282,17 +283,26 @@ export default function AdminOpenHouse() {
               <input required type="text" value={boothForm.name} onChange={e => setBoothForm({...boothForm, name: e.target.value})} placeholder="เช่น Salafi Publications" />
             </label>
             <label>
-              <span className="label-text">แพลตฟอร์ม *</span>
-              <select required value={boothForm.platform} onChange={e => setBoothForm({...boothForm, platform: e.target.value})}>
-                <option value="YouTube">YouTube</option>
-                <option value="Website">Website</option>
-                <option value="Facebook">Facebook</option>
-                <option value="Telegram">Telegram</option>
-                <option value="Podcast">Podcast</option>
-                <option value="TikTok">TikTok</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Other">อื่นๆ</option>
-              </select>
+              <span className="label-text">แพลตฟอร์ม (เลือกได้หลายอัน) *</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                {["YouTube", "Website", "Facebook", "Telegram", "Podcast", "TikTok", "Instagram", "Other"].map(p => (
+                  <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: "var(--bg)", padding: "4px 8px", borderRadius: 6, border: "1px solid var(--br)" }}>
+                    <input 
+                      type="checkbox" 
+                      checked={boothForm.platforms.includes(p)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setBoothForm({...boothForm, platforms: [...boothForm.platforms, p]})
+                        } else {
+                          setBoothForm({...boothForm, platforms: boothForm.platforms.filter(plat => plat !== p)})
+                        }
+                      }}
+                      style={{ margin: 0, accentColor: "var(--teal)" }}
+                    />
+                    <span style={{ fontSize: 13 }}>{p}</span>
+                  </label>
+                ))}
+              </div>
             </label>
             <label>
               <span className="label-text">ภาษา</span>
@@ -321,6 +331,39 @@ export default function AdminOpenHouse() {
             <span className="label-text">คำอธิบายสั้นๆ เกี่ยวกับช่อง</span>
             <textarea value={boothForm.description} onChange={e => setBoothForm({...boothForm, description: e.target.value})} rows={2} placeholder="จุดเด่นของช่องนี้คืออะไร..."></textarea>
           </label>
+          
+          <label style={{ marginTop: 16, display: "block" }}>
+            <span className="label-text">เครือข่าย / พันธมิตร (เลือกช่องอื่นๆ ที่เป็นเครือข่ายเดียวกัน)</span>
+            {booths.filter(b => b.id !== editingBoothId).length === 0 ? (
+              <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 4 }}>ยังไม่มีช่องอื่นๆ ในระบบให้เลือก</div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 8, marginTop: 8 }}>
+                {booths.filter(b => b.id !== editingBoothId).map(b => (
+                  <label key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg)", padding: "6px 10px", borderRadius: 8, border: "1px solid var(--br)", cursor: "pointer" }}>
+                    <input 
+                      type="checkbox"
+                      checked={boothForm.networks.includes(b.id)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setBoothForm({...boothForm, networks: [...boothForm.networks, b.id]})
+                        } else {
+                          setBoothForm({...boothForm, networks: boothForm.networks.filter(id => id !== b.id)})
+                        }
+                      }}
+                      style={{ margin: 0, accentColor: "var(--teal)" }}
+                    />
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 4, background: b.themeColor, flexShrink: 0, overflow: "hidden" }}>
+                        {b.logoUrl && <img src={b.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                      </div>
+                      <span style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.name}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </label>
+
           <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
             <button type="submit" className="btn btn-teal">บันทึกข้อมูลบูธ</button>
             <button type="button" className="btn btn-outline" onClick={() => setShowBoothForm(false)}>ยกเลิก</button>
@@ -348,9 +391,11 @@ export default function AdminOpenHouse() {
                 </div>
                 <div>
                   <h4 style={{ margin: 0, fontSize: 15 }}>{b.name}</h4>
-                  <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 4 }}>
-                    <span className="badge" style={{ marginRight: 6 }}>{b.platform}</span>
-                    {b.language && <span className="badge" style={{ marginRight: 6 }}>{b.language}</span>}
+                  <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {(b.platforms || (b.platform ? [b.platform] : [])).map(p => (
+                      <span key={p} className="badge" style={{ marginRight: 2 }}>{p}</span>
+                    ))}
+                    {b.language && <span className="badge" style={{ marginLeft: 4 }}>{b.language}</span>}
                   </div>
                 </div>
               </div>
