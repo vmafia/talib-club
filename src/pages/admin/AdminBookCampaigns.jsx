@@ -4,6 +4,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { db, storage } from "../../lib/firebase.js"
 import toast from "react-hot-toast"
 import { confirmAction } from "../../utils/feedback.jsx"
+import { triggerPushNotification } from "../../utils/pushNotifications.js"
 import CampaignRegistrationsViewer from "./CampaignRegistrationsViewer.jsx"
 
 export default function AdminBookCampaigns() {
@@ -153,6 +154,28 @@ export default function AdminBookCampaigns() {
     }
   }
 
+  const handleBroadcast = async () => {
+    const title = window.prompt("หัวข้อการแจ้งเตือน (เช่น: แจกหนังสือใหม่!)")
+    if (!title) return
+    const body = window.prompt("รายละเอียดสั้นๆ:")
+    if (!body) return
+    
+    const confirmed = await confirmAction(`ยืนยันการส่ง Push Notification ไปยังทุกคนใช่หรือไม่?`)
+    if (!confirmed) return
+
+    const toastId = toast.loading("กำลังส่งแจ้งเตือน...")
+    try {
+      const result = await triggerPushNotification(title, body, "/books")
+      if (result.success) {
+        toast.success(`ส่งแจ้งเตือนสำเร็จไปยัง ${result.count} อุปกรณ์`, { id: toastId })
+      } else {
+        toast.error(`ส่งแจ้งเตือนล้มเหลว: ${result.error}`, { id: toastId })
+      }
+    } catch (err) {
+      toast.error("เกิดข้อผิดพลาดในการส่งแจ้งเตือน", { id: toastId })
+    }
+  }
+
   if (viewingCampaign) {
     return (
       <CampaignRegistrationsViewer 
@@ -171,10 +194,13 @@ export default function AdminBookCampaigns() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <a className="btn btn-outline" href="/books" target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
-            <i className="ti ti-external-link" style={{ marginRight: 6 }}></i>หน้าเว็บผู้ใช้ (ไว้แชร์)
+            <i className="ti ti-external-link" style={{ marginRight: 6 }}></i>หน้าเว็บ
           </a>
+          <button className="btn btn-outline" onClick={handleBroadcast} style={{ color: "var(--teal)", borderColor: "var(--teal)" }}>
+            <i className="ti ti-bell-ringing" style={{ marginRight: 6 }}></i>บรอดแคสต์
+          </button>
           <button className="btn btn-teal" onClick={() => handleOpenForm()}>
-            <i className="ti ti-plus"></i> สร้างแคมเปญใหม่
+            <i className="ti ti-plus"></i> สร้างแคมเปญ
           </button>
         </div>
       </div>

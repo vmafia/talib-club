@@ -7,6 +7,7 @@ import { clampPage } from "../../utils/pagination.js"
 import { getDownloadURL, ref, uploadBytes, getStorage } from "firebase/storage"
 import { storage, app } from "../../lib/firebase.js"
 import { compressImage } from "../../utils/image.js"
+import { triggerPushNotification } from "../../utils/pushNotifications.js"
 
 const EMPTY = {
   type: "general",
@@ -243,6 +244,30 @@ export default function AdminArticles() {
     }
   }
 
+  const handleBroadcast = async () => {
+    const title = window.prompt("หัวข้อการแจ้งเตือน (เช่น: บทความใหม่!)")
+    if (!title) return
+    const body = window.prompt("รายละเอียดสั้นๆ:")
+    if (!body) return
+    
+    const confirmed = await confirmAction(`ยืนยันการส่ง Push Notification ไปยังทุกคนใช่หรือไม่?`)
+    if (!confirmed) return
+
+    setBusy(true)
+    try {
+      const result = await triggerPushNotification(title, body, "/articles")
+      if (result.success) {
+        notifySuccess(`ส่งแจ้งเตือนสำเร็จไปยัง ${result.count} อุปกรณ์`)
+      } else {
+        notifyError(`ส่งแจ้งเตือนล้มเหลว: ${result.error}`)
+      }
+    } catch (err) {
+      notifyError("เกิดข้อผิดพลาดในการส่งแจ้งเตือน")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (editing) {
     return <ArticleForm item={editing} setItem={setEdit} onSave={save} onCancel={() => setEdit(null)} taxonomy={taxonomy} busy={busy} />
   }
@@ -257,9 +282,14 @@ export default function AdminArticles() {
           </p>
           <ContentStatusBanner loading={loading} error={error} isUsingFallback={isUsingFallback} />
         </div>
-        <button className="btn btn-teal" onClick={openNew} disabled={busy} style={{ opacity: busy ? 0.6 : 1 }}>
-          <i className="ti ti-plus" style={{ marginRight: 6 }}></i>เพิ่มใหม่
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline" onClick={handleBroadcast} disabled={busy} style={{ opacity: busy ? 0.6 : 1, color: "var(--teal)", borderColor: "var(--teal)" }}>
+            <i className="ti ti-bell-ringing" style={{ marginRight: 6 }}></i>บรอดแคสต์
+          </button>
+          <button className="btn btn-teal" onClick={openNew} disabled={busy} style={{ opacity: busy ? 0.6 : 1 }}>
+            <i className="ti ti-plus" style={{ marginRight: 6 }}></i>เพิ่มใหม่
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: showAdvanced ? 12 : 24 }}>

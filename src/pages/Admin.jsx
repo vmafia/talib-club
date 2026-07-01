@@ -8,8 +8,10 @@ import AdminSite from "./admin/AdminSite.jsx"
 import AdminTaxonomy from "./admin/AdminTaxonomy.jsx"
 import AdminOpenHouse from "./admin/AdminOpenHouse.jsx"
 import AdminBookCampaigns from "./admin/AdminBookCampaigns.jsx"
+import AdminDashboard from "./admin/AdminDashboard.jsx"
 
 const TABS = [
+  { id: "dashboard", label: "ภาพรวม", icon: "ti-chart-bar" },
   { id: "articles", label: "บทความ", icon: "ti-file-text" },
   { id: "library", label: "หนังสือ/PDF", icon: "ti-books" },
   { id: "media", label: "มีเดีย", icon: "ti-player-play" },
@@ -21,8 +23,8 @@ const TABS = [
   { id: "site", label: "ตั้งค่าเว็บ", icon: "ti-settings" },
 ]
 
-export default function Admin({ go, authState, initialTab = "articles" }) {
-  const [tab, setTab] = useState(initialTab || "articles")
+export default function Admin({ go, authState, initialTab = "dashboard" }) {
+  const [tab, setTab] = useState(initialTab || "dashboard")
   const activeTabObj = TABS.find(t => t.id === tab) || TABS[0]
   const currentUser = authState?.profile?.displayName || authState?.user?.displayName || ""
 
@@ -185,6 +187,7 @@ export default function Admin({ go, authState, initialTab = "articles" }) {
         </aside>
 
         <div className="admin-content-area" style={{ flex: 1, minWidth: 0 }}>
+          {tab === "dashboard" && <AdminDashboard />}
           {tab === "articles" && <AdminArticles />}
           {tab === "library" && <AdminLibrary go={go} currentUser={currentUser} />}
           {tab === "media" && <AdminMedia go={go} currentUser={currentUser} />}
