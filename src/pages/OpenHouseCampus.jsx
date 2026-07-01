@@ -65,7 +65,7 @@ export default function OpenHouseCampus({ go, ctx }) {
     return (
       <div className="openhouse-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
         <div className="openhouse-loading">
-          <i className="ti ti-loader-2 spin"></i> กำลังเดินทางเข้าสู่พื้นที่...
+          <i className="ti ti-loader-2 spin"></i> กำลังรวบรวมเนื้อหา...
         </div>
       </div>
     )
@@ -176,12 +176,14 @@ export default function OpenHouseCampus({ go, ctx }) {
         {/* Campuses (Buildings) Grid */}
         <div className="campus-buildings slide-in-bottom" style={{ animationDelay: "0.2s" }}>
           <h2 className="section-heading" style={{ marginTop: 0 }}>
-            <i className="ti ti-map-2" style={{ marginRight: 8, color: booth.themeColor || "var(--teal)" }}></i>
-            แผนผังอาคารเรียน
+            <i className="ti ti-folder" style={{ marginRight: 8, color: booth.themeColor || "var(--teal)" }}></i>
+            หมวดหมู่เนื้อหา / ซีรีส์
           </h2>
-
+          
           {campuses.length === 0 ? (
-            <div className="empty-state">ยังไม่มีการก่อสร้างอาคารในพื้นที่นี้</div>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--t3)", background: "var(--bg2)", borderRadius: 16, border: "1px solid var(--br)" }}>
+              ยังไม่มีการจัดกลุ่มเนื้อหาในช่องนี้
+            </div>
           ) : (
             <div className="buildings-grid">
               {campuses.map(campus => (

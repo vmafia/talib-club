@@ -167,20 +167,20 @@ export default function AdminOpenHouse() {
             <button className="btn btn-outline" onClick={() => setActiveBooth(null)} style={{ padding: "4px 8px" }}>
               <i className="ti ti-arrow-left"></i> กลับ
             </button>
-            <i className="ti ti-building" style={{ color: "var(--teal)" }}></i> จัดการอาคาร: {activeBooth.name}
+            <i className="ti ti-folder" style={{ color: "var(--teal)" }}></i> จัดการหมวดหมู่: {activeBooth.name}
           </h2>
           <button className="btn btn-teal" onClick={() => { setShowCampusForm(true); setEditingCampusId(null); setCampusForm({ name: "", description: "", order: campuses.length + 1 }); }} style={{ padding: "6px 12px", fontSize: 13 }}>
-            + สร้างอาคาร/คณะใหม่
+            + สร้างหมวดหมู่ใหม่
           </button>
         </div>
 
         {showCampusForm && (
           <form onSubmit={handleSaveCampus} className="card" style={{ background: "var(--bg2)", padding: 20, marginBottom: 24 }}>
-            <h3 style={{ marginBottom: 16 }}>{editingCampusId ? "แก้ไขอาคาร" : "สร้างอาคารใหม่"}</h3>
+            <h3 style={{ marginBottom: 16 }}>{editingCampusId ? "แก้ไขหมวดหมู่" : "สร้างหมวดหมู่ใหม่"}</h3>
             <div className="grid2">
               <label>
-                <span className="label-text">ชื่ออาคาร / คณะ *</span>
-                <input required type="text" value={campusForm.name} onChange={e => setCampusForm({...campusForm, name: e.target.value})} placeholder="เช่น คณะตัฟซีร, หมวดอัลกุรอาน" />
+                <span className="label-text">ชื่อหมวดหมู่ / ซีรีส์ *</span>
+                <input required type="text" value={campusForm.name} onChange={e => setCampusForm({...campusForm, name: e.target.value})} placeholder="เช่น หมวดตัฟซีร, เพลย์ลิสต์อัลกุรอาน" />
               </label>
               <label>
                 <span className="label-text">ลำดับการแสดงผล</span>
@@ -192,7 +192,7 @@ export default function AdminOpenHouse() {
               <input type="text" value={campusForm.description} onChange={e => setCampusForm({...campusForm, description: e.target.value})} placeholder="รวบรวมคลิปวิดีโออธิบาย..." />
             </label>
             <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-              <button type="submit" className="btn btn-teal">บันทึกข้อมูลอาคาร</button>
+              <button type="submit" className="btn btn-teal">บันทึกข้อมูลหมวดหมู่</button>
               <button type="button" className="btn btn-outline" onClick={() => setShowCampusForm(false)}>ยกเลิก</button>
             </div>
           </form>
@@ -200,13 +200,13 @@ export default function AdminOpenHouse() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {campuses.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--t3)" }}>ยังไม่มีอาคารในบูธนี้</div>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--t3)" }}>ยังไม่มีหมวดหมู่ย่อยในแหล่งเรียนรู้นี้</div>
           ) : campuses.map(campus => (
             <div key={campus.id} className="card" style={{ padding: 16, background: "var(--bg2)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: 16 }}>
-                    <i className="ti ti-books" style={{ marginRight: 8, color: "var(--teal)" }}></i>{campus.name}
+                    <i className="ti ti-folder" style={{ marginRight: 8, color: "var(--teal)" }}></i>{campus.name}
                   </h4>
                   {campus.description && <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 4 }}>{campus.description}</div>}
                 </div>
@@ -217,7 +217,7 @@ export default function AdminOpenHouse() {
               </div>
 
               <div style={{ background: "var(--bg)", padding: 12, borderRadius: 8 }}>
-                <h5 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--t2)" }}>เนื้อหา/ลิงก์ภายในอาคาร ({campus.links?.length || 0})</h5>
+                <h5 style={{ margin: "0 0 12px 0", fontSize: 13, color: "var(--t2)" }}>เนื้อหา/ลิงก์ภายในหมวดหมู่ ({campus.links?.length || 0})</h5>
                 
                 {campus.links && campus.links.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
@@ -267,10 +267,10 @@ export default function AdminOpenHouse() {
     <div className="card" style={{ padding: "24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <i className="ti ti-map" style={{ color: "var(--teal)" }}></i> ระบบนิทรรศการ (Open House)
+          <i className="ti ti-book-2" style={{ color: "var(--teal)" }}></i> จัดการแหล่งเรียนรู้ (Open House)
         </h2>
         <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ padding: "6px 12px", fontSize: 13 }}>
-          + เพิ่มบูธใหม่
+          + เพิ่มแหล่งเรียนรู้ใหม่
         </button>
       </div>
 
@@ -278,7 +278,7 @@ export default function AdminOpenHouse() {
         <form onSubmit={handleSaveBooth} className="card" style={{ background: "var(--bg)", padding: 0, marginBottom: 24, overflow: "hidden" }}>
           <div style={{ background: "var(--bg2)", padding: "16px 20px", borderBottom: "1px solid var(--br)", display: "flex", alignItems: "center", gap: 8 }}>
             <i className={`ti ${editingBoothId ? 'ti-edit' : 'ti-plus'}`} style={{ color: "var(--teal)", fontSize: 18 }}></i>
-            <h3 style={{ margin: 0, fontSize: 16 }}>{editingBoothId ? "แก้ไขข้อมูลบูธ" : "สร้างบูธ/ช่องใหม่"}</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>{editingBoothId ? "แก้ไขข้อมูล" : "สร้างแหล่งเรียนรู้ / ช่องใหม่"}</h3>
           </div>
 
           <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 24 }}>
@@ -289,7 +289,7 @@ export default function AdminOpenHouse() {
               </div>
               <div className="grid2">
                 <label>
-                  <span className="label-text">ชื่อบูธ / ชื่อช่อง *</span>
+                  <span className="label-text">ชื่อช่อง / แหล่งเรียนรู้ *</span>
                   <input required type="text" value={boothForm.name} onChange={e => setBoothForm({...boothForm, name: e.target.value})} placeholder="เช่น Salafi Publications" />
                 </label>
                 <label>
@@ -369,7 +369,7 @@ export default function AdminOpenHouse() {
                   </div>
                 </label>
                 <label>
-                  <span className="label-text">สีประจำบูธ (Theme Color)</span>
+                  <span className="label-text">สีประจำช่อง (Theme Color)</span>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <input type="color" value={boothForm.themeColor} onChange={e => setBoothForm({...boothForm, themeColor: e.target.value})} style={{ width: 40, height: 40, padding: 0, border: "none", borderRadius: 8, cursor: "pointer", background: "none" }} />
                     <input type="text" value={boothForm.themeColor} onChange={e => setBoothForm({...boothForm, themeColor: e.target.value})} style={{ flex: 1, textTransform: "uppercase" }} />
@@ -439,7 +439,7 @@ export default function AdminOpenHouse() {
         <div style={{ padding: 40, textAlign: "center" }}><i className="ti ti-loader-2 spin"></i> กำลังโหลด...</div>
       ) : booths.length === 0 ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--t3)" }}>
-          ยังไม่มีบูธในระบบ
+          ยังไม่มีแหล่งเรียนรู้ในระบบ
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -465,7 +465,7 @@ export default function AdminOpenHouse() {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn btn-outline" onClick={() => setActiveBooth(b)} style={{ padding: "4px 8px", fontSize: 12 }}>
-                  <i className="ti ti-building" style={{ marginRight: 4 }}></i>จัดการอาคาร (หมวดหมู่)
+                  <i className="ti ti-folder" style={{ marginRight: 4 }}></i>จัดการหมวดหมู่เนื้อหา
                 </button>
                 <button className="btn btn-outline" onClick={() => openEditBooth(b)} style={{ padding: "4px 8px", fontSize: 12 }}>แก้ไข</button>
                 <button className="btn btn-danger" onClick={() => handleDeleteBooth(b.id)} style={{ padding: "4px 8px", fontSize: 12, background: "none", color: "var(--red)", border: "none" }}>ลบ</button>

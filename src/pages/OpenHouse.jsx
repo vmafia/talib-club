@@ -40,11 +40,13 @@ export default function OpenHouse({ go }) {
           
           let icon = "ti-world"
           let title = p
-          if (p === "YouTube") { icon = "ti-brand-youtube"; title = "โซนวิดีโอ (YouTube)"; }
-          if (p === "Website") { icon = "ti-world"; title = "โซนบทความ (Website)"; }
-          if (p === "Facebook") { icon = "ti-brand-facebook"; title = "โซนเพจเฟสบุ๊ค (Facebook)"; }
-          if (p === "Telegram") { icon = "ti-brand-telegram"; title = "โซนแชทและอัปเดต (Telegram)"; }
-          if (p === "Podcast") { icon = "ti-microphone"; title = "โซนพอดแคสต์ (Podcast)"; }
+          if (p === "YouTube") { icon = "ti-brand-youtube"; title = "วิดีโอ (YouTube)"; }
+          if (p === "Website") { icon = "ti-world"; title = "เว็บไซต์และบทความ (Website)"; }
+          if (p === "Facebook") { icon = "ti-brand-facebook"; title = "เพจเฟสบุ๊ค (Facebook)"; }
+          if (p === "Telegram") { icon = "ti-brand-telegram"; title = "แชทและอัปเดต (Telegram)"; }
+          if (p === "Podcast") { icon = "ti-microphone"; title = "พอดแคสต์ (Podcast)"; }
+          if (p === "Instagram") { icon = "ti-brand-instagram"; title = "อินสตาแกรม (Instagram)"; }
+          if (p === "TikTok") { icon = "ti-brand-tiktok"; title = "ติ๊กต็อก (TikTok)"; }
           
           return { id: p, title, name: p, icon, count }
         })
@@ -84,28 +86,28 @@ export default function OpenHouse({ go }) {
         
         {/* Header */}
         <div className="openhouse-header">
-          <div className="openhouse-badge">Talib Open House</div>
-          <h1 className="openhouse-title">นิทรรศการแหล่งเรียนรู้สะลัฟ</h1>
-          <p className="openhouse-subtitle">ทะลุมิติสู่โลกแห่งความรู้จากสถาบันและช่องทางต่างๆ</p>
+          <div className="openhouse-badge">Talib Learning Hub</div>
+          <h1 className="openhouse-title">ศูนย์รวมแหล่งเรียนรู้สะลัฟ</h1>
+          <p className="openhouse-subtitle">รวบรวมช่องทางความรู้จากสถาบันและกลุ่มต่างๆ ไว้ในที่เดียว</p>
         </div>
 
         {loading ? (
           <div className="openhouse-loading">
-            <i className="ti ti-loader-2 spin"></i> กำลังสร้างแผนที่โลกใบใหม่...
+            <i className="ti ti-loader-2 spin"></i> กำลังรวบรวมแหล่งเรียนรู้...
           </div>
         ) : (
           <div className="openhouse-content">
             {view === "zones" && (
               <div className="openhouse-zones-view fade-in">
-                <h2 className="section-heading">เลือกโซนแพลตฟอร์ม</h2>
+                <h2 className="section-heading">หมวดหมู่แพลตฟอร์ม</h2>
                 <div className="zones-grid">
                   {platforms.length === 0 ? (
-                    <div className="empty-state">ยังไม่มีโซนหรือบูธจัดแสดงในขณะนี้</div>
+                    <div className="empty-state">ยังไม่มีแหล่งเรียนรู้ในระบบ</div>
                   ) : platforms.map(p => (
                     <div key={p.id} className="zone-card" onClick={() => enterPlatform(p)}>
                       <div className="zone-icon"><i className={`ti ${p.icon}`}></i></div>
                       <h3 className="zone-name">{p.title}</h3>
-                      <div className="zone-meta">{p.count} บูธจัดแสดง</div>
+                      <div className="zone-meta">{p.count} แหล่งเรียนรู้</div>
                       <div className="zone-glow"></div>
                     </div>
                   ))}
@@ -117,7 +119,7 @@ export default function OpenHouse({ go }) {
               <div className="openhouse-booths-view slide-in-bottom">
                 <div className="booth-nav">
                   <button className="btn-back-glow" onClick={goBackToZones}>
-                    <i className="ti ti-arrow-left"></i> กลับไปแผนที่หลัก
+                    <i className="ti ti-arrow-left"></i> ย้อนกลับ
                   </button>
                   <h2 className="section-heading" style={{ margin: 0 }}>
                     <i className={`ti ${selectedPlatform.icon}`} style={{ marginRight: 12 }}></i>
@@ -137,7 +139,7 @@ export default function OpenHouse({ go }) {
                           <img src={booth.logoUrl} alt={booth.name} className="booth-logo" />
                         ) : (
                           <div className="booth-logo-placeholder" style={{ background: booth.themeColor || "var(--bg3)" }}>
-                            <i className="ti ti-building"></i>
+                            <i className="ti ti-book-2"></i>
                           </div>
                         )}
                       </div>
@@ -146,8 +148,9 @@ export default function OpenHouse({ go }) {
                         {booth.language && <div className="booth-lang"><i className="ti ti-language"></i> {booth.language}</div>}
                         {booth.description && <p className="booth-desc">{booth.description}</p>}
                       </div>
+                      
                       <div className="booth-action">
-                        <span>เดินเข้าบูธ</span> <i className="ti ti-arrow-right"></i>
+                        <span>เข้าชม</span> <i className="ti ti-arrow-right"></i>
                       </div>
                     </div>
                   ))}
