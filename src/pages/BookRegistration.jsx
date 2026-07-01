@@ -322,6 +322,11 @@ export default function BookRegistration({ go, ctx }) {
             <div style={{ fontSize: 36, fontWeight: "bold", color: "var(--teal)", marginBottom: 24 }}>{campaign.shippingFee} บาท</div>
             
             <div style={{ display: "inline-block", textAlign: "left", background: "var(--bg)", padding: 20, borderRadius: 12, border: "1px solid var(--br)" }}>
+              {campaign.qrCodeUrl && (
+                <div style={{ marginBottom: 16, textAlign: "center" }}>
+                  <img src={campaign.qrCodeUrl} alt="QR Code" style={{ maxWidth: 200, width: "100%", borderRadius: 8, border: "1px solid var(--br)" }} />
+                </div>
+              )}
               <div style={{ fontSize: 14, color: "var(--t2)", marginBottom: 4 }}>โอนเงินเข้าบัญชี:</div>
               <div style={{ fontSize: 18, fontWeight: 500, whiteSpace: "pre-wrap" }}>{campaign.bankAccount}</div>
             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { collection, query, orderBy, getDocs, doc, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore"
-import { db } from "../../lib/firebase.js"
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { db, storage } from "../../lib/firebase.js"
 
 export default function AdminBookCampaigns() {
   const [campaigns, setCampaigns] = useState([])
@@ -16,7 +17,9 @@ export default function AdminBookCampaigns() {
     quota: 100,
     timeLimit: 2,
     shippingFee: 0,
+    shippingFee: 0,
     bankAccount: "",
+    qrCodeUrl: "",
     status: "active",
     items: [] // { name, imageUrl }
   })
@@ -48,6 +51,7 @@ export default function AdminBookCampaigns() {
         timeLimit: campaign.timeLimit || 2,
         shippingFee: campaign.shippingFee || 0,
         bankAccount: campaign.bankAccount || "",
+        qrCodeUrl: campaign.qrCodeUrl || "",
         status: campaign.status || "active",
         items: campaign.items || []
       })
@@ -60,6 +64,7 @@ export default function AdminBookCampaigns() {
         timeLimit: 2,
         shippingFee: 0,
         bankAccount: "",
+        qrCodeUrl: "",
         status: "active",
         items: []
       })
@@ -121,6 +126,26 @@ export default function AdminBookCampaigns() {
     setFormData(prev => ({ ...prev, items: newItems }))
   }
 
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  const handleImageUpload = async (file, onComplete) => {
+    if (!file) return
+    setUploadingImage(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `campaign_images/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`
+      const storageRef = ref(storage, fileName)
+      await uploadBytes(storageRef, file)
+      const url = await getDownloadURL(storageRef)
+      onComplete(url)
+    } catch (err) {
+      console.error(err)
+      alert("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ")
+    } finally {
+      setUploadingImage(false)
+    }
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -180,6 +205,16 @@ export default function AdminBookCampaigns() {
               <span className="label-text">ข้อมูลบัญชีธนาคาร (สำหรับโอนเงิน)</span>
               <textarea rows={2} value={formData.bankAccount} onChange={e => setFormData({...formData, bankAccount: e.target.value})} placeholder="กสิกรไทย 123-4-56789-0 ชื่อบัญชี นายเอบีซี"></textarea>
             </label>
+            <label>
+              <span className="label-text">รูปรหัสคิวอาร์โค้ด (QR Code) (URL หรือ อัปโหลด)</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type="text" value={formData.qrCodeUrl} onChange={e => setFormData({...formData, qrCodeUrl: e.target.value})} placeholder="https://..." style={{ flex: 1 }} />
+                <label className="btn btn-outline" style={{ cursor: "pointer", padding: "6px 12px", background: "var(--bg)" }}>
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e.target.files[0], url => setFormData({...formData, qrCodeUrl: url}))} />
+                  <i className="ti ti-upload"></i> อัปโหลด
+                </label>
+              </div>
+            </label>
           </div>
 
           {/* Dynamic Books List */}
@@ -202,7 +237,13 @@ export default function AdminBookCampaigns() {
                     </div>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                       <input type="text" placeholder="ชื่อหนังสือ / คำอธิบายสั้นๆ" value={item.name} onChange={e => updateItem(idx, "name", e.target.value)} required style={{ padding: "6px 10px", fontSize: 13 }} />
-                      <input type="text" placeholder="ลิงก์รูปภาพหน้าปก (URL)" value={item.imageUrl} onChange={e => updateItem(idx, "imageUrl", e.target.value)} style={{ padding: "6px 10px", fontSize: 13 }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input type="text" placeholder="ลิงก์รูปภาพหน้าปก (URL)" value={item.imageUrl} onChange={e => updateItem(idx, "imageUrl", e.target.value)} style={{ padding: "6px 10px", fontSize: 13, flex: 1 }} />
+                        <label className="btn btn-outline" style={{ cursor: "pointer", padding: "4px 8px", background: "var(--bg)" }}>
+                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e.target.files[0], url => updateItem(idx, "imageUrl", url))} />
+                          <i className="ti ti-upload"></i> อัปโหลด
+                        </label>
+                      </div>
                     </div>
                     <button type="button" onClick={() => removeItem(idx)} style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", padding: 4 }}>
                       <i className="ti ti-trash"></i>
