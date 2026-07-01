@@ -24,6 +24,7 @@ const TABS = [
 export default function Admin({ go, authState, initialTab = "articles" }) {
   const [tab, setTab] = useState(initialTab || "articles")
   const activeTabObj = TABS.find(t => t.id === tab) || TABS[0]
+  const currentUser = authState?.profile?.displayName || authState?.user?.displayName || ""
 
   useEffect(() => {
     if (initialTab && TABS.some(item => item.id === initialTab)) setTab(initialTab)
