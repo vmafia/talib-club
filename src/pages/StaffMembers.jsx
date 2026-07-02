@@ -207,9 +207,9 @@ export default function StaffMembers({ authState, go }) {
   }
 
   return (
-    <div className="animate-fade-in" style={{ padding: "24px" }}>
+    <div className="animate-fade-in" style={{ padding: "clamp(12px, 3vw, 24px)", maxWidth: "1000px", margin: "0 auto" }}>
       {/* Upper Title and Back Button */}
-      <div className="card" style={{ padding: "24px", marginBottom: "24px" }}>
+      <div className="card" style={{ padding: "clamp(16px, 4vw, 24px)", marginBottom: "clamp(16px, 4vw, 24px)" }}>
         <button className="btn btn-outline" onClick={() => go("staff")} style={{ marginBottom: "12px", padding: "5px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
           <i className="ti ti-arrow-left"></i> กลับ
         </button>
@@ -218,7 +218,7 @@ export default function StaffMembers({ authState, go }) {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="card" style={{ padding: "20px", marginBottom: "20px" }}>
+      <div className="card" style={{ padding: "clamp(12px, 3vw, 20px)", marginBottom: "clamp(12px, 3vw, 20px)" }}>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: "260px", position: "relative" }}>
             <input
@@ -278,7 +278,7 @@ export default function StaffMembers({ authState, go }) {
                   display: "flex", 
                   alignItems: "center", 
                   justifyContent: "space-between", 
-                  padding: "16px 20px", 
+                  padding: "clamp(12px, 3vw, 16px) clamp(16px, 4vw, 20px)", 
                   borderRadius: 16,
                   border: isSelf ? "1.5px solid var(--teal)" : "0.5px solid var(--br)",
                   flexWrap: "wrap",
