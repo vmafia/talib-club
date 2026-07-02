@@ -123,7 +123,7 @@ export default function StaffCalendar({ currentUser, staffTeam, sendBotNotificat
   }
 
   return (
-    <div className="card" style={{ padding: "24px", position: "relative" }}>
+    <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)", position: "relative" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <i className="ti ti-calendar" style={{ color: "var(--teal)" }}></i> ปฏิทินวางแผนลงงาน

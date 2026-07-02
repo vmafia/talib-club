@@ -411,7 +411,7 @@ export default function StaffTranslation({ go }) {
             </div>
           </div>
 
-          <div className="card" style={{ padding: "20px", marginBottom: "20px" }}>
+          <div className="card" style={{ padding: "clamp(12px, 3vw, 20px)", marginBottom: "20px" }}>
             <label style={{ display: "grid", gap: "6px", fontSize: "14px", fontWeight: "500", color: "var(--text)" }}>
               หัวข้อบทความภาษาไทย
               <input 

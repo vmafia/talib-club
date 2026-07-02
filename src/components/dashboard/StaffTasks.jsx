@@ -198,7 +198,7 @@ export default function StaffTasks({ currentUser, staffTeam, sendBotNotification
   if (loading) return <div style={{ padding: 40, textAlign: "center" }}><i className="ti ti-loader-2 spin"></i> กำลังโหลดงาน...</div>
 
   return (
-    <div className="card" style={{ padding: "24px" }}>
+    <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: 12 }}>
         <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <i className="ti ti-briefcase" style={{ color: "var(--teal)" }}></i> ระบบมอบหมายงาน

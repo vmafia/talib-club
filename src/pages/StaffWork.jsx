@@ -470,7 +470,7 @@ export default function StaffWork({ authState, go }) {
   }
 
   return (
-    <div className="staff-work animate-fade-in" style={{ padding: "24px" }}>
+    <div className="staff-work animate-fade-in" style={{ padding: "clamp(12px, 3vw, 24px)" }}>
       
       {/* ━━━ CUSTOM MODAL (แทนที่ Alert เบราว์เซอร์) ━━━ */}
       {confirmDialog.isOpen && createPortal(
@@ -491,7 +491,7 @@ export default function StaffWork({ authState, go }) {
       )}
 
       {/* ━━━ UPPER BANNER ━━━ */}
-      <div className="card staff-work-hero" style={{ padding: "24px", marginBottom: "24px" }}>
+      <div className="card staff-work-hero" style={{ padding: "clamp(12px, 3vw, 24px)", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
             <button className="btn btn-outline" onClick={() => go("staff")} style={{ marginBottom: "12px", padding: "5px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -541,7 +541,7 @@ export default function StaffWork({ authState, go }) {
                 const hl = (name) => name === currentUser ? <strong style={{color: "var(--teal)"}}>{name}</strong> : name;
 
                 return (
-                  <div key={sub.id} className={`card animate-fade-in staff-sub-card ${isPending ? "is-pending" : isRejected ? "is-rejected" : isApproved ? "is-approved" : "is-posted"}`} style={{ padding: "20px" }}>
+                  <div key={sub.id} className={`card animate-fade-in staff-sub-card ${isPending ? "is-pending" : isRejected ? "is-rejected" : isApproved ? "is-approved" : "is-posted"}`} style={{ padding: "clamp(12px, 3vw, 20px)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
@@ -707,7 +707,7 @@ export default function StaffWork({ authState, go }) {
 
         {/* ━━━ TAB: SUBMIT ━━━ */}
         {tab === "submit" && (
-          <div className="card" style={{ padding: "24px", maxWidth: "700px", margin: "0 auto" }}>
+          <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)", maxWidth: "700px", margin: "0 auto" }}>
             <h2 style={{ marginBottom: "16px", fontSize: "20px" }}>📤 ส่งผลงานชิ้นใหม่</h2>
             <form onSubmit={handleCreateSubmission} className="staff-form" style={{ padding: 0 }}>
               
@@ -812,7 +812,7 @@ export default function StaffWork({ authState, go }) {
 
         {/* ━━━ TAB: MAGAZINE ━━━ */}
         {tab === "magazine" && (
-          <div className="card" style={{ padding: "24px" }}>
+          <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)" }}>
             <h2>📚 คิววารสารประจำปี</h2>
             <p style={{ marginBottom: "16px", color: "var(--t2)" }}>ติดตามผู้รับผิดชอบวารสารหลักในแต่ละเดือน</p>
             <div className="staff-mag-grid">
@@ -836,7 +836,7 @@ export default function StaffWork({ authState, go }) {
         {tab === "admin" && isAdmin && (
           <div style={{ display: "grid", gap: "24px" }}>
             
-            <div className="card" style={{ padding: "24px" }}>
+            <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)" }}>
               <h2 style={{ marginBottom: "16px" }}>👥 จัดการรายชื่อทีมงานในระบบ</h2>
               <div style={{ display: "flex", gap: "8px", marginBottom: "16px", maxWidth: "400px" }}>
                 <input 
@@ -862,7 +862,7 @@ export default function StaffWork({ authState, go }) {
               </div>
             </div>
 
-            <div className="card" style={{ padding: "24px" }}>
+            <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)" }}>
               <h2 style={{ marginBottom: "16px" }}>📚 กำหนดคิวผู้รับผิดชอบวารสาร</h2>
               <div className="grid3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
                 {magazineQueue.map((item, i) => (

@@ -461,7 +461,7 @@ export default function Tracking({ authState }) {
             {view === "user-recipient" ? "ตรวจสอบรายชื่อรับวารสาร" : "ติดตามเลขพัสดุจัดส่ง"}
           </h1>
 
-          <div className="card" style={{ padding: "24px", marginBottom: "32px" }}>
+          <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)", marginBottom: "32px" }}>
             <form onSubmit={(e) => handlePublicSearch(e, view === "user-recipient" ? "recipient" : "track")} style={{ display: "flex", gap: "12px", flexDirection: "column", sm: { flexDirection: "row"} }}>
               <label style={{ fontSize: "13px", color: "var(--t2)", fontWeight: "500" }}>ค้นหาด้วย ชื่อ-นามสกุล หรือ เบอร์โทรศัพท์</label>
               <div style={{ display: "flex", gap: "12px" }}>
@@ -483,7 +483,7 @@ export default function Tracking({ authState }) {
                <div style={{ background: "var(--teal-bg)", padding: "16px 24px", borderBottom: "1px solid var(--br2)" }}>
                  <h3 style={{ color: "var(--teal)", margin: 0, fontSize: "16px" }}>ข้อมูลพัสดุ / สิทธิ์รับวารสาร</h3>
                </div>
-               <div style={{ padding: "24px", display: "grid", gap: "16px" }}>
+               <div style={{ padding: "clamp(12px, 3vw, 24px)", display: "grid", gap: "16px" }}>
                  <div>
                     <div style={{ color: "var(--t2)", fontSize: "12px", marginBottom: "4px" }}>ชื่อผู้รับ</div>
                     <div style={{ fontSize: "18px", fontWeight: "600" }}>{item.fullName}</div>
@@ -608,7 +608,7 @@ export default function Tracking({ authState }) {
 
           {/* --- TAB 2: MANAGE RECIPIENTS --- */}
           {adminTab === 2 && (
-            <div className="card" style={{ padding: "24px", borderRadius: "12px", border: "1px solid var(--br)" }}>
+            <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)", borderRadius: "12px", border: "1px solid var(--br)" }}>
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div style={{ fontSize: "20px" }}>📝</div>
@@ -695,7 +695,7 @@ export default function Tracking({ authState }) {
 
           {/* --- TAB 4: MANAGE RECORDS --- */}
           {adminTab === 4 && (
-            <div className="card" style={{ padding: "24px", borderRadius: "12px", border: "1px solid var(--br)" }}>
+            <div className="card" style={{ padding: "clamp(12px, 3vw, 24px)", borderRadius: "12px", border: "1px solid var(--br)" }}>
                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div style={{ fontSize: "20px" }}>🗂️</div>
@@ -780,7 +780,7 @@ export default function Tracking({ authState }) {
                <h3 style={{ fontSize: "16px", margin: 0, fontWeight: "600" }}>✏️ แก้ไขข้อมูล{activeModal === 'edit-record' ? " Tracking" : "รายชื่อ"}</h3>
                <button onClick={() => setActiveModal(null)} style={{ background: "none", border: "none", fontSize: "18px", color: "white", cursor: "pointer", opacity: 0.7 }}>✕</button>
              </div>
-             <div style={{ padding: "24px", display: "grid", gap: "16px", background: "var(--card)" }}>
+             <div style={{ padding: "clamp(12px, 3vw, 24px)", display: "grid", gap: "16px", background: "var(--card)" }}>
                <div><label style={{ fontSize: "12px", fontWeight: "600", color: "var(--t2)" }}>ชื่อ-นามสกุล</label><input type="text" className="inp" value={editData.fullName} onChange={e => setEditData({...editData, fullName: e.target.value})} /></div>
                <div><label style={{ fontSize: "12px", fontWeight: "600", color: "var(--t2)" }}>เบอร์โทร</label><input type="text" className="inp" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} /></div>
                
@@ -820,7 +820,7 @@ export default function Tracking({ authState }) {
                <h3 style={{ fontSize: "16px", margin: 0, fontWeight: "600" }}>🏷️ สร้างและพิมพ์ลาเบลจ่าหน้าซอง</h3>
                <button onClick={() => setActiveModal(null)} style={{ background: "none", border: "none", fontSize: "18px", color: "white", cursor: "pointer", opacity: 0.7 }}>✕</button>
              </div>
-             <div style={{ padding: "24px", overflowY: "auto", flex: 1, background: "var(--card)" }}>
+             <div style={{ padding: "clamp(12px, 3vw, 24px)", overflowY: "auto", flex: 1, background: "var(--card)" }}>
                <div style={{ marginBottom: "24px", background: "var(--bg)", padding: "16px", borderRadius: "8px", border: "1px solid var(--br2)" }}>
                  <div style={{ fontSize: "13px", fontWeight: "700", marginBottom: "12px", color: "var(--teal)" }}>📮 ข้อมูลผู้ส่ง (Sender)</div>
                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
@@ -858,7 +858,7 @@ export default function Tracking({ authState }) {
       {/* ========================================================= */}
       {dialogConfig && createPortal(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-           <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "400px", padding: "24px", background: "var(--card)", borderRadius: "12px", textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
+           <div className="card animate-fade-in" style={{ width: "100%", maxWidth: "400px", padding: "clamp(12px, 3vw, 24px)", background: "var(--card)", borderRadius: "12px", textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
               <div style={{ fontSize: "48px", marginBottom: "16px" }}>
                  {dialogConfig.type === 'alert' ? (dialogConfig.title === "ข้อผิดพลาด" ? '❌' : '✅') : dialogConfig.type === 'confirm' ? '❓' : '📝'}
               </div>
