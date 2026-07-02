@@ -20,6 +20,7 @@ export default function StaffMembers({ authState, go }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("all") // "all" | "member" | "staff" | "admin"
+  const [sortBy, setSortBy] = useState("newest") // "newest" | "oldest" | "az" | "za"
 
   // Stats Modal state
   const [selectedUser, setSelectedUser] = useState(null)
@@ -64,9 +65,9 @@ export default function StaffMembers({ authState, go }) {
     }
   }
 
-  // Filter users based on search string and role
+  // Filter and sort users
   const filteredUsers = useMemo(() => {
-    return users.filter(u => {
+    let result = users.filter(u => {
       const matchesSearch = 
         (u.displayName || "").toLowerCase().includes(search.toLowerCase()) ||
         (u.email || "").toLowerCase().includes(search.toLowerCase())
@@ -74,7 +75,23 @@ export default function StaffMembers({ authState, go }) {
       if (roleFilter === "all") return matchesSearch
       return matchesSearch && u.role === roleFilter
     })
-  }, [users, search, roleFilter])
+
+    result.sort((a, b) => {
+      if (sortBy === "az") {
+        return (a.displayName || a.email || "").localeCompare(b.displayName || b.email || "", "th")
+      } else if (sortBy === "za") {
+        return (b.displayName || b.email || "").localeCompare(a.displayName || a.email || "", "th")
+      } else {
+        // default to sorting by createdAt
+        const tA = a.createdAt?.seconds || 0
+        const tB = b.createdAt?.seconds || 0
+        if (sortBy === "oldest") return tA - tB
+        return tB - tA // newest
+      }
+    })
+
+    return result
+  }, [users, search, roleFilter, sortBy])
 
   // Load detailed learning stats for a selected user
   const loadUserStats = async (member) => {
@@ -221,6 +238,17 @@ export default function StaffMembers({ authState, go }) {
             {users.some(u => u.role === "admin") && (
               <button className={`pill ${roleFilter === "admin" ? "on" : ""}`} onClick={() => setRoleFilter("admin")}>แอดมิน ({users.filter(u => u.role === "admin").length})</button>
             )}
+            <select 
+              className="input" 
+              style={{ padding: "4px 12px", fontSize: "13px", height: "auto", borderRadius: "20px", marginLeft: "4px" }}
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+            >
+              <option value="newest">ใหม่สุด - เก่าสุด</option>
+              <option value="oldest">เก่าสุด - ใหม่สุด</option>
+              <option value="az">ก - ฮ (A - Z)</option>
+              <option value="za">ฮ - ก (Z - A)</option>
+            </select>
           </div>
         </div>
       </div>

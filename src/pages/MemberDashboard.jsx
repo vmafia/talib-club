@@ -152,12 +152,12 @@ export default function MemberDashboard({ authState, go, initialView = "overview
       {view === "overview" && (
         <div className="member-hero">
           <div>
-            <span className="badge badge-teal">{role === "staff" ? "Staff" : "Member"}</span>
+            <span className="badge badge-teal">{authState?.isStaff ? (role.charAt(0).toUpperCase() + role.slice(1)) : "Member"}</span>
             <h1>ยินดีต้อนรับ, {name}</h1>
             <p>พื้นที่สมาชิกสำหรับติดตามการอ่าน บันทึกหนังสือ และจัดการข้อมูลบัญชี Talib Club</p>
           </div>
           <div className="member-actions" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            {role === "staff" && (
+            {authState?.isStaff && (
               <button className="btn btn-teal" onClick={() => go("staff")} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                 <i className="ti ti-briefcase"></i>พื้นที่ปฏิบัติงานสตาฟ
               </button>
