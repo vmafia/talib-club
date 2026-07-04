@@ -987,33 +987,51 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                       <div className="quran-sidebar card" style={{ padding: 0, display: "flex", flexDirection: "column", overflowY: "auto", minHeight: 0 }}>
                         <div style={{ display: "flex", flexDirection: "column" }}>
                           {filteredSurahs.map(s => (
-                            <div
-                              key={s.number}
-                              className={`surah-item ${selectedSura === s.number ? "active" : ""}`}
-                              onClick={() => {
-                                setSelectedPage(null)
-                                setSelectedSura(s.number)
-                                setTargetScrollAyah(null)
-                              }}
-                              style={{
-                                padding: "10px 14px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                borderBottom: "0.5px solid var(--quran-br)"
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: "10px", color: "var(--quran-t3)", width: 18, textAlign: "center" }}>{s.number}</span>
-                                <div style={{ textAlign: "left" }}>
-                                  <div style={{ fontSize: "12px", fontWeight: 500 }}>{s.englishName}</div>
-                                  <div style={{ fontSize: "9px", color: "var(--quran-t2)" }}>{s.englishNameTranslation}</div>
+                            <div key={s.number} style={{ display: "flex", flexDirection: "column" }}>
+                              <div
+                                className={`surah-item ${selectedSura === s.number ? "active" : ""}`}
+                                onClick={() => {
+                                  setSelectedPage(null)
+                                  setSelectedSura(s.number)
+                                  setTargetScrollAyah(null)
+                                }}
+                                style={{
+                                  padding: "10px 14px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  borderBottom: "0.5px solid var(--quran-br)"
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: "10px", color: "var(--quran-t3)", width: 18, textAlign: "center" }}>{s.number}</span>
+                                  <div style={{ textAlign: "left" }}>
+                                    <div style={{ fontSize: "12px", fontWeight: 500 }}>{s.englishName}</div>
+                                    <div style={{ fontSize: "9px", color: "var(--quran-t2)" }}>{s.englishNameTranslation}</div>
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                  <div style={{ fontSize: "14px", fontFamily: "'Amiri', serif" }}>{s.name}</div>
+                                  <div style={{ fontSize: "9px", color: "var(--quran-t3)" }}>{s.numberOfAyahs} อายะฮ์</div>
                                 </div>
                               </div>
-                              <div style={{ textAlign: "right" }}>
-                                <div style={{ fontSize: "14px", fontFamily: "'Amiri', serif" }}>{s.name}</div>
-                                <div style={{ fontSize: "9px", color: "var(--quran-t3)" }}>{s.numberOfAyahs} อายะฮ์</div>
-                              </div>
+                              {selectedSura === s.number && (
+                                <div style={{ padding: "8px 14px", background: "var(--quran-bg2)", borderBottom: "0.5px solid var(--quran-br)", display: "flex", alignItems: "center", gap: 8 }}>
+                                  <i className="ti ti-corner-down-right" style={{ fontSize: 14, color: "var(--quran-teal)" }}></i>
+                                  <select
+                                    value={targetScrollAyah || ""}
+                                    onChange={e => {
+                                      if (e.target.value) setTargetScrollAyah(parseInt(e.target.value))
+                                    }}
+                                    style={{ width: "100%", height: 32, fontSize: 11, borderRadius: 6, border: "0.5px solid var(--quran-br)", background: "var(--quran-bg)", color: "var(--quran-text)", padding: "0 8px" }}
+                                  >
+                                    <option value="">🎯 เลือกอายะฮ์เพื่อข้ามไป...</option>
+                                    {Array.from({ length: s.numberOfAyahs }, (_, i) => i + 1).map(a => (
+                                      <option key={a} value={a}>อายะฮ์ที่ {a}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           ))}
                           {filteredSurahs.length === 0 && (
@@ -2799,37 +2817,62 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                       <div className="quran-sidebar" style={{ overflowY: "auto", flex: 1 }}>
                         <div style={{ display: "flex", flexDirection: "column" }}>
                           {filteredSurahs.map(s => (
-                            <div
-                              key={s.number}
-                              className={`surah-item`}
-                              onClick={() => {
-                                setSelectedSura(s.number);
-                                setTargetScrollAyah(null);
-                                setIsMobileNavOpen(false);
-                              }}
-                              style={{
-                                padding: "14px 16px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                borderBottom: selectedSura === s.number ? "none" : "0.5px solid var(--quran-br2)",
-                                background: selectedSura === s.number ? "var(--quran-teal-bg)" : "transparent",
-                                borderRadius: selectedSura === s.number ? "10px" : "0",
-                                marginBottom: "2px",
-                                transition: "all 0.2s ease"
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: "10px", color: "var(--quran-t3)", width: 18, textAlign: "center" }}>{s.number}</span>
-                                <div style={{ textAlign: "left" }}>
-                                  <div style={{ fontSize: "12px", fontWeight: 500 }}>{s.englishName}</div>
-                                  <div style={{ fontSize: "9px", color: "var(--quran-t2)" }}>{s.englishNameTranslation}</div>
+                            <div key={s.number} style={{ display: "flex", flexDirection: "column", marginBottom: "2px" }}>
+                              <div
+                                className={`surah-item`}
+                                onClick={() => {
+                                  setSelectedSura(s.number);
+                                  setTargetScrollAyah(null);
+                                  // Nav remains open so user can pick ayah
+                                }}
+                                style={{
+                                  padding: "14px 16px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  borderBottom: selectedSura === s.number ? "none" : "0.5px solid var(--quran-br2)",
+                                  background: selectedSura === s.number ? "var(--quran-teal-bg)" : "transparent",
+                                  borderRadius: selectedSura === s.number ? (targetScrollAyah ? "10px" : "10px 10px 0 0") : "0",
+                                  transition: "all 0.2s ease"
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: "10px", color: "var(--quran-t3)", width: 18, textAlign: "center" }}>{s.number}</span>
+                                  <div style={{ textAlign: "left" }}>
+                                    <div style={{ fontSize: "12px", fontWeight: 500 }}>{s.englishName}</div>
+                                    <div style={{ fontSize: "9px", color: "var(--quran-t2)" }}>{s.englishNameTranslation}</div>
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: "right" }}>
+                                  <div style={{ fontSize: "14px", fontFamily: "'Amiri', serif" }}>{s.name}</div>
+                                  <div style={{ fontSize: "9px", color: "var(--quran-t3)" }}>{s.numberOfAyahs} อายะฮ์</div>
                                 </div>
                               </div>
-                              <div style={{ textAlign: "right" }}>
-                                <div style={{ fontSize: "14px", fontFamily: "'Amiri', serif" }}>{s.name}</div>
-                                <div style={{ fontSize: "9px", color: "var(--quran-t3)" }}>{s.numberOfAyahs} อายะฮ์</div>
-                              </div>
+                              {selectedSura === s.number && (
+                                <div style={{ padding: "12px 16px", background: "var(--quran-teal-bg)", borderRadius: "0 0 10px 10px", display: "flex", flexDirection: "column", gap: 8, borderTop: "0.5px dashed rgba(45, 190, 160, 0.3)" }}>
+                                  <select
+                                    value={targetScrollAyah || ""}
+                                    onChange={e => {
+                                      if (e.target.value) {
+                                        setTargetScrollAyah(parseInt(e.target.value));
+                                        setIsMobileNavOpen(false); // Close nav when Ayah is selected
+                                      }
+                                    }}
+                                    style={{ width: "100%", height: 38, fontSize: 13, borderRadius: 8, border: "1px solid var(--quran-teal)", background: "var(--quran-bg)", color: "var(--quran-text)", padding: "0 10px" }}
+                                  >
+                                    <option value="">🎯 เลือกอายะฮ์...</option>
+                                    {Array.from({ length: s.numberOfAyahs }, (_, i) => i + 1).map(a => (
+                                      <option key={a} value={a}>อายะฮ์ที่ {a}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => setIsMobileNavOpen(false)}
+                                    style={{ width: "100%", padding: "8px", fontSize: 12, borderRadius: 8, background: "var(--quran-teal)", color: "#fff", border: "none", fontWeight: 500 }}
+                                  >
+                                    ไปที่ซูเราะฮ์นี้ (หน้าแรก)
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           ))}
                           {filteredSurahs.length === 0 && (
@@ -3003,6 +3046,33 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         document.querySelector(".app") || document.body
       )}
 
+      {/* Scroll to Top Button (Mobile) */}
+      {isMobile && showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{
+            position: "fixed",
+            bottom: "80px", // Above mobile navigation if any
+            right: "20px",
+            width: "44px",
+            height: "44px",
+            borderRadius: "50%",
+            background: "var(--quran-teal)",
+            color: "#fff",
+            border: "none",
+            boxShadow: "0 4px 12px rgba(45,190,160,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            zIndex: 99,
+            transition: "all 0.3s ease"
+          }}
+          aria-label="Scroll to top"
+        >
+          <i className="ti ti-arrow-up" style={{ fontSize: 20 }}></i>
+        </button>
+      )}
 
     </div>
   )
