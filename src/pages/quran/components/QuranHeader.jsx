@@ -27,7 +27,8 @@ export default function QuranHeader({
   quranFont,
   tajweedEnabled,
   setTajweedEnabled,
-
+  translationKey,
+  setTranslationKey,
   scrollToReadingArea
 }) {
   return (
