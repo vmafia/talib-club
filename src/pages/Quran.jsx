@@ -597,6 +597,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
       suraName: currentSuraInfo.englishName,
       arabicText: v.arabic_text_tajweed || v.arabic_text || "",
       translation: v.translation,
+      tafsir: v.tafsir,
       bookmarkId: existingBookmark?.id || null
     })
     setModalNotes(existingBookmark?.notes || "")
@@ -617,6 +618,9 @@ export default function Quran({ initialSura, initialAyah, authState }) {
         sura: activeBookmarkModal.sura,
         aya: activeBookmarkModal.aya,
         suraName: activeBookmarkModal.suraName,
+        arabicText: activeBookmarkModal.arabicText || "",
+        translation: activeBookmarkModal.translation || "",
+        tafsir: activeBookmarkModal.tafsir || "",
         notes: modalNotes,
       })
 

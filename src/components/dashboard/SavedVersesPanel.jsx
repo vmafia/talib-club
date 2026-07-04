@@ -1,7 +1,76 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import toast from 'react-hot-toast'
 import { useUserCollection } from "../../lib/contentStore.js"
 import { confirmAction } from "../../utils/feedback.jsx"
+
+const VerseDisplay = ({ item }) => {
+  const [data, setData] = useState({
+    arabic: item.arabicText || "",
+    translation: item.translation || "",
+    tafsir: item.tafsir || ""
+  })
+  const [loading, setLoading] = useState(!item.arabicText)
+
+  useEffect(() => {
+    let active = true
+    if (!item.arabicText && active) {
+      // Fetch missing data
+      Promise.all([
+        fetch(`https://api.quran.com/api/v4/quran/verses/uthmani_tajweed?verse_key=${item.sura}:${item.aya}`).then(r => r.json()),
+        fetch(`https://api.quran.com/api/v4/quran/translations/155?verse_key=${item.sura}:${item.aya}`).then(r => r.json()),
+        fetch(`https://api.alquran.cloud/v1/ayah/${item.sura}:${item.aya}/th.thai`).then(r => r.json())
+      ])
+      .then(([tajweedRes, tafsirRes, translationRes]) => {
+        if (!active) return
+        const arabic = tajweedRes.verses?.[0]?.text_uthmani_tajweed || ""
+        const tafsir = tafsirRes.translations?.[0]?.text || ""
+        const translation = translationRes.data?.text || ""
+        
+        setData({ arabic, translation, tafsir })
+        setLoading(false)
+      })
+      .catch(() => {
+        if (active) setLoading(false)
+      })
+    }
+    return () => { active = false }
+  }, [item])
+
+  if (loading) {
+    return <div style={{ padding: 12, textAlign: "center", color: "var(--t3)" }}><i className="ti ti-loader-2 spin"></i> กำลังโหลดอายะฮ์...</div>
+  }
+
+  return (
+    <div style={{ padding: 16, background: "var(--bg)", borderRadius: 8, marginBottom: 16, border: "0.5px solid var(--br)" }}>
+      {data.arabic && (
+        <div 
+          style={{
+            fontFamily: "'Amiri', serif",
+            fontSize: 26,
+            direction: "rtl",
+            textAlign: "right",
+            marginBottom: 16,
+            lineHeight: 2.2,
+            color: "var(--text)"
+          }}
+          dangerouslySetInnerHTML={{ __html: data.arabic.replace(/\u25cc/g, "").replace(/\u0672/g, "\u0670") }}
+        />
+      )}
+      
+      {data.translation && (
+        <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6, marginBottom: 12, paddingBottom: 12, borderBottom: "0.5px dashed var(--br)" }}>
+          <strong style={{ color: "var(--teal)" }}>ความหมาย:</strong> {data.translation}
+        </div>
+      )}
+      
+      {data.tafsir && (
+        <div style={{ fontSize: 13, color: "var(--t3)", lineHeight: 1.6 }}>
+          <strong style={{ color: "var(--text)" }}>ตัฟซีรย่อ:</strong> <span dangerouslySetInnerHTML={{ __html: data.tafsir }} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SavedVersesPanel({ authState, go, setView, setQuranSura, setQuranAyah }) {
   const uid = authState?.user?.uid;
@@ -12,7 +81,7 @@ export default function SavedVersesPanel({ authState, go, setView, setQuranSura,
 
   const userSaved = useMemo(() => {
     if (!uid) return [];
-    return savedVerses.filter(v => v.uid === uid);
+    return savedVerses.filter(v => v.uid === uid).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
   }, [savedVerses, uid]);
 
   const filteredSaved = useMemo(() => {
@@ -27,7 +96,9 @@ export default function SavedVersesPanel({ authState, go, setView, setQuranSura,
   }, [userSaved, search]);
 
   const handleOpenVerse = (sura, aya) => {
-    go("quran", { sura, ayah: aya })
+    setQuranSura(sura)
+    setQuranAyah(aya)
+    setView("quran")
   };
 
   const handleEdit = (item) => {
@@ -41,7 +112,7 @@ export default function SavedVersesPanel({ authState, go, setView, setQuranSura,
       await saveItem({
         ...item,
         notes: editNote,
-        updatedAt: new Date()
+        updatedAt: new Date().toISOString()
       });
       toast.success("บันทึกข้อคิดเรียบร้อยแล้ว", { id: toastId });
       setEditingId(null);
@@ -135,28 +206,11 @@ export default function SavedVersesPanel({ authState, go, setView, setQuranSura,
                       </div>
                     </div>
 
-                    {/* Verses Container */}
-                    <div style={{ padding: 12, background: "var(--card)", borderRadius: 8, marginBottom: 12, border: "0.5px solid var(--br2)" }}>
-                      <div 
-                        style={{
-                          fontFamily: "'Amiri', serif",
-                          fontSize: 24,
-                          direction: "rtl",
-                          textAlign: "right",
-                          marginBottom: 10,
-                          lineHeight: 1.8,
-                          color: "var(--text)"
-                        }}
-                        dangerouslySetInnerHTML={{ __html: item.arabicText }}
-                      />
-                      <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5 }}>
-                        {item.translation}
-                      </div>
-                    </div>
+                    <VerseDisplay item={item} />
 
                     {/* Reflection / Notes Box */}
                     {editingId === item.id ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <label style={{ fontSize: 11, fontWeight: 500, color: "var(--teal)" }}>
                           แก้ไขข้อคิด/ประโยชน์ที่ได้รับจากอายะฮ์นี้:
                         </label>
@@ -178,17 +232,16 @@ export default function SavedVersesPanel({ authState, go, setView, setQuranSura,
                     ) : (
                       <div style={{
                         background: "rgba(45, 190, 160, 0.05)",
-                        borderTop: "3px solid var(--teal)",
-                        padding: "10px 14px",
-                        borderRadius: "8px",
-                        marginTop: 10
+                        borderLeft: "3px solid var(--teal)",
+                        padding: "12px 16px",
+                        borderRadius: "0 8px 8px 0"
                       }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--teal)", marginBottom: 4 }}>
                           ประโยชน์และข้อคิดเตือนใจที่คุณบันทึกไว้:
                         </div>
-                        <p style={{ fontSize: 13, color: "var(--text)", fontStyle: item.notes ? "normal" : "italic", margin: 0 }}>
+                        <div style={{ fontSize: 13, color: item.notes ? "var(--text)" : "var(--t3)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                           {item.notes || "ไม่มีข้อบันทึก (กดแก้ไขเพื่อเพิ่มข้อคิดเตือนใจ)"}
-                        </p>
+                        </div>
                       </div>
                     )}
                   </div>
