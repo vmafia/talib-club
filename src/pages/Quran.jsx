@@ -1018,18 +1018,21 @@ export default function Quran({ initialSura, initialAyah, authState }) {
                               {selectedSura === s.number && (
                                 <div style={{ padding: "8px 14px", background: "var(--quran-bg2)", borderBottom: "0.5px solid var(--quran-br)", display: "flex", alignItems: "center", gap: 8 }}>
                                   <i className="ti ti-corner-down-right" style={{ fontSize: 14, color: "var(--quran-teal)" }}></i>
-                                  <select
-                                    value={targetScrollAyah || ""}
-                                    onChange={e => {
-                                      if (e.target.value) setTargetScrollAyah(parseInt(e.target.value))
-                                    }}
-                                    style={{ width: "100%", height: 32, fontSize: 11, borderRadius: 6, border: "0.5px solid var(--quran-br)", background: "var(--quran-bg)", color: "var(--quran-text)", padding: "0 8px" }}
-                                  >
-                                    <option value="">🎯 เลือกอายะฮ์เพื่อข้ามไป...</option>
-                                    {Array.from({ length: s.numberOfAyahs }, (_, i) => i + 1).map(a => (
-                                      <option key={a} value={a}>อายะฮ์ที่ {a}</option>
-                                    ))}
-                                  </select>
+                                  <div style={{ position: "relative", width: "100%" }}>
+                                    <select
+                                      value={targetScrollAyah || ""}
+                                      onChange={e => {
+                                        if (e.target.value) setTargetScrollAyah(parseInt(e.target.value))
+                                      }}
+                                      style={{ width: "100%", height: 32, padding: "0 24px 0 10px", fontSize: "11.5px", fontWeight: 500, borderRadius: "6px", border: "0.5px solid var(--quran-br)", background: "var(--quran-bg)", color: "var(--quran-text)", cursor: "pointer", appearance: "none", outline: "none" }}
+                                    >
+                                      <option value="">🎯 เลือกอายะฮ์เพื่อข้ามไป...</option>
+                                      {Array.from({ length: s.numberOfAyahs }, (_, i) => i + 1).map(a => (
+                                        <option key={a} value={a}>อายะฮ์ที่ {a}</option>
+                                      ))}
+                                    </select>
+                                    <i className="ti ti-chevron-down" style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 9, pointerEvents: "none", color: "var(--quran-t3)" }}></i>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -3047,7 +3050,7 @@ export default function Quran({ initialSura, initialAyah, authState }) {
       )}
 
       {/* Scroll to Top Button (Mobile) */}
-      {isMobile && showScrollTop && (
+      {isMobile && showScrollTop && createPortal(
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           style={{
@@ -3060,18 +3063,19 @@ export default function Quran({ initialSura, initialAyah, authState }) {
             background: "var(--quran-teal)",
             color: "#fff",
             border: "none",
-            boxShadow: "0 4px 12px rgba(45,190,160,0.3)",
+            boxShadow: "0 4px 12px rgba(45,190,160,0.4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
-            zIndex: 99,
+            zIndex: 9999,
             transition: "all 0.3s ease"
           }}
           aria-label="Scroll to top"
         >
-          <i className="ti ti-arrow-up" style={{ fontSize: 20 }}></i>
-        </button>
+          <i className="ti ti-arrow-up" style={{ fontSize: 22 }}></i>
+        </button>,
+        document.body
       )}
 
     </div>
