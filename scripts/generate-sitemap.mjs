@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const BASE_URL = 'https://talib.club';
+const BASE_URL = 'https://talibclub.org';
 const PROJECT_ID = 'talib-club-web';
 
 async function fetchDocuments(collectionName) {

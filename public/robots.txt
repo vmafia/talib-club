@@ -16,4 +16,4 @@ Disallow: /reader
 Disallow: /auth
 Disallow: /tracking-system
 
-Sitemap: https://talib.club/sitemap.xml
+Sitemap: https://talibclub.org/sitemap.xml
