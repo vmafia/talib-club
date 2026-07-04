@@ -37,13 +37,19 @@ const DEFAULT_MAGAZINE = [
 // ━━━ TELEGRAM NOTIFICATION ━━━
 const sendBotNotification = async (message) => {
   try {
-    await fetch("/api/send-telegram", {
+    const res = await fetch("/api/send-telegram", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message })
     })
+    if (!res.ok) {
+      console.error("API error", await res.text())
+      return false
+    }
+    return true
   } catch (e) {
     console.error("Telegram notify error:", e)
+    return false
   }
 }
 
@@ -179,7 +185,7 @@ export default function StaffWork({ authState, go }) {
 
       if (!phase) return
       
-      const notifyKey = `mag_notify_${currentYear}_${currentMonthIndex}_${phase}`
+      const notifyKey = `mag_notify_${currentYear}_${currentMonthIndex}_${phase}_v2`
 
       // Check local session first to prevent rapid spam
       if (notifiedMonthRef.current === notifyKey) return
@@ -190,8 +196,10 @@ export default function StaffWork({ authState, go }) {
         const data = snap.exists() ? snap.data() : {}
         
         if (!data[notifyKey]) {
-          await sendBotNotification(message)
-          await setDoc(notifyDocRef, { ...data, [notifyKey]: true })
+          const sent = await sendBotNotification(message)
+          if (sent) {
+            await setDoc(notifyDocRef, { ...data, [notifyKey]: true })
+          }
         }
         
         notifiedMonthRef.current = notifyKey

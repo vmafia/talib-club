@@ -117,6 +117,10 @@ service cloud.firestore {
     }
 
     // --- Staff Portal Collections ---
+    match /system/{docId} {
+      allow read, write: if isStaff();
+    }
+
     match /submissions/{docId} {
       allow read, write: if isStaff();
     }
