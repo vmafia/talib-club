@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import ReactQuill from "react-quill"
+import "react-quill/dist/quill.snow.css"
 import { ARTICLES, DEFAULT_TAXONOMY } from "../../data/index.js"
 import { useContentCollection, useTaxonomySettings, bulkDeleteItems, bulkSaveItems } from "../../lib/contentStore.js"
 import { confirmAction, notifyError, notifySuccess } from "../../utils/feedback.jsx"
@@ -527,6 +529,18 @@ export default function AdminArticles() {
 function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const set = (key, value) => setItem(prev => ({ ...prev, [key]: value }))
   const [uploadingImage, setUploadingImage] = useState(false)
+  
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [2, 3, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      ['blockquote'],
+      [{ 'script': 'sub'}, { 'script': 'super' }],
+      [{ 'color': [] }, { 'background': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }), []);
 
   const handleUploadImage = async (e) => {
     const file = e.target.files?.[0]
@@ -665,17 +679,25 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>เนื้อหาบทความแบบเต็ม</span>
             <span style={{ fontSize: 11, color: "var(--teal)", fontWeight: 400, background: "rgba(20,184,166,0.1)", padding: "4px 8px", borderRadius: 12 }}>
-              <i className="ti ti-bulb" style={{ marginRight: 4 }}></i>พิมพ์ <b>## เว้นวรรค</b> เพื่อทำหัวข้อ H2 และ <b>### เว้นวรรค</b> สำหรับ H3
+              <i className="ti ti-bulb" style={{ marginRight: 4 }}></i>รองรับทั้งรูปแบบใหม่ (WYSIWYG) และแบบข้อความดั้งเดิม
             </span>
           </div>
         } span>
-          <textarea 
-            value={item.body || ""} 
-            onChange={e => set("body", e.target.value)} 
-            rows={15} 
-            placeholder={`วิธีสร้างหัวข้อ (ระบบจะใส่สีสันให้อัตโนมัติในหน้าผู้อ่าน):\n\n## นี่คือหัวข้อใหญ่ (H2)\nพิมพ์เนื้อหาของหัวข้อใหญ่ตรงนี้...\n\n### นี่คือหัวข้อย่อย (H3)\nพิมพ์เนื้อหาย่อย...\n\n(เว้นบรรทัดและพิมพ์ข้อความได้ตามปกติ)`} 
-            style={{ lineHeight: 1.6 }} 
-          />
+          <div style={{ background: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid var(--br)", minHeight: 400 }}>
+            <ReactQuill 
+              theme="snow"
+              value={item.body || ""} 
+              onChange={val => set("body", val)}
+              modules={quillModules}
+              style={{ minHeight: 360 }}
+              placeholder="พิมพ์เนื้อหาบทความที่นี่..."
+            />
+          </div>
+          <style>{`
+            .ql-editor { min-height: 360px; font-size: 15px; font-family: inherit; line-height: 1.6; }
+            .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid var(--br); background: #f8f9fa; }
+            .ql-container.ql-snow { border: none; }
+          `}</style>
         </Field>
       </div>
 

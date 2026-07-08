@@ -250,68 +250,137 @@ export default function ArticleDetail({ item, go, authState }) {
   }
   if (!displayItem) return null
 
-  // ระบบแกะข้อความสร้างสารบัญอัตโนมัติ
-  const toc = [];
-  const parsedBody = [];
-  let currentParagraphLines = [];
+  const [modalImage, setModalImage] = useState(null);
 
-  const flushParagraph = (keyIndex) => {
-    if (currentParagraphLines.length > 0) {
-      parsedBody.push(
-        <p key={`p-${keyIndex}`}>
-          {currentParagraphLines.map((line, idx) => (
-            <span key={idx}>
-              {line}
-              {idx < currentParagraphLines.length - 1 && <br />}
-            </span>
-          ))}
-        </p>
-      );
-      currentParagraphLines = [];
+  // ระบบแกะข้อความสร้างสารบัญ และจัดรูปแบบบทความ (รองรับทั้ง Plaintext เดิม และ HTML จาก Quill)
+  const { toc, finalHtml } = useMemo(() => {
+    let body = displayItem.body || "";
+    let isHtml = /<[a-z][\s\S]*>/i.test(body);
+    const tocList = [];
+    
+    if (!isHtml) {
+      // 1. จัดการ Notes ที่อยู่ท้ายบทความ (ดึงข้อความมาทำ Tooltip)
+      const notesMatch = body.match(/## Notes\s*([\s\S]*)$/i);
+      let notesDict = {};
+      if (notesMatch) {
+        const notesStr = notesMatch[1];
+        const noteLines = notesStr.split('\n');
+        noteLines.forEach(line => {
+          const match = line.match(/^(\d+)\.\s*(.*)/);
+          if (match) {
+            notesDict[match[1]] = match[2].trim();
+          }
+        });
+      }
+
+      // แปลง Markdown-like headers
+      body = body.replace(/^###\s+(.*)$/gm, '<h3>$1</h3>');
+      body = body.replace(/^##\s+(.*)$/gm, '<h2>$1</h2>');
+      
+      // แปลง Blockquotes และดักจับ กุรอาน/หะดีษ แบบง่ายๆ
+      body = body.replace(/^>\s+(.*)$/gm, (match, p1) => {
+        if (p1.includes('อัลลอฮฺตรัส') || p1.includes('อัลกุรอาน')) {
+          return `<blockquote class="quran-block">${p1}</blockquote>`;
+        } else if (p1.includes('ร่อซูล') || p1.includes('นบี') || p1.includes('หะดีษ')) {
+          return `<blockquote class="hadith-block">${p1}</blockquote>`;
+        }
+        return `<blockquote>${p1}</blockquote>`;
+      });
+      
+      // แปลง [1] เป็นเชิงอรรถ พร้อม tooltip
+      body = body.replace(/\[(\d+)\]/g, (match, p1) => {
+        const tooltip = notesDict[p1] ? `title="${notesDict[p1].replace(/"/g, '&quot;')}"` : '';
+        return `<sup ${tooltip}><a href="#note-${p1}" class="footnote-link">${p1}</a></sup>`;
+      });
+      
+      // จัด Paragraph (บรรทัดที่ไม่มี tag ให้ครอบ p)
+      const lines = body.split(/\r?\n/);
+      let inP = false;
+      let htmlLines = [];
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed === "") {
+          if (inP) { htmlLines.push('</p>'); inP = false; }
+          return;
+        }
+        if (trimmed.startsWith('<h') || trimmed.startsWith('<block') || trimmed.startsWith('<div')) {
+          if (inP) { htmlLines.push('</p>'); inP = false; }
+          htmlLines.push(line);
+        } else {
+          if (!inP) { htmlLines.push('<p>'); inP = true; }
+          htmlLines.push(line + '<br/>');
+        }
+      });
+      if (inP) htmlLines.push('</p>');
+      
+      body = htmlLines.join('\n');
+      
+      // แปลงส่วน ## Notes ให้เป็น HTML Section สวยๆ
+      if (notesMatch) {
+         body = body.replace(/<h2>Notes<\/h2>[\s\S]*$/, '');
+         let notesHtml = '<div class="article-notes-section"><div class="notes-title">Footnotes / อ้างอิง</div>';
+         for (const [key, val] of Object.entries(notesDict)) {
+           // ทำให้ลิงก์ (Arabic text) ใน Notes เป็นลิงก์ที่คลิกแล้วรูปเด้ง
+           let noteText = val.replace(/\((Arabic text|ข้อความภาษาอาหรับ)\)/gi, '<a href="#">(Arabic text)</a>');
+           // แปลงลิงก์ http ธรรมดาเป็น a href
+           noteText = noteText.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+           notesHtml += `<div class="article-note-item" id="note-${key}" style="transition: background-color 0.5s"><span class="article-note-badge">${key}</span><div>${noteText}</div></div>`;
+         }
+         notesHtml += '</div>';
+         body += notesHtml;
+      }
+    }
+    
+    // สร้าง TOC และใส่ id ให้ h2, h3
+    let counter = 0;
+    body = body.replace(/<(h[23])([^>]*)>(.*?)<\/\1>/gi, (match, tag, attrs, content) => {
+      const id = `toc-${counter++}`;
+      const level = tag.toLowerCase() === 'h2' ? 2 : 3;
+      const title = content.replace(/<[^>]+>/g, '');
+      tocList.push({ id, title, level });
+      
+      if (!isHtml) { // ใส่สไตล์ให้ Plaintext เดิม
+        if (level === 2 && !attrs.includes('id=')) {
+           return `<${tag} id="${id}" style="margin-top: 40px; margin-bottom: 20px; font-size: 24px; color: var(--teal); font-weight: 700; background: linear-gradient(90deg, rgba(20,184,166,0.15) 0%, transparent 100%); padding: 10px 16px; border-radius: 12px; border-left: 5px solid var(--teal)">${content}</${tag}>`;
+        } else if (level === 3 && !attrs.includes('id=')) {
+           return `<${tag} id="${id}" style="margin-top: 28px; margin-bottom: 12px; font-size: 19px; color: var(--text); font-weight: 600"><span style="color: var(--acc); margin-right: 8px">✿</span>${content}</${tag}>`;
+        }
+      } else { // HTML จาก Quill
+        if (!attrs.includes('id=')) {
+           return `<${tag} id="${id}" ${attrs}>${content}</${tag}>`;
+        }
+      }
+      return match;
+    });
+
+    return { toc: tocList, finalHtml: body };
+  }, [displayItem.body]);
+
+  // ระบบดักจับการคลิก (Smart Click Interceptor)
+  const handleArticleClick = (e) => {
+    const a = e.target.closest('a');
+    if (a) {
+      const href = a.getAttribute('href');
+      const text = a.textContent.toLowerCase();
+      // 1. เช็คว่าเป็น Image หรือคำว่า Arabic text
+      if (text.includes('arabic text') || text.includes('อาหรับ') || (href && href.match(/\.(jpeg|jpg|gif|png)$/i))) {
+        e.preventDefault();
+        // ถ้าระบุลิงก์รูปมาให้ใช้ลิงก์นั้น ถ้าไม่ให้ใช้รูป dummy ไปก่อน
+        setModalImage(href && href.startsWith('http') ? href : '/placeholder-arabic.jpg');
+      }
+      // 2. เช็คว่าเป็นลิงก์เชิงอรรถ (#note-1)
+      else if (href && href.startsWith('#note-')) {
+        e.preventDefault();
+        const el = document.getElementById(href.substring(1));
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - 100;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+          el.style.backgroundColor = 'rgba(245,158,11,0.2)';
+          setTimeout(() => el.style.backgroundColor = 'transparent', 2000);
+        }
+      }
     }
   };
-
-  const lines = (displayItem.body || "").split(/\r?\n/);
-  lines.forEach((line, index) => {
-    const trimmed = line.trim();
-    const matchH3 = trimmed.match(/^###([^#].*)$/);
-    if (matchH3) {
-      flushParagraph(index);
-      const title = matchH3[1].trim();
-      const id = `toc-${index}`;
-      toc.push({ id, title, level: 3 });
-      parsedBody.push(
-        <h3 key={`h3-${index}`} id={id} style={{ marginTop: 28, marginBottom: 12, fontSize: 19, color: "var(--text)", fontWeight: 600 }}>
-          <span style={{ color: "var(--acc)", marginRight: 8 }}>✿</span>{title}
-        </h3>
-      );
-      return;
-    }
-    const matchH2 = trimmed.match(/^##([^#].*)$/);
-    if (matchH2) {
-      flushParagraph(index);
-      const title = matchH2[1].trim();
-      const id = `toc-${index}`;
-      toc.push({ id, title, level: 2 });
-      parsedBody.push(
-        <h2 key={`h2-${index}`} id={id} style={{ 
-          marginTop: 40, marginBottom: 20, fontSize: 24, color: "var(--teal)", fontWeight: 700,
-          background: "linear-gradient(90deg, rgba(20,184,166,0.15) 0%, transparent 100%)",
-          padding: "10px 16px", borderRadius: 12, borderLeft: "5px solid var(--teal)"
-        }}>
-          {title}
-        </h2>
-      );
-      return;
-    }
-
-    if (trimmed === "") {
-      flushParagraph(index);
-    } else {
-      currentParagraphLines.push(line);
-    }
-  });
-  flushParagraph(lines.length);
 
   const related = relatedArticles
   const readerClass = `article-body reader-size-${readerPrefs.size} reader-tone-${readerPrefs.tone}`
@@ -461,7 +530,12 @@ export default function ArticleDetail({ item, go, authState }) {
         </div>
       )}
 
-      <div className={`${readerClass} animate-float-cute`} style={{ scrollBehavior: "smooth", animationDelay: "0.4s", padding: "16px 20px" }}>{parsedBody}</div>
+      <div 
+        className={`${readerClass} animate-float-cute`} 
+        style={{ scrollBehavior: "smooth", animationDelay: "0.4s", padding: "16px 20px" }}
+        onClick={handleArticleClick}
+        dangerouslySetInnerHTML={{ __html: finalHtml }} 
+      />
 
       {displayItem.tags && displayItem.tags.length > 0 && (
         <div style={{ marginTop: 32, display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -556,6 +630,28 @@ export default function ArticleDetail({ item, go, authState }) {
                 <i className="ti ti-arrow-right" style={{ color: "var(--t3)", flexShrink: 0 }}></i>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal for Arabic Text and Image Links */}
+      {modalImage && (
+        <div className="image-modal-overlay" onClick={() => setModalImage(null)}>
+          <div className="image-modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ background: "#fff", padding: "8px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>รูปภาพอ้างอิง</span>
+              <button onClick={() => setModalImage(null)} style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "var(--t2)" }}>✕</button>
+            </div>
+            {/* ถ้าเป็น placeholder ให้แสดงข้อความแทน */}
+            {modalImage === '/placeholder-arabic.jpg' ? (
+              <div style={{ padding: 40, background: "#fff", textAlign: "center", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, minWidth: 300 }}>
+                <i className="ti ti-photo" style={{ fontSize: 40, color: "var(--t3)", marginBottom: 16 }}></i>
+                <div style={{ fontSize: 16, fontWeight: 500 }}>ระบบแสดงรูปภาพพร้อมใช้งาน</div>
+                <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 8 }}>แอดมินสามารถแนบลิงก์รูปภาพในหน้าจัดการบทความได้เลย</div>
+              </div>
+            ) : (
+              <img src={modalImage} alt="Reference" style={{ display: "block", maxWidth: "100%", maxHeight: "80vh", objectFit: "contain", borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }} />
+            )}
           </div>
         </div>
       )}

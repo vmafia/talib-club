@@ -3104,3 +3104,121 @@ input:focus, select:focus, textarea:focus {
   animation: skeletonShimmer 1.5s infinite;
 }
 
+/* ============================================================ */
+/*  ARTICLE READER RICH TEXT STYLES (ArticleDetail)             */
+/* ============================================================ */
+
+/* Blockquote styles (abuiyaad style) */
+.article-body blockquote {
+  position: relative;
+  margin: 1.5em 0;
+  padding: 15px 20px 15px 45px;
+  background-color: transparent;
+  border-left: 3px solid #e2e8f0;
+  color: var(--t2);
+  font-style: normal;
+  line-height: 1.7;
+}
+.article-body blockquote::before {
+  content: '\u201C';
+  position: absolute;
+  left: 5px;
+  top: 5px;
+  font-family: Arial, serif;
+  font-size: 60px;
+  color: #cbd5e1;
+  line-height: 1;
+}
+
+/* Quran & Hadith specific highlight blocks (using classes added via parseLegacyArticle or specific colors) */
+.article-body .quran-block {
+  border-left: 4px solid var(--acc);
+  background: rgba(245,158,11,0.05);
+  padding: 16px 20px;
+  border-radius: 0 8px 8px 0;
+  margin: 1.5em 0;
+  color: var(--text);
+  font-weight: 500;
+}
+.article-body .hadith-block {
+  border-left: 4px solid var(--teal);
+  background: rgba(20,184,166,0.05);
+  padding: 16px 20px;
+  border-radius: 0 8px 8px 0;
+  margin: 1.5em 0;
+  color: var(--text);
+}
+
+/* Footnote Superscript */
+.article-body sup, .article-body .footnote-link {
+  font-size: 0.75em;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+  top: -0.5em;
+  margin-left: 2px;
+}
+.article-body sup a, .article-body a.footnote-link {
+  color: var(--teal);
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.article-body sup a:hover, .article-body a.footnote-link:hover {
+  text-decoration: underline;
+}
+
+/* Notes Section at the bottom */
+.article-notes-section {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--br);
+}
+.article-notes-section h3, .article-notes-section .notes-title {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: var(--t2);
+  margin-bottom: 16px;
+}
+.article-note-item {
+  display: flex;
+  margin-bottom: 12px;
+  font-size: 0.9em;
+  color: var(--t2);
+  line-height: 1.6;
+}
+.article-note-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--acc);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: 12px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Image Modal Styles */
+.image-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+  cursor: zoom-out;
+}
+.image-modal-content {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  cursor: default;
+}
