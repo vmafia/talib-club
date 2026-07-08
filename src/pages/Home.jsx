@@ -58,11 +58,13 @@ const SURAH_NAMES = {
 
 export default function Home({ go }) {
   // Articles should reflect the current Firestore state immediately.
-  const articleQueryOptions = useMemo(() => ({ live: true, limit: 6 }), [])
-  const readOnlyQueryOptions = useMemo(() => ({ live: false, limit: 6 }), [])
+  const articleQueryOptions = useMemo(() => ({ live: true, limit: 6, orderByField: "createdAt", orderDirection: "desc" }), [])
+  const bookQueryOptions = useMemo(() => ({ live: false, limit: 6, orderByField: "createdAt", orderDirection: "desc" }), [])
+  const mediaQueryOptions = useMemo(() => ({ live: false, limit: 6, orderByField: "date", orderDirection: "desc" }), [])
+  
   const { items: articles, loading: loadingArticles } = useContentCollection("articles", ARTICLES, null, articleQueryOptions)
-  const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, readOnlyQueryOptions)
-  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, readOnlyQueryOptions)
+  const { items: books, loading: loadingBooks } = useContentCollection("books", BOOKS, null, bookQueryOptions)
+  const { items: media, loading: loadingMedia } = useContentCollection("media", MEDIA, null, mediaQueryOptions)
   const { count: scholarCount } = useCollectionCount("scholars")
   const { count: articleCount } = useCollectionCount("articles")
   const { count: bookCount } = useCollectionCount("books")
@@ -200,10 +202,10 @@ export default function Home({ go }) {
       {/* STATS */}
       <div className="grid4" style={{ marginBottom:32 }}>
         {[
-          { n: scholarCount + "+", l: "ทำเนียบบุคคล", icon: "ti-address-book" },
-          { n: articleCount + "+", l: "บทความ", icon: "ti-file-text" },
-          { n: bookCount + "+", l: "หนังสือ/วารสาร", icon: "ti-books" },
-          { n: mediaCount + "+", l: "มีเดีย", icon: "ti-player-play" },
+          { n: scholarCount, l: "ทำเนียบบุคคล", icon: "ti-address-book" },
+          { n: articleCount, l: "บทความ", icon: "ti-file-text" },
+          { n: bookCount, l: "หนังสือ/วารสาร", icon: "ti-books" },
+          { n: mediaCount, l: "มีเดีย", icon: "ti-player-play" },
         ].map((s, i) => (
           <div key={i} className="card" style={{ padding:"16px", textAlign:"center" }}>
             <i className={`ti ${s.icon}`} style={{ fontSize:20, color:"var(--teal)", display:"block", marginBottom:6 }}></i>

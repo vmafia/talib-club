@@ -522,13 +522,36 @@ export default function StaffWork({ authState, go }) {
       </div>
 
       {/* ━━━ TABS NAVIGATION ━━━ */}
-      <div className="staff-tabs" style={{ display: "flex", gap: "8px", marginBottom: "24px", overflowX: "auto", whiteSpace: "nowrap", paddingBottom: "8px", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -clamp(12px, 3vw, 24px)", padding: "0 clamp(12px, 3vw, 24px)" }}>
-        <button className={`pill ${tab === "dashboard" ? "on" : ""}`} onClick={() => setTab("dashboard")}>📊 แดชบอร์ดติดตามงาน</button>
-        <button className={`pill ${tab === "submit" ? "on" : ""}`} onClick={() => setTab("submit")}>📤 โยนไฟล์ส่งงาน</button>
-        <button className={`pill ${tab === "tasks" ? "on" : ""}`} onClick={() => setTab("tasks")}>📋 มอบหมายงาน</button>
-        <button className={`pill ${tab === "calendar" ? "on" : ""}`} onClick={() => setTab("calendar")}>📅 ปฏิทินลงโพสต์</button>
-        <button className={`pill ${tab === "magazine" ? "on" : ""}`} onClick={() => setTab("magazine")}>📚 คิววารสาร</button>
-        {isAdmin && <button className={`pill ${tab === "admin" ? "on" : ""}`} onClick={() => setTab("admin")}>⚙️ ตั้งค่าระบบ</button>}
+      <div className="staff-tabs" style={{ display: "flex", gap: "20px", marginBottom: "24px", overflowX: "auto", whiteSpace: "nowrap", borderBottom: "1px solid var(--br2)", margin: "0 -clamp(12px, 3vw, 24px)", padding: "0 clamp(12px, 3vw, 24px)", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        {[
+          { id: "dashboard", icon: "📊", label: "แดชบอร์ดติดตามงาน" },
+          { id: "submit", icon: "📤", label: "โยนไฟล์ส่งงาน" },
+          { id: "tasks", icon: "📋", label: "มอบหมายงาน" },
+          { id: "calendar", icon: "📅", label: "ปฏิทินลงโพสต์" },
+          { id: "magazine", icon: "📚", label: "คิววารสาร" },
+          ...(isAdmin ? [{ id: "admin", icon: "⚙️", label: "ตั้งค่าระบบ" }] : [])
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderBottom: tab === t.id ? "2px solid var(--teal)" : "2px solid transparent",
+              color: tab === t.id ? "var(--teal)" : "var(--t2)",
+              padding: "12px 4px",
+              fontSize: "14px",
+              fontWeight: tab === t.id ? 600 : 400,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              gap: 6
+            }}
+          >
+            <span>{t.icon}</span> {t.label}
+          </button>
+        ))}
       </div>
 
       <div style={{ minHeight: "400px" }}>

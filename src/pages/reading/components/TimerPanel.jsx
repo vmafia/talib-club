@@ -12,7 +12,8 @@ export default function TimerPanel({
   saving,
   saveReadingProgress,
   MIN_VERIFIED_SECONDS,
-  MIN_REFLECTION_CHARS
+  MIN_REFLECTION_CHARS,
+  onOpenBook
 }) {
   return (
     <div className="card reader-form-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", height: "100%" }}>
@@ -33,6 +34,16 @@ export default function TimerPanel({
         <i className="ti ti-alert-triangle" style={{ marginRight: 6 }}></i>
         <strong>โปรดทราบ:</strong> คุณต้องสะสมเวลาให้ครบ {Math.round(MIN_VERIFIED_SECONDS / 60)} นาทีขึ้นไป, ระบุเลขหน้าให้ถูกต้อง และบันทึกข้อคิดอย่างน้อย {MIN_REFLECTION_CHARS} ตัวอักษร จึงจะสามารถกดบันทึกความคืบหน้าได้ หากคุณกด "ออก" ก่อนกดบันทึก เวลาและสถิติทั้งหมดในรอบนี้จะสูญหายทันที
       </div>
+      
+      {onOpenBook && (
+        <button 
+          onClick={onOpenBook} 
+          className="mobile-only-btn btn btn-outline"
+          style={{ width: "100%", padding: "12px 0", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, border: "2px solid var(--teal)", color: "var(--teal)", fontWeight: 600, background: "var(--teal-bg)", borderRadius: 10 }}
+        >
+          <i className="ti ti-book-open" style={{ fontSize: 16 }}></i> 📖 เปิดหน้าหนังสือเพื่อเริ่มอ่าน
+        </button>
+      )}
 
       {/* Dynamic Checklist HUD */}
       <div style={{

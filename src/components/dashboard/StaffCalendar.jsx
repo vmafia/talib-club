@@ -170,12 +170,14 @@ export default function StaffCalendar({ currentUser, staffTeam, sendBotNotificat
                   cursor: "pointer",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 4
+                  gap: 4,
+                  minWidth: 0,
+                  overflow: "hidden"
                 }}
                 className="calendar-day"
               >
                 <div style={{ fontWeight: "bold", fontSize: 14, color: isToday ? "var(--teal)" : "var(--text)" }}>{day}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", flex: 1 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto", overflowX: "hidden", flex: 1, minWidth: 0 }}>
                   {dayEvents.map(ev => {
                     const plats = ev.platforms || [ev.platform || "Facebook"]
                     return plats.map(p => (

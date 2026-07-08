@@ -307,14 +307,26 @@ export default function AdminArticles() {
           />
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button onClick={() => setTypeFilter("all")} className={`pill ${typeFilter === "all" ? "on-acc" : ""}`} style={{ padding: "8px 16px" }}>ทั้งหมด</button>
+        <select 
+          value={typeFilter} 
+          onChange={e => setTypeFilter(e.target.value)}
+          style={{ 
+            background: "var(--bg2)", 
+            border: "1px solid var(--br)", 
+            borderRadius: 24, 
+            padding: "0 16px", 
+            fontSize: 13, 
+            color: "var(--text)",
+            height: 38,
+            cursor: "pointer",
+            width: "auto"
+          }}
+        >
+          <option value="all">-- ทุกประเภท --</option>
           {(taxonomy.articleTypes || []).map(type => (
-            <button key={type.id} onClick={() => setTypeFilter(type.id)} className={`pill ${typeFilter === type.id ? "on-acc" : ""}`} style={{ padding: "8px 16px" }}>
-              {type.label}
-            </button>
+            <option key={type.id} value={type.id}>{type.label}</option>
           ))}
-        </div>
+        </select>
 
         {/* ✅ กล่องตัวกรองซีรีส์ (แสดงเมื่อเลือกประเภทซีรีส์) */}
         {isSeriesType(typeFilter) && (

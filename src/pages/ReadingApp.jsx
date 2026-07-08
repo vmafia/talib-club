@@ -989,11 +989,17 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
                 display: ${activeMobileTab === "form" ? "flex" : "none"} !important;
                 height: 100% !important;
               }
+              .mobile-only-btn {
+                display: flex !important;
+              }
+            }
+            .mobile-only-btn {
+              display: none !important;
             }
           `}} />
 
           {/* Left Panel: Reading Log Panel */}
-                    <TimerPanel
+          <TimerPanel
             seconds={seconds}
             displayTimer={displayTimer}
             startPage={startPage}
@@ -1006,6 +1012,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
             saveReadingProgress={saveReadingProgress}
             MIN_VERIFIED_SECONDS={MIN_VERIFIED_SECONDS}
             MIN_REFLECTION_CHARS={MIN_REFLECTION_CHARS}
+            onOpenBook={() => setActiveMobileTab("preview")}
           />
 
           {/* Right Panel: Embedded Google Preview Viewer */}
