@@ -53,7 +53,7 @@ export default function StaffCalendar({ currentUser, staffTeam, sendBotNotificat
     }
     
     try {
-      const dateStr = selectedDate.toISOString().split("T")[0]
+      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
       if (editingId) {
         await updateDoc(doc(db, "content_calendar", editingId), {
           ...form,
@@ -167,10 +167,13 @@ export default function StaffCalendar({ currentUser, staffTeam, sendBotNotificat
           ))}
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const day = i + 1
+            const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
             const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-            const dateStr = d.toISOString().split("T")[0]
             const dayEvents = events.filter(e => e.date === dateStr)
-            const isToday = new Date().toISOString().split("T")[0] === dateStr
+            
+            const today = new Date()
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+            const isToday = todayStr === dateStr
 
             return (
               <div 
