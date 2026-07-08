@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 
-if (!admin.apps.length) {
+if (!admin.getApps().length) {
   try {
     // Initialize with service account JSON if provided in env
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
