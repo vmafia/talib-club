@@ -2727,6 +2727,201 @@ body.menu-open {
 }
 
 .reader-btn.on {
+}
+
+/* --- MOBILE UX IMPROVEMENTS --- */
+@media (max-width: 767px) {
+  /* Prevent iOS Auto-Zoom on inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+    padding: 12px 14px;
+  }
+  
+  /* Reduce global padding on mobile to save space */
+  .card {
+    padding: 16px !important;
+  }
+  
+  /* Bigger touch targets for buttons */
+  .btn {
+    min-height: 44px;
+  }
+  
+  /* Touch feedback active state */
+  .btn:active, button:active, a.card:active, .article-card:active {
+    transform: scale(0.97);
+    transition: transform 0.1s;
+  }
+  
+  /* Ensure admin sidebar dropdown is tall enough */
+  .admin-mobile-select-wrapper select {
+    min-height: 48px;
+    font-size: 16px !important;
+  }
+}
+
+/* Ensure mobile menu locks body scroll */
+body.menu-open {
+  overflow: hidden !important;
+}
+
+/* ━━━ CUTE ANIMATIONS & UI STYLES ━━━ */
+@keyframes floatUpCute {
+  0% { transform: translateY(15px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulseSoftCute {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+.animate-float-cute {
+  animation: floatUpCute 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-pulse-cute {
+  animation: pulseSoftCute 2.5s infinite ease-in-out;
+}
+
+.hover-wiggle:hover {
+  animation: wiggle 0.4s ease-in-out;
+}
+
+/* Hover effects for buttons and cards */
+.btn:hover, .filter-pill:hover, .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 110, 86, 0.12);
+}
+
+.btn:active {
+  transform: scale(0.96) translateY(0);
+}
+
+/* ━━━ CUTE ARTICLE READER STYLES ━━━ */
+.reader-content {
+  position: relative;
+  border-radius: 16px;
+  background: var(--bg);
+}
+
+.reader-content p {
+  line-height: 1.85;
+  margin-bottom: 24px;
+  color: var(--text);
+  font-size: 1.05em;
+  transition: all 0.3s ease;
+}
+
+/* Drop cap for first paragraph */
+.reader-content p:first-of-type::first-letter {
+  font-size: 3.5em;
+  float: left;
+  line-height: 0.85;
+  margin-right: 12px;
+  margin-top: 4px;
+  color: var(--teal);
+  font-weight: 700;
+  text-shadow: 2px 2px 0px rgba(15, 110, 86, 0.15);
+  font-family: serif;
+}
+
+/* Quote blocks */
+.reader-content blockquote {
+  background: linear-gradient(135deg, rgba(15, 110, 86, 0.08) 0%, rgba(15, 110, 86, 0.02) 100%);
+  border-left: 5px solid var(--teal);
+  padding: 24px 28px;
+  border-radius: 0 16px 16px 0;
+  margin: 32px 0;
+  font-style: italic;
+  position: relative;
+  overflow: hidden;
+  color: var(--t2);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+}
+
+.reader-content blockquote::before {
+  content: '"';
+  position: absolute;
+  top: -15px;
+  right: 15px;
+  font-size: 100px;
+  color: rgba(15, 110, 86, 0.06);
+  font-family: serif;
+  line-height: 1;
+}
+
+/* Headers inside article */
+.reader-content h2, .reader-content h3 {
+  color: var(--teal);
+  position: relative;
+  display: inline-block;
+  margin-bottom: 20px;
+  margin-top: 40px;
+  font-weight: 700;
+}
+
+.reader-content h2::after, .reader-content h3::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 40%;
+  height: 4px;
+  background: var(--teal);
+  border-radius: 4px;
+  opacity: 0.4;
+  transition: width 0.3s ease;
+}
+
+.reader-content h2:hover::after, .reader-content h3:hover::after {
+  width: 100%;
+}
+
+/* Cute Reader Controls */
+.reader-tools {
+  background: var(--bg2);
+  border-radius: 100px;
+  padding: 6px;
+  display: inline-flex;
+  gap: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  margin-bottom: 24px;
+}
+
+.reader-control {
+  display: flex;
+  background: var(--card);
+  border-radius: 100px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.reader-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--t2);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: 100px;
+  margin: 2px;
+}
+
+.reader-btn:hover {
+  background: rgba(15, 110, 86, 0.1);
+  color: var(--teal);
+}
+
+.reader-btn.on {
   background: var(--teal);
   color: #fff;
   box-shadow: 0 2px 8px rgba(15, 110, 86, 0.3);
@@ -2739,4 +2934,80 @@ body.menu-open {
   background-repeat: no-repeat;
   background-size: 100% 30%;
   background-position: 0 85%;
+}
+
+/* ━━━ GLOBAL STAGGERED FADE-IN (Cute & Smooth) ━━━ */
+@keyframes fadeInSoft {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Make pages transition smoothly */
+#root > div > main, .main-content, .dashboard-content, .page-wrapper {
+  animation: fadeInSoft 0.5s ease-out forwards;
+}
+
+/* All cards gracefully enter the screen */
+.card, .article-card, .scholar-card, .scholar-skeleton-card, .member-card {
+  animation: fadeInSoft 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-fill-mode: both;
+}
+
+/* Staggered delay for grid elements (up to 12 items for smooth loading waterfall) */
+.card:nth-child(1), .article-card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2), .article-card:nth-child(2) { animation-delay: 0.10s; }
+.card:nth-child(3), .article-card:nth-child(3) { animation-delay: 0.15s; }
+.card:nth-child(4), .article-card:nth-child(4) { animation-delay: 0.20s; }
+.card:nth-child(5), .article-card:nth-child(5) { animation-delay: 0.25s; }
+.card:nth-child(6), .article-card:nth-child(6) { animation-delay: 0.30s; }
+.card:nth-child(7), .article-card:nth-child(7) { animation-delay: 0.35s; }
+.card:nth-child(8), .article-card:nth-child(8) { animation-delay: 0.40s; }
+.card:nth-child(9), .article-card:nth-child(9) { animation-delay: 0.45s; }
+.card:nth-child(10), .article-card:nth-child(10) { animation-delay: 0.50s; }
+.card:nth-child(11), .article-card:nth-child(11) { animation-delay: 0.55s; }
+.card:nth-child(12), .article-card:nth-child(12) { animation-delay: 0.60s; }
+.card:nth-child(n+13), .article-card:nth-child(n+13) { animation-delay: 0.65s; }
+
+/* Subtle pulse for active filter pills */
+.filter-pill.active {
+  animation: pulseSoftCute 2.5s infinite ease-in-out;
+  box-shadow: 0 4px 12px rgba(15, 110, 86, 0.2);
+}
+
+/* Image zoom effect on hover */
+.article-card img, .card img {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.article-card:hover img, .card:hover img {
+  transform: scale(1.04);
+}
+
+/* Input / Select focus glow */
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px rgba(15, 110, 86, 0.15);
+  transform: translateY(-1px);
+}
+
+/* Global button shine effect (subtle) */
+.btn-teal, .btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-teal::after, .btn-primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-20deg);
+  transition: none;
+}
+.btn-teal:hover::after, .btn-primary:hover::after {
+  animation: shine 1.2s ease-out;
+}
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 200%; }
 }
