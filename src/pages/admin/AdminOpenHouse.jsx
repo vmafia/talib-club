@@ -265,12 +265,15 @@ export default function AdminOpenHouse() {
 
   return (
     <div className="card" style={{ padding: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <i className="ti ti-book-2" style={{ color: "var(--teal)" }}></i> จัดการแหล่งเรียนรู้ (Open House)
-        </h2>
-        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ padding: "6px 12px", fontSize: 13 }}>
-          + เพิ่มแหล่งเรียนรู้ใหม่
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+        <div style={{ flex: "1 1 min-content", minWidth: 220 }}>
+          <h2 style={{ fontSize: 24, margin: 0, color: "var(--text)", display: "flex", alignItems: "center", gap: 10, lineHeight: 1.3 }}>
+            <i className="ti ti-building-community" style={{ color: "var(--teal)", padding: 8, background: "var(--teal-bg)", borderRadius: 12 }}></i>
+            จัดการแหล่งเรียนรู้ (Open House)
+          </h2>
+        </div>
+        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 12, fontWeight: 600, flexShrink: 0 }}>
+          <i className="ti ti-plus"></i> เพิ่มแหล่งเรียนรู้ใหม่
         </button>
       </div>
 
@@ -444,31 +447,31 @@ export default function AdminOpenHouse() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {booths.map(b => (
-            <div key={b.id} className="card" style={{ background: "var(--bg2)", padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: b.themeColor || "var(--t3)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            <div key={b.id} className="card" style={{ background: "var(--bg2)", padding: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: "1 1 min-content", minWidth: 250 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: b.themeColor || "var(--t3)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0, border: "2px solid var(--br)" }}>
                   {b.logoUrl ? (
                     <img src={b.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
-                    <i className="ti ti-photo" style={{ color: "#fff" }}></i>
+                    <i className="ti ti-photo" style={{ color: "#fff", fontSize: 20 }}></i>
                   )}
                 </div>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: 15 }}>{b.name}</h4>
-                  <div style={{ fontSize: 12, color: "var(--t2)", marginTop: 4, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  <h4 style={{ margin: "0 0 6px 0", fontSize: 17, color: "var(--text)" }}>{b.name}</h4>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(b.platforms || (b.platform ? [b.platform] : [])).map(p => (
-                      <span key={p} className="badge" style={{ marginRight: 2 }}>{p}</span>
+                      <span key={p} style={{ fontSize: 11, padding: "2px 8px", background: "var(--bg)", border: "1px solid var(--br)", borderRadius: 20, color: "var(--t2)" }}>{p}</span>
                     ))}
-                    {b.language && <span className="badge" style={{ marginLeft: 4 }}>{b.language}</span>}
+                    {b.language && <span style={{ fontSize: 11, padding: "2px 8px", background: "var(--bg)", border: "1px solid var(--br)", borderRadius: 20, color: "var(--t2)" }}>{b.language}</span>}
                   </div>
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-outline" onClick={() => setActiveBooth(b)} style={{ padding: "4px 8px", fontSize: 12 }}>
-                  <i className="ti ti-folder" style={{ marginRight: 4 }}></i>จัดการหมวดหมู่เนื้อหา
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
+                <button className="btn btn-outline" onClick={() => setActiveBooth(b)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 10, fontSize: 13 }}>
+                  <i className="ti ti-folder"></i> จัดการหมวดหมู่เนื้อหา
                 </button>
-                <button className="btn btn-outline" onClick={() => openEditBooth(b)} style={{ padding: "4px 8px", fontSize: 12 }}>แก้ไข</button>
-                <button className="btn btn-danger" onClick={() => handleDeleteBooth(b.id)} style={{ padding: "4px 8px", fontSize: 12, background: "none", color: "var(--red)", border: "none" }}>ลบ</button>
+                <button className="btn btn-outline" onClick={() => openEditBooth(b)} style={{ padding: "6px 12px", borderRadius: 10, fontSize: 13 }}>แก้ไข</button>
+                <button className="btn btn-outline" onClick={() => handleDeleteBooth(b.id)} style={{ padding: "6px 12px", borderRadius: 10, fontSize: 13, color: "var(--red)", borderColor: "rgba(220,38,38,0.2)" }}>ลบ</button>
               </div>
             </div>
           ))}
