@@ -34,15 +34,10 @@ export default function ReadingDashboard(props) {
     hasConfiguredNotif,
     notifEnabled, setNotifEnabled,
     notifTime, setNotifTime,
-    saveNotifSettings,
     streakSettings,
     streak,
-    todayKey,
     todaySeconds, goalPercent,
     DAILY_READING_GOAL_MINUTES,
-    showShop, setShowShop,
-    inventory, setInventory,
-    useFreeze, useLeave,
     activeQuizShelfItem, setActiveQuizShelfItem
   } = props;
 

@@ -12,6 +12,26 @@ import { useReadingTimer } from "./reading/hooks/useReadingTimer.js"
 import { TutorialModal } from "./reading/components/TutorialModal.jsx"
 import { QuizModal } from "./reading/components/QuizModal.jsx"
 import { MissionRow } from "./reading/components/MissionRow.jsx"
+import ReadingDashboard from "./reading/components/ReadingDashboard.jsx"
+import TimerPanel from "./reading/components/TimerPanel.jsx"
+
+// --- Helper Functions ---
+function sanitizeStorageName(name) {
+  return String(name || "book.pdf")
+    .replace(/[^\w.\-ก-๙]+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 90)
+}
+
+const DAILY_READING_GOAL_MINUTES = 10
+const MIN_VERIFIED_SECONDS = 180
+const MIN_REFLECTION_CHARS = 20
+const DEFAULT_FREEZE_CREDITS = 2
+const DEFAULT_LEAVE_CREDITS = 1
+
+// --- Helper Functions ---
+function getMs(val) {
+  if (!val) return 0
   if (typeof val.toDate === "function") return val.toDate().getTime()
   if (val.seconds) return val.seconds * 1000
   if (typeof val === "number") return val
@@ -1189,15 +1209,11 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
       hasConfiguredNotif={hasConfiguredNotif}
       notifEnabled={notifEnabled} setNotifEnabled={setNotifEnabled}
       notifTime={notifTime} setNotifTime={setNotifTime}
-      saveNotifSettings={saveNotifSettings}
       streakSettings={streakSettings}
       streak={streak}
       todayKey={todayKey()}
       todaySeconds={todaySeconds} goalPercent={goalPercent}
       DAILY_READING_GOAL_MINUTES={DAILY_READING_GOAL_MINUTES}
-      showShop={showShop} setShowShop={setShowShop}
-      inventory={inventory} setInventory={setInventory}
-      useFreeze={useFreeze} useLeave={useLeave}
       activeQuizShelfItem={activeQuizShelfItem} setActiveQuizShelfItem={setActiveQuizShelfItem}
     />
   );
