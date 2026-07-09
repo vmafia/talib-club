@@ -531,15 +531,59 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const [uploadingImage, setUploadingImage] = useState(false)
   
   const quillModules = useMemo(() => ({
-    toolbar: [
-      [{ 'header': [2, 3, false] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      ['blockquote'],
-      [{ 'script': 'sub'}, { 'script': 'super' }],
-      [{ 'color': [] }, { 'background': [] }],
-      ['link', 'image'],
-      ['clean']
-    ],
+    toolbar: {
+      container: [
+        [{ 'header': [2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote'],
+        [{ 'script': 'sub'}, { 'script': 'super' }],
+        [{ 'color': [] }, { 'background': [] }],
+        ['link', 'image'],
+        ['clean'],
+        ['insertFootnote', 'insertQuran']
+      ],
+      handlers: {
+        insertQuran: function() {
+          const quill = this.quill;
+          const sura = window.prompt("กรุณาใส่เลขซูเราะห์ (เช่น 2 สำหรับอัล-บะเกาะเราะฮฺ):");
+          if (!sura) return;
+          const ayah = window.prompt(`กรุณาใส่เลขอายะฮ์ในซูเราะห์ที่ ${sura} (เช่น 255):`);
+          if (!ayah) return;
+
+          const range = quill.getSelection(true);
+          const linkText = `[อัลกุรอาน ${sura}:${ayah}]`;
+          
+          quill.insertText(range.index, linkText, 'link', `/quran?sura=${sura}&ayah=${ayah}`);
+          quill.setSelection(range.index + linkText.length);
+        },
+        insertFootnote: function() {
+          const quill = this.quill;
+          const text = window.prompt("กรุณาพิมพ์คำอธิบายเชิงอรรถ (Footnote) สำหรับจุดนี้:");
+          if (!text) return;
+
+          const range = quill.getSelection(true);
+          const content = quill.getText();
+          
+          let nextNum = 1;
+          const matches = content.match(/\[(\d+)\]/g);
+          if (matches && matches.length > 0) {
+            const nums = matches.map(m => parseInt(m.replace(/[\[\]]/g, '')));
+            nextNum = Math.max(...nums) + 1;
+          }
+
+          quill.insertText(range.index, `[${nextNum}]`);
+          // เลื่อนเคอร์เซอร์ไปข้างหลัง
+          quill.setSelection(range.index + `[${nextNum}]`.length + 1);
+          
+          const html = quill.root.innerHTML;
+          if (!html.includes('Notes')) {
+            quill.clipboard.dangerouslyPasteHTML(quill.getLength(), `<p><br></p><h2>Notes</h2><p>${nextNum}. ${text}</p>`);
+          } else {
+            quill.clipboard.dangerouslyPasteHTML(quill.getLength(), `<p>${nextNum}. ${text}</p>`);
+          }
+        }
+      }
+    }
   }), []);
 
   const handleUploadImage = async (e) => {
@@ -696,6 +740,10 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
             .ql-editor { min-height: 360px; font-size: 15px; font-family: inherit; line-height: 1.6; }
             .ql-toolbar.ql-snow { border: none; border-bottom: 1px solid var(--br); background: #f8f9fa; }
             .ql-container.ql-snow { border: none; }
+            .ql-snow .ql-toolbar button.ql-insertFootnote, .ql-snow .ql-toolbar button.ql-insertQuran { width: auto; padding: 0 6px; }
+            .ql-snow .ql-toolbar button.ql-insertFootnote::after { content: "FN"; font-weight: 700; font-size: 13px; color: var(--teal); }
+            .ql-snow .ql-toolbar button.ql-insertQuran::after { content: "QR"; font-weight: 700; font-size: 13px; color: var(--teal); }
+            .ql-snow .ql-toolbar button.ql-insertFootnote:hover::after, .ql-snow .ql-toolbar button.ql-insertQuran:hover::after { color: var(--text); }
           `}</style>
         </div>
       </div>
