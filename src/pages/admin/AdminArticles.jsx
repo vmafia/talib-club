@@ -775,6 +775,24 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const [promptState, setPromptState] = useState(null);
   const reactQuillRef = useRef(null);
 
+  useEffect(() => {
+    promptHandlerRef.current = (type) => {
+      return new Promise((resolve) => {
+        setPromptState({
+          type,
+          onSubmit: (data) => {
+            setPromptState(null);
+            resolve(data);
+          },
+          onClose: () => {
+            setPromptState(null);
+            resolve(null);
+          }
+        });
+      });
+    };
+  }, []);
+
   const quillModules = useMemo(() => ({
     toolbar: {
       container: "#admin-article-toolbar",
@@ -1088,6 +1106,13 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           <i className={`ti ${busy ? "ti-loader-2 spin" : "ti-check"}`} style={{ marginRight: 6 }}></i>{busy ? "กำลังบันทึก..." : "บันทึกบทความ"}
         </button>
       </div>
+
+      <QuillPromptModal 
+        isOpen={!!promptState}
+        type={promptState?.type}
+        onClose={promptState?.onClose || (() => setPromptState(null))}
+        onSubmit={promptState?.onSubmit}
+      />
     </div>
   )
 }
