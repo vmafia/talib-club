@@ -8,16 +8,22 @@ import { getPagePath } from "./utils/url.js"
 
 const lazyWithRetry = (componentImport) => {
   return lazy(() =>
-    componentImport().catch((error) => {
-      console.error("Chunk load failed, forcing page reload...", error);
-      const hasReloaded = window.sessionStorage.getItem("chunk-reload");
-      if (!hasReloaded) {
-        window.sessionStorage.setItem("chunk-reload", "true");
-        window.location.reload();
-        return new Promise(() => {});
-      }
-      throw error;
-    })
+    componentImport()
+      .then((component) => {
+        window.sessionStorage.removeItem("chunk-reload");
+        return component;
+      })
+      .catch((error) => {
+        console.error("Chunk load failed, forcing page reload...", error);
+        const hasReloaded = window.sessionStorage.getItem("chunk-reload");
+        if (!hasReloaded) {
+          window.sessionStorage.setItem("chunk-reload", "true");
+          window.location.reload();
+          return new Promise(() => {});
+        }
+        window.sessionStorage.removeItem("chunk-reload");
+        throw error;
+      })
   );
 };
 
@@ -189,9 +195,7 @@ export default function App() {
   }, [uid, readingSessions])
 
 
-  useEffect(() => {
-    window.sessionStorage.removeItem("chunk-reload");
-  }, [])
+
 
   // --- Dynamic SEO: Title & Canonical URL Management ---
   useEffect(() => {
