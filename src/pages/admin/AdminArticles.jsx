@@ -795,6 +795,7 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const promptHandlerRef = useRef(null);
   const [promptState, setPromptState] = useState(null);
   const reactQuillRef = useRef(null);
+  const lastSelectionRef = useRef(null);
 
   useEffect(() => {
     promptHandlerRef.current = (type) => {
@@ -832,22 +833,22 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
         },
         highlightText: function() {
           const quill = this.quill;
-          const range = quill.getSelection(true);
+          const range = lastSelectionRef.current || quill.getSelection(true);
           if (range && range.length > 0) {
             const currentFormat = quill.getFormat(range);
-            quill.format('highlightText', !currentFormat.highlightText);
+            quill.formatText(range.index, range.length, 'highlightText', !currentFormat.highlightText, 'user');
           } else {
-            window.alert("กรุณาคลุมดำข้อความที่ต้องการไฮไลต์ก่อนครับ");
+            window.alert("กรุณาคลุมข้อความที่ต้องการไฮไลต์ก่อนครับ");
           }
         },
         dropCap: function() {
           const quill = this.quill;
-          const range = quill.getSelection(true);
+          const range = lastSelectionRef.current || quill.getSelection(true);
           if (range && range.length > 0) {
             const currentFormat = quill.getFormat(range);
-            quill.format('dropCap', !currentFormat.dropCap);
+            quill.formatText(range.index, range.length, 'dropCap', !currentFormat.dropCap, 'user');
           } else {
-            window.alert("กรุณาคลุมดำตัวอักษร 1 ตัวที่ต้องการทำ Drop Cap ก่อนครับ");
+            window.alert("กรุณาคลุมตัวอักษร 1 ตัวที่ต้องการทำ Drop Cap ก่อนครับ");
           }
         },
         arabicBlock: function() {
@@ -1104,6 +1105,9 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
               theme="snow"
               value={item.body || ""} 
               onChange={val => set("body", val)}
+              onChangeSelection={(range) => {
+                if (range) lastSelectionRef.current = range;
+              }}
               modules={quillModules}
               style={{ minHeight: 360 }}
               placeholder="พิมพ์เนื้อหาบทความที่นี่..."
