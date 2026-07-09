@@ -710,7 +710,7 @@ const QuillPromptModal = ({ isOpen, type, onClose, onSubmit }) => {
   )
 }
 
-const CustomToolbar = ({ onAction }) => (
+const CustomToolbar = React.memo(() => (
   <div id="admin-article-toolbar">
     <span className="ql-formats">
       <select className="ql-header" defaultValue="">
@@ -723,14 +723,14 @@ const CustomToolbar = ({ onAction }) => (
       <button className="ql-bold" />
       <button className="ql-italic" />
       <button className="ql-underline" />
-<button className="ql-align" value="right" data-title="ชิดขวา" />
+      <button className="ql-align" value="right" data-title="ชิดขวา" />
       <button className="ql-align" value="justify" data-title="กระจาย" />
     </span>
     <span className="ql-formats">
       <button className="ql-blockquote" />
-      <button className="ql-arabicBlock" data-title="จัดข้อความภาษาอาหรับ" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('arabicBlock'); }} />
-      <button className="ql-calloutInfo" data-title="กล่องข้อมูล (สีเขียว)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('calloutInfo'); }} />
-      <button className="ql-calloutWarn" data-title="กล่องคำเตือน (สีแดง)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('calloutWarn'); }} />
+      <button className="ql-arabicBlock" data-title="จัดข้อความภาษาอาหรับ" />
+      <button className="ql-calloutInfo" data-title="กล่องข้อมูล (สีเขียว)" />
+      <button className="ql-calloutWarn" data-title="กล่องคำเตือน (สีแดง)" />
     </span>
     <span className="ql-formats">
       <button className="ql-list" value="ordered" />
@@ -743,29 +743,29 @@ const CustomToolbar = ({ onAction }) => (
     <span className="ql-formats">
       <select className="ql-color" />
       <select className="ql-background" />
-      <button className="ql-highlightText" data-title="ไฮไลต์เน้นคำ (HL)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('highlightText'); }} />
-      <button className="ql-dropCap" data-title="ตัวอักษรใหญ่ (Drop Cap)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('dropCap'); }} />
+      <button className="ql-highlightText" data-title="ไฮไลต์เน้นคำ (HL)" />
+      <button className="ql-dropCap" data-title="ตัวอักษรใหญ่ (Drop Cap)" />
     </span>
     <span className="ql-formats">
       <button className="ql-link" />
       <button className="ql-image" />
-      <button className="ql-insertFloatImage" data-title="แทรกรูปภาพชิดขวา" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertFloatImage'); }} />
-      <button className="ql-insertAudio" data-title="แทรกไฟล์เสียง (Audio)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertAudio'); }} />
+      <button className="ql-insertFloatImage" data-title="แทรกรูปภาพชิดขวา" />
+      <button className="ql-insertAudio" data-title="แทรกไฟล์เสียง (Audio)" />
     </span>
     <span className="ql-formats">
       <button className="ql-clean" />
-      <button className="ql-insertDivider" data-title="แทรกเส้นคั่น (Divider)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertDivider'); }} />
+      <button className="ql-insertDivider" data-title="แทรกเส้นคั่น (Divider)" />
     </span>
     <span className="ql-formats">
-      <button className="ql-numberCircle" data-title="ตัวเลขวงกลม (เช่น 01)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('numberCircle'); }} />
+      <button className="ql-numberCircle" data-title="ตัวเลขวงกลม (เช่น 01)" />
     </span>
     <span className="ql-formats">
-      <button className="ql-insertFootnote" data-title="เพิ่มเชิงอรรถ (FN)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertFootnote'); }} />
-      <button className="ql-insertQuran" data-title="แทรกอัลกุรอาน (QR)" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertQuran'); }} />
-      <button className="ql-insertPdf" data-title="แนบไฟล์ PDF" onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAction('insertPdf'); }} />
+      <button className="ql-insertFootnote" data-title="เพิ่มเชิงอรรถ (FN)" />
+      <button className="ql-insertQuran" data-title="แทรกอัลกุรอาน (QR)" />
+      <button className="ql-insertPdf" data-title="แนบไฟล์ PDF" />
     </span>
   </div>
-);
+), () => true);
 
 function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const set = (key, value) => setItem(prev => ({ ...prev, [key]: value }))
@@ -775,125 +775,136 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
   const [promptState, setPromptState] = useState(null);
   const reactQuillRef = useRef(null);
 
-  const handleToolbarAction = async (action) => {
-    const quill = reactQuillRef.current?.getEditor();
-    if (!quill) return;
-
-    if (action === 'numberCircle') {
-      const range = quill.getSelection();
-      if (range && range.length > 0) {
-        const currentFormat = quill.getFormat(range);
-        quill.format('numberCircle', !currentFormat.numberCircle);
-      } else {
-        const data = await promptHandlerRef.current('numberCircle');
-        if (!data || !data.text1) return;
-        const insertRange = quill.getSelection(true);
-        quill.insertText(insertRange.index, data.text1, 'numberCircle', true);
-        quill.setSelection(insertRange.index + data.text1.length);
-      }
-    } else if (action === 'highlightText') {
-      const range = quill.getSelection();
-      if (range && range.length > 0) {
-        const currentFormat = quill.getFormat(range);
-        quill.format('highlightText', !currentFormat.highlightText);
-      } else {
-        window.alert("กรุณาคลุมดำข้อความที่ต้องการไฮไลต์ก่อนครับ");
-      }
-    } else if (action === 'dropCap') {
-      const range = quill.getSelection();
-      if (range && range.length > 0) {
-        const currentFormat = quill.getFormat(range);
-        quill.format('dropCap', !currentFormat.dropCap);
-      } else {
-        window.alert("กรุณาคลุมดำตัวอักษร 1 ตัวที่ต้องการทำ Drop Cap ก่อนครับ");
-      }
-    } else if (action === 'arabicBlock') {
-      const range = quill.getSelection(true);
-      const currentFormat = quill.getFormat(range);
-      quill.format('arabicBlock', !currentFormat.arabicBlock);
-    } else if (action === 'calloutInfo') {
-      const range = quill.getSelection(true);
-      const currentFormat = quill.getFormat(range);
-      quill.format('calloutInfo', !currentFormat.calloutInfo);
-    } else if (action === 'calloutWarn') {
-      const range = quill.getSelection(true);
-      const currentFormat = quill.getFormat(range);
-      quill.format('calloutWarn', !currentFormat.calloutWarn);
-    } else if (action === 'insertDivider') {
-      const range = quill.getSelection(true);
-      quill.insertEmbed(range.index, 'divider', true, 'user');
-      quill.setSelection(range.index + 1);
-    } else if (action === 'insertPdf') {
-      const data = await promptHandlerRef.current('pdf');
-      if (!data || !data.text1) return;
-      const url = data.text1;
-      const title = data.text2 || "PDF Document";
-      const pages = data.text3;
-      const range = quill.getSelection(true);
-      quill.insertEmbed(range.index, 'pdfAttachment', { url, title, pages }, 'user');
-      quill.setSelection(range.index + 1);
-    } else if (action === 'insertFloatImage') {
-      const data = await promptHandlerRef.current('floatImage');
-      if (!data || !data.text1) return;
-      const range = quill.getSelection(true);
-      quill.insertEmbed(range.index, 'floatRightImage', data.text1, 'user');
-      quill.setSelection(range.index + 1);
-    } else if (action === 'insertAudio') {
-      const data = await promptHandlerRef.current('audio');
-      if (!data || !data.text1) return;
-      const range = quill.getSelection(true);
-      quill.insertEmbed(range.index, 'audio', data.text1, 'user');
-      quill.setSelection(range.index + 1);
-    } else if (action === 'insertQuran') {
-      const data = await promptHandlerRef.current('quran');
-      if (!data || !data.text1 || !data.text2) return;
-      const sura = data.text1;
-      const ayah = data.text2;
-      const range = quill.getSelection(true);
-      const linkText = `[อัลกุรอาน ${sura}:${ayah}]`;
-      quill.insertText(range.index, linkText, 'link', `/quran?sura=${sura}&ayah=${ayah}`);
-      quill.setSelection(range.index + linkText.length);
-    } else if (action === 'insertFootnote') {
-      const data = await promptHandlerRef.current('footnote');
-      if (!data || !data.text1) return;
-      const text = data.text1;
-      const range = quill.getSelection(true);
-      const content = quill.getText();
-      let nextNum = 1;
-      const matches = content.match(/\[(\d+)\]/g);
-      if (matches && matches.length > 0) {
-        const nums = matches.map(m => parseInt(m.replace(/[\[\]]/g, '')));
-        nextNum = Math.max(...nums) + 1;
-      }
-      quill.insertText(range.index, `[${nextNum}]`);
-      quill.setSelection(range.index + `[${nextNum}]`.length + 1);
-      const html = quill.root.innerHTML;
-      if (!html.includes('Notes')) {
-        quill.insertText(quill.getLength(), '\nNotes\n', 'header', 3);
-      }
-      quill.insertText(quill.getLength(), `[${nextNum}] ${text}\n`);
-    }
-  };
-
-  useEffect(() => {
-    promptHandlerRef.current = (type) => new Promise(resolve => {
-      setPromptState({ type, resolve });
-    });
-  }, []);
-
-  const handlePromptClose = () => {
-    if (promptState?.resolve) promptState.resolve(null);
-    setPromptState(null);
-  };
-
-  const handlePromptSubmit = (data) => {
-    if (promptState?.resolve) promptState.resolve(data);
-    setPromptState(null);
-  };
-
   const quillModules = useMemo(() => ({
     toolbar: {
-      container: "#admin-article-toolbar"
+      container: "#admin-article-toolbar",
+      handlers: {
+        numberCircle: async function() {
+          const quill = this.quill;
+          const range = quill.getSelection();
+          if (range && range.length > 0) {
+            const currentFormat = quill.getFormat(range);
+            quill.format('numberCircle', !currentFormat.numberCircle);
+          } else {
+            const data = await promptHandlerRef.current('numberCircle');
+            if (!data || !data.text1) return;
+            const insertRange = quill.getSelection(true);
+            quill.insertText(insertRange.index, data.text1, 'numberCircle', true);
+            quill.setSelection(insertRange.index + data.text1.length);
+          }
+        },
+        highlightText: function() {
+          const quill = this.quill;
+          const range = quill.getSelection();
+          if (range && range.length > 0) {
+            const currentFormat = quill.getFormat(range);
+            quill.format('highlightText', !currentFormat.highlightText);
+          } else {
+            window.alert("กรุณาคลุมดำข้อความที่ต้องการไฮไลต์ก่อนครับ");
+          }
+        },
+        dropCap: function() {
+          const quill = this.quill;
+          const range = quill.getSelection();
+          if (range && range.length > 0) {
+            const currentFormat = quill.getFormat(range);
+            quill.format('dropCap', !currentFormat.dropCap);
+          } else {
+            window.alert("กรุณาคลุมดำตัวอักษร 1 ตัวที่ต้องการทำ Drop Cap ก่อนครับ");
+          }
+        },
+        arabicBlock: function() {
+          const quill = this.quill;
+          const range = quill.getSelection(true);
+          const currentFormat = quill.getFormat(range);
+          quill.format('arabicBlock', !currentFormat.arabicBlock);
+        },
+        calloutInfo: function() {
+          const quill = this.quill;
+          const range = quill.getSelection(true);
+          const currentFormat = quill.getFormat(range);
+          quill.format('calloutInfo', !currentFormat.calloutInfo);
+        },
+        calloutWarn: function() {
+          const quill = this.quill;
+          const range = quill.getSelection(true);
+          const currentFormat = quill.getFormat(range);
+          quill.format('calloutWarn', !currentFormat.calloutWarn);
+        },
+        insertDivider: function() {
+          const quill = this.quill;
+          const range = quill.getSelection(true);
+          quill.insertEmbed(range.index, 'divider', true, 'user');
+          quill.setSelection(range.index + 1);
+        },
+        insertPdf: async function() {
+          const quill = this.quill;
+          const data = await promptHandlerRef.current('pdf');
+          if (!data || !data.text1) return;
+          const url = data.text1;
+          const title = data.text2 || "PDF Document";
+          const pages = data.text3;
+
+          const range = quill.getSelection(true);
+          quill.insertEmbed(range.index, 'pdfAttachment', { url, title, pages }, 'user');
+          quill.setSelection(range.index + 1);
+        },
+        insertFloatImage: async function() {
+          const quill = this.quill;
+          const data = await promptHandlerRef.current('floatImage');
+          if (!data || !data.text1) return;
+          const range = quill.getSelection(true);
+          quill.insertEmbed(range.index, 'floatRightImage', data.text1, 'user');
+          quill.setSelection(range.index + 1);
+        },
+        insertAudio: async function() {
+          const quill = this.quill;
+          const data = await promptHandlerRef.current('audio');
+          if (!data || !data.text1) return;
+          const range = quill.getSelection(true);
+          quill.insertEmbed(range.index, 'audio', data.text1, 'user');
+          quill.setSelection(range.index + 1);
+        },
+        insertQuran: async function() {
+          const quill = this.quill;
+          const data = await promptHandlerRef.current('quran');
+          if (!data || !data.text1 || !data.text2) return;
+          const sura = data.text1;
+          const ayah = data.text2;
+
+          const range = quill.getSelection(true);
+          const linkText = `[อัลกุรอาน ${sura}:${ayah}]`;
+          
+          quill.insertText(range.index, linkText, 'link', `/quran?sura=${sura}&ayah=${ayah}`);
+          quill.setSelection(range.index + linkText.length);
+        },
+        insertFootnote: async function() {
+          const quill = this.quill;
+          const data = await promptHandlerRef.current('footnote');
+          if (!data || !data.text1) return;
+          const text = data.text1;
+
+          const range = quill.getSelection(true);
+          const content = quill.getText();
+          
+          let nextNum = 1;
+          const matches = content.match(/\[(\d+)\]/g);
+          if (matches && matches.length > 0) {
+            const nums = matches.map(m => parseInt(m.replace(/[\[\]]/g, '')));
+            nextNum = Math.max(...nums) + 1;
+          }
+
+          quill.insertText(range.index, `[${nextNum}]`);
+          quill.setSelection(range.index + `[${nextNum}]`.length + 1);
+          
+          const html = quill.root.innerHTML;
+          if (!html.includes('Notes')) {
+            quill.clipboard.dangerouslyPasteHTML(quill.getLength(), `<p><br></p><h2>Notes</h2><p>${nextNum}. ${text}</p>`);
+          } else {
+            quill.clipboard.dangerouslyPasteHTML(quill.getLength(), `<p>${nextNum}. ${text}</p>`);
+          }
+        }
+      }
     }
   }), []);
 
@@ -1038,7 +1049,7 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
             </span>
           </div>
           <div style={{ background: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid var(--br)", minHeight: 400 }}>
-            <CustomToolbar onAction={handleToolbarAction} />
+            <CustomToolbar />
             <ReactQuill 
               ref={reactQuillRef}
               theme="snow"
