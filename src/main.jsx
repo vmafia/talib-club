@@ -28,20 +28,7 @@ if ('serviceWorker' in navigator) {
       });
   });
 
-  // Only auto-refresh in production to prevent infinite loops in Vite dev mode
-  if (import.meta.env.PROD) {
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-  } else {
-    // In development, unregister any existing service workers to avoid HMR conflicts
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for(let registration of registrations) {
-        registration.unregister();
-      }
-    });
-  }
+  // We DO NOT automatically reload the page on 'controllerchange'.
+  // Auto-reloading can cause infinite refresh loops if the browser constantly detects SW changes.
+  // Instead, the user will get the new version on their next natural page navigation or refresh.
 }
