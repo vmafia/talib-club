@@ -326,8 +326,8 @@ export default function ArticleDetail({ item, go, authState }) {
     }
     
     // ทำการแทนที่เชิงอรรถทั้งแบบ [1] และ <sup>1</sup> ให้กลายเป็น Tooltip Link
-    body = body.replace(/<sup>\s*<a[^>]*>(\d+)<\/a>\s*<\/sup>|<sup>\s*(\d+)\s*<\/sup>|\[(\d+)\]/g, (match, p1, p2, p3) => {
-      const num = p1 || p2 || p3;
+    body = body.replace(/<a[^>]*>\s*\[(\d+)\]\s*<\/a>|<sup>\s*<a[^>]*>(\d+)<\/a>\s*<\/sup>|<sup>\s*(\d+)\s*<\/sup>|\[(\d+)\]/gi, (match, p0, p1, p2, p3) => {
+      const num = p0 || p1 || p2 || p3;
       if (!num) return match;
       const cleanNote = notesDict[num] ? notesDict[num].replace(/<[^>]*>?/gm, '') : '';
       const tooltip = cleanNote ? `title="${cleanNote.replace(/"/g, '&quot;')}"` : '';
