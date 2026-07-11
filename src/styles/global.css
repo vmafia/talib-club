@@ -3329,6 +3329,66 @@ input:focus, select:focus, textarea:focus {
   text-decoration: underline;
 }
 
+/* Custom Tooltip for Footnotes */
+.article-body a.footnote-link[data-footnote] {
+  position: relative;
+}
+
+.article-body a.footnote-link[data-footnote]:hover::after {
+  content: attr(data-footnote);
+  position: absolute;
+  bottom: 150%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--t2);
+  color: var(--bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 280px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  pointer-events: none;
+  line-height: 1.4;
+  text-align: left;
+  font-family: inherit;
+  opacity: 0;
+  animation: fadeInTooltip 0.2s ease forwards;
+}
+
+.article-body a.footnote-link[data-footnote]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: var(--t2) transparent transparent transparent;
+  z-index: 100;
+  opacity: 0;
+  animation: fadeInTooltip 0.2s ease forwards;
+}
+
+@keyframes fadeInTooltip {
+  to {
+    opacity: 1;
+    bottom: 130%; /* for main box */
+  }
+}
+.article-body a.footnote-link[data-footnote]:hover::before {
+  animation-name: fadeInArrow;
+}
+@keyframes fadeInArrow {
+  to {
+    opacity: 1;
+    bottom: calc(130% - 11px);
+  }
+}
+
 /* Notes Section at the bottom */
 .article-notes-section {
   margin-top: 40px;

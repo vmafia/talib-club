@@ -330,7 +330,7 @@ export default function ArticleDetail({ item, go, authState }) {
       const num = p0 || p1 || p2 || p3;
       if (!num) return match;
       const cleanNote = notesDict[num] ? notesDict[num].replace(/<[^>]*>?/gm, '') : '';
-      const tooltip = cleanNote ? `title="${cleanNote.replace(/"/g, '&quot;')}"` : '';
+      const tooltip = cleanNote ? `data-footnote="${cleanNote.replace(/"/g, '&quot;')}"` : '';
       return `<sup><a href="#note-${num}" class="footnote-link" ${tooltip}>${num}</a></sup>`;
     });
 
