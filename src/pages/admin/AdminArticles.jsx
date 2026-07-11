@@ -715,10 +715,10 @@ const QuillPromptModal = ({ isOpen, type, onClose, onSubmit }) => {
   } else if (type === 'quran') {
     title = 'แทรกอัลกุรอาน';
     input1 = { 
-      label: 'ซูเราะห์', 
+      label: 'ค้นหาซูเราะห์ (พิมพ์ชื่อหรือเลื่อนหา)', 
       key: 'text1', 
-      inputType: 'select', 
-      options: SURA_LIST.map(s => ({ value: s.number, label: `${s.number}. ${s.name} (${s.englishNameTranslation})` })) 
+      inputType: 'datalist', 
+      options: SURA_LIST.map(s => ({ value: `${s.number}. ${s.name} (${s.englishNameTranslation})` })) 
     };
     input2 = { label: 'เลขอายะฮ์', key: 'text2', placeholder: '255' };
   } else if (type === 'footnote') {
@@ -733,13 +733,15 @@ const QuillPromptModal = ({ isOpen, type, onClose, onSubmit }) => {
         {input1 && (
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', fontSize: 13, marginBottom: 4, color: 'var(--t2)' }}>{input1.label}</label>
-            {input1.inputType === 'select' ? (
-              <select ref={inputRef} className="input" value={data.text1} onChange={e => setData({...data, text1: e.target.value})} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--br)', borderRadius: 6, fontSize: 14 }}>
-                <option value="">-- เลือกซูเราะห์ --</option>
-                {input1.options.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            {input1.inputType === 'datalist' ? (
+              <>
+                <input ref={inputRef} list="prompt-datalist" className="input" value={data.text1} onChange={e => setData({...data, text1: e.target.value})} onKeyDown={handleKeyDown} placeholder={input1.placeholder || "พิมพ์เพื่อค้นหา..."} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--br)', borderRadius: 6, fontSize: 14 }} />
+                <datalist id="prompt-datalist">
+                  {input1.options.map(opt => (
+                    <option key={opt.value} value={opt.value} />
+                  ))}
+                </datalist>
+              </>
             ) : (
               <input ref={inputRef} type="text" className="input" value={data.text1} onChange={e => setData({...data, text1: e.target.value})} onKeyDown={handleKeyDown} placeholder={input1.placeholder} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--br)', borderRadius: 6, fontSize: 14 }} />
             )}
@@ -960,9 +962,10 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           const quill = this.quill;
           const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('quran');
-          if (!data || !data.text1 || !data.text2) return;
-          const sura = data.text1;
-          const ayah = data.text2;
+          const suraMatch = String(data?.text1 || "").match(/^\d+/);
+          if (!suraMatch || !data.text2) return;
+          const sura = suraMatch[0];
+          const ayah = String(data.text2).trim();
 
           const insertRange = lastSelectionRef.current || range;
           const linkText = `[อัลกุรอาน ${sura}:${ayah}]`;
