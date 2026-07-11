@@ -3282,10 +3282,10 @@ input:focus, select:focus, textarea:focus {
   line-height: 1.7;
 }
 .article-body blockquote::before {
-  content: '\u201C';
+  content: '\201C';
   position: absolute;
   left: 5px;
-  top: 5px;
+  top: -10px;
   font-family: Arial, serif;
   font-size: 60px;
   color: #cbd5e1;

@@ -821,16 +821,20 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
       handlers: {
         numberCircle: async function() {
           const quill = this.quill;
-          const range = quill.getSelection(true) || { index: quill.getLength() };
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           
           const data = await promptHandlerRef.current('numberCircle');
           if (!data || !data.text1) return;
           
           // Re-get selection in case it was lost during prompt
-          const insertRange = quill.getSelection(true) || range;
+          const insertRange = lastSelectionRef.current || range;
           quill.insertEmbed(insertRange.index, 'numberCircle', data.text1, 'user');
           quill.setSelection(insertRange.index + 1); // Embeds have length of 1
         },
+
+
+
+
         highlightText: function() {
           const quill = this.quill;
           const range = lastSelectionRef.current || quill.getSelection(true);
@@ -877,52 +881,57 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
         },
         insertPdf: async function() {
           const quill = this.quill;
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('pdf');
           if (!data || !data.text1) return;
           const url = data.text1;
           const title = data.text2 || "PDF Document";
           const pages = data.text3;
 
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range.index, 'pdfAttachment', { url, title, pages }, 'user');
-          quill.setSelection(range.index + 1);
+          const insertRange = lastSelectionRef.current || range;
+          quill.insertEmbed(insertRange.index, 'pdfAttachment', { url, title, pages }, 'user');
+          quill.setSelection(insertRange.index + 1);
         },
         insertFloatImage: async function() {
           const quill = this.quill;
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('floatImage');
           if (!data || !data.text1) return;
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range.index, 'floatRightImage', data.text1, 'user');
-          quill.setSelection(range.index + 1);
+          const insertRange = lastSelectionRef.current || range;
+          quill.insertEmbed(insertRange.index, 'floatRightImage', data.text1, 'user');
+          quill.setSelection(insertRange.index + 1);
         },
         insertAudio: async function() {
           const quill = this.quill;
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('audio');
           if (!data || !data.text1) return;
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range.index, 'audio', data.text1, 'user');
-          quill.setSelection(range.index + 1);
+          const insertRange = lastSelectionRef.current || range;
+          quill.insertEmbed(insertRange.index, 'audio', data.text1, 'user');
+          quill.setSelection(insertRange.index + 1);
         },
         insertQuran: async function() {
           const quill = this.quill;
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('quran');
           if (!data || !data.text1 || !data.text2) return;
           const sura = data.text1;
           const ayah = data.text2;
 
-          const range = quill.getSelection(true);
+          const insertRange = lastSelectionRef.current || range;
           const linkText = `[อัลกุรอาน ${sura}:${ayah}]`;
           
-          quill.insertText(range.index, linkText, 'link', `/quran?sura=${sura}&ayah=${ayah}`);
-          quill.setSelection(range.index + linkText.length);
+          quill.insertText(insertRange.index, linkText, 'link', `/quran?sura=${sura}&ayah=${ayah}`);
+          quill.setSelection(insertRange.index + linkText.length);
         },
         insertFootnote: async function() {
           const quill = this.quill;
+          const range = lastSelectionRef.current || quill.getSelection(true) || { index: quill.getLength() };
           const data = await promptHandlerRef.current('footnote');
           if (!data || !data.text1) return;
           const text = data.text1;
 
-          const range = quill.getSelection(true);
+          const insertRange = lastSelectionRef.current || range;
           const content = quill.getText();
           
           let nextNum = 1;
@@ -932,8 +941,8 @@ function ArticleForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
             nextNum = Math.max(...nums) + 1;
           }
 
-          quill.insertText(range.index, `[${nextNum}]`);
-          quill.setSelection(range.index + `[${nextNum}]`.length + 1);
+          quill.insertText(insertRange.index, `[${nextNum}]`);
+          quill.setSelection(insertRange.index + `[${nextNum}]`.length + 1);
           
           const html = quill.root.innerHTML;
           if (!html.includes('Notes')) {

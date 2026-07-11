@@ -271,7 +271,7 @@ export default function ArticleDetail({ item, go, authState }) {
       const tempText = notesSection.replace(/<\/p>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
       const noteLines = tempText.split('\n');
       noteLines.forEach(line => {
-        const match = line.match(/^\s*(\d+)\.\s*(.*)/);
+        const match = line.match(/^\s*(?:\[|\()?(\d+)(?:\.|\)|\])?\s+(.*)/);
         if (match) {
           notesDict[match[1]] = match[2].trim();
         }
@@ -327,8 +327,9 @@ export default function ArticleDetail({ item, go, authState }) {
     body = body.replace(/<sup>\s*<a[^>]*>(\d+)<\/a>\s*<\/sup>|<sup>\s*(\d+)\s*<\/sup>|\[(\d+)\]/g, (match, p1, p2, p3) => {
       const num = p1 || p2 || p3;
       if (!num) return match;
-      const tooltip = notesDict[num] ? `title="${notesDict[num].replace(/"/g, '&quot;')}"` : '';
-      return `<sup ${tooltip}><a href="#note-${num}" class="footnote-link">${num}</a></sup>`;
+      const cleanNote = notesDict[num] ? notesDict[num].replace(/<[^>]*>?/gm, '') : '';
+      const tooltip = cleanNote ? `title="${cleanNote.replace(/"/g, '&quot;')}"` : '';
+      return `<sup><a href="#note-${num}" class="footnote-link" ${tooltip}>${num}</a></sup>`;
     });
 
     // สร้าง TOC และใส่ id ให้ h2, h3
