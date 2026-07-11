@@ -238,6 +238,7 @@ export default function ArticleDetail({ item, go, authState }) {
   const [modalImage, setModalImage] = useState(null);
   const [showFloatingTOC, setShowFloatingTOC] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [fabExpanded, setFabExpanded] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -645,28 +646,41 @@ export default function ArticleDetail({ item, go, authState }) {
 
       {/* Floating Action Buttons */}
       {(showBackToTop || toc.length > 0) && createPortal(
-        <div style={{ position: "fixed", bottom: 24, right: 24, display: "flex", flexDirection: "column", gap: 12, zIndex: 2147483647 }}>
-          {showBackToTop && (
-            <button 
-              className="btn btn-teal hover-wiggle"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              title="กลับขึ้นบนสุด"
-              style={{ width: 48, height: 48, borderRadius: "50%", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(20,184,166,0.4)" }}
-            >
-              <i className="ti ti-arrow-up" style={{ fontSize: 24 }}></i>
-            </button>
+        <div style={{ position: "fixed", bottom: 24, right: 24, display: "flex", flexDirection: "column", gap: 12, zIndex: 2147483647, alignItems: "center" }}>
+          {fabExpanded && (
+            <>
+              {showBackToTop && (
+                <button 
+                  className="btn btn-teal hover-wiggle animate-fade-in-up"
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  title="กลับขึ้นบนสุด"
+                  style={{ width: 48, height: 48, borderRadius: "50%", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(20,184,166,0.4)" }}
+                >
+                  <i className="ti ti-arrow-up" style={{ fontSize: 24 }}></i>
+                </button>
+              )}
+
+              {toc.length > 0 && (
+                <button 
+                  className="btn btn-acc hover-wiggle animate-fade-in-up"
+                  onClick={() => setShowFloatingTOC(true)}
+                  title="สารบัญเนื้อหา"
+                  style={{ width: 48, height: 48, borderRadius: "50%", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(245,158,11,0.4)" }}
+                >
+                  <i className="ti ti-list" style={{ fontSize: 24 }}></i>
+                </button>
+              )}
+            </>
           )}
 
-          {toc.length > 0 && (
-            <button 
-              className="btn btn-acc hover-wiggle"
-              onClick={() => setShowFloatingTOC(true)}
-              title="สารบัญเนื้อหา"
-              style={{ width: 48, height: 48, borderRadius: "50%", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(245,158,11,0.4)" }}
-            >
-              <i className="ti ti-list" style={{ fontSize: 24 }}></i>
-            </button>
-          )}
+          <button 
+            className="btn btn-outline hover-opacity"
+            onClick={() => setFabExpanded(!fabExpanded)}
+            title={fabExpanded ? "ซ่อนเมนู" : "แสดงเมนู"}
+            style={{ width: 40, height: 40, borderRadius: "50%", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", border: "1px solid var(--br)", color: "var(--t3)", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", marginTop: fabExpanded ? 4 : 0 }}
+          >
+            <i className={`ti ti-chevron-${fabExpanded ? "down" : "up"}`} style={{ fontSize: 18 }}></i>
+          </button>
         </div>,
         document.body
       )}
