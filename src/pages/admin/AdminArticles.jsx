@@ -727,9 +727,9 @@ const QuillPromptModal = ({ isOpen, type, onClose, onSubmit }) => {
     input1 = { label: 'กรุณาพิมพ์คำอธิบายเชิงอรรถสำหรับจุดนี้', key: 'text1', placeholder: 'คำอธิบาย...' };
   }
 
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2147483647, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10vh', overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#fff', padding: 24, borderRadius: 12, width: 400, maxWidth: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', marginBottom: '10vh' }} onClick={e => e.stopPropagation()}>
+  const modalContent = (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: '#fff', padding: 24, borderRadius: 12, width: 400, maxWidth: '90%', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: 'var(--text)' }}>{title}</h3>
         {input1 && (
           <div style={{ marginBottom: 12 }}>
@@ -766,7 +766,9 @@ const QuillPromptModal = ({ isOpen, type, onClose, onSubmit }) => {
         </div>
       </div>
     </div>
-  )
+  );
+
+  return createPortal(modalContent, document.body);
 }
 
 const CustomToolbar = React.memo(() => (
