@@ -259,7 +259,7 @@ export default function ArticleDetail({ item, go, authState }) {
     const tocList = [];
     
     // 1. จัดการ Notes (ดึงข้อความมาทำ Tooltip)
-    const notesRegex = /(?:<(h[1-6]|div|p)[^>]*>\s*(?:<[^>]+>\s*)*|##\s*|^\s*|\n\s*|<br\s*\/?>\s*)(?:Notes|อ้างอิง|เชิงอรรถ|Footnotes)\s*(?:<\/[^>]+>\s*)*(?:<\/(?:h[1-6]|div|p)>|<br\s*\/?>|\n)[\s\S]*$/i;
+    const notesRegex = /(?:<(h[1-6]|div|p)[^>]*>\s*(?:<[^>]+>\s*)*|##\s*|^\s*|\n\s*|<br\s*\/?>\s*)(?:Notes|เชิงอรรถ|Footnotes)\s*(?:<\/[^>]+>\s*)*(?:<\/(?:h[1-6]|div|p)>|<br\s*\/?>|\n)[\s\S]*$/i;
     const notesMatch = body.match(notesRegex);
     let notesDict = {};
     if (notesMatch) {
