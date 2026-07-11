@@ -6,7 +6,7 @@ import { CONTENT_COLLECTIONS, USER_SPECIFIC_COLLECTIONS, PUBLIC_COLLECTIONS, LOC
 import { cleanForFirestore, getMs, byNewest, mergeWithFallback, getQueryCacheKey } from "./utils.js"
 import { 
   collectionCache, countCache, inFlightRequests, setWithLimit,
-  readCachedCollection, writeCachedCollection, readLocalStorageCacheEntry,
+  readCachedCollection, writeCachedCollection, readLocalStorageCacheEntry, invalidateCollectionCache,
   fetchContentMetadata, updateCollectionMetadata,
   readCachedUserDocument, writeCachedUserDocument, invalidateUserDocumentCache
 } from "./cache.js"
@@ -277,17 +277,8 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
       return [localPayload, ...list]
     })
 
-    // 🟢 อัปเดตใน Cache ด้วย เพื่อให้หน้าที่ใช้ข้อมูลเดียวกันไม่ต้องดึงใหม่
-    for (const [key, entry] of collectionCache.entries()) {
-      if (key.includes(`"collectionName":"${collectionName}"`)) {
-        backupCacheItems = entry.items
-        const idx = entry.items.findIndex(d => String(d.id) === id)
-        const newItems = idx >= 0
-          ? entry.items.map(d => String(d.id) === id ? { ...d, ...localPayload } : d)
-          : [localPayload, ...entry.items]
-        writeCachedCollection(key, newItems)
-      }
-    }
+    // 🟢 เคลียร์ Cache ทุก Query ของ Collection นี้ทิ้งทั้งหมด เพื่อบังคับให้ผู้ใช้ทั่วไป (Public) ดึงข้อมูลใหม่
+    invalidateCollectionCache(collectionName)
 
     try {
       // ยิงเซฟลง Firestore แค่ 1 Write

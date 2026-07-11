@@ -93,6 +93,29 @@ export function writeCachedCollection(key, items) {
   })
 }
 
+export function invalidateCollectionCache(collectionName) {
+  // Clear from memory
+  for (const key of collectionCache.keys()) {
+    if (key.includes(`"collectionName":"${collectionName}"`)) {
+      collectionCache.delete(key)
+    }
+  }
+
+  // Clear from localStorage
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(LOCAL_STORAGE_CACHE_PREFIX) && k.includes(`"collectionName":"${collectionName}"`)) {
+        keysToRemove.push(k)
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+  } catch (e) {
+    console.error("Failed to invalidate localStorage cache:", e)
+  }
+}
+
 export function readLocalStorageCacheEntry(key) {
   try {
     const localData = localStorage.getItem(LOCAL_STORAGE_CACHE_PREFIX + key)
