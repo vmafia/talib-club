@@ -112,12 +112,14 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
         }
 
         const watchLatestDoc = (colName, orderField, key) => {
-          const q = query(collection(db, colName), orderBy(orderField, "desc"), limit(1))
+          const q = query(collection(db, colName), orderBy(orderField, "desc"), limit(10))
           const unsub = onSnapshot(q, (snap) => {
             if (snap.empty) {
               latestDocs[key] = null
             } else {
-              latestDocs[key] = { id: snap.docs[0].id, ...snap.docs[0].data() }
+              const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+              const validDoc = docs.find(d => d.deleted !== true)
+              latestDocs[key] = validDoc || null
             }
             updateNotifs()
           }, (err) => console.error("Error watching notifications:", err))
