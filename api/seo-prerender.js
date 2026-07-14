@@ -1,7 +1,54 @@
-import admin from './_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
+function parseFirestoreValue(value) {
+  if (!value) return null;
+  if (value.stringValue !== undefined) return value.stringValue;
+  if (value.integerValue !== undefined) return parseInt(value.integerValue, 10);
+  if (value.doubleValue !== undefined) return parseFloat(value.doubleValue);
+  if (value.booleanValue !== undefined) return value.booleanValue;
+  if (value.timestampValue !== undefined) return value.timestampValue;
+  if (value.nullValue !== undefined) return null;
+  if (value.arrayValue !== undefined) return (value.arrayValue.values || []).map(parseFirestoreValue);
+  if (value.mapValue !== undefined) {
+    const res = {};
+    for (const key in value.mapValue.fields) {
+      res[key] = parseFirestoreValue(value.mapValue.fields[key]);
+    }
+    return res;
+  }
+  return value;
+}
 
-const db = getFirestore();
+function parseFirestoreDoc(doc) {
+  if (!doc || !doc.fields) return null;
+  const data = {};
+  for (const key in doc.fields) {
+    data[key] = parseFirestoreValue(doc.fields[key]);
+  }
+  const id = doc.name.split('/').pop();
+  return { id, ...data };
+}
+
+async function getDoc(collection, id) {
+  const url = `https://firestore.googleapis.com/v1/projects/talib-club-web/databases/(default)/documents/${collection}/${id}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return parseFirestoreDoc(json);
+}
+
+async function getLatestArticles() {
+  const url = 'https://firestore.googleapis.com/v1/projects/talib-club-web/databases/(default)/documents:runQuery';
+  const query = {
+    structuredQuery: {
+      from: [{ collectionId: 'content_articles' }],
+      orderBy: [{ field: { fieldPath: 'date' }, direction: 'DESCENDING' }],
+      limit: 20
+    }
+  };
+  const res = await fetch(url, { method: 'POST', body: JSON.stringify(query) });
+  if (!res.ok) return [];
+  const json = await res.json();
+  return json.map(x => parseFirestoreDoc(x.document)).filter(Boolean);
+}
 
 function stripHtml(html) {
   if (!html) return '';
@@ -54,9 +101,6 @@ function generateHtml({ title, description, canonical, ogImage, ogType = 'websit
     nav { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
     nav a { margin-right: 15px; }
   </style>
-  
-  <!-- Redirect user browsers back to the SPA if they somehow hit this endpoint -->
-  <!-- <meta http-equiv="refresh" content="0;url=${canonical}"> -->
 </head>
 <body>
   <nav>
@@ -70,8 +114,7 @@ function generateHtml({ title, description, canonical, ogImage, ogType = 'websit
     ${bodyContent}
   </main>
   <script>
-    // Redirect normal browsers to the SPA path so hydration works correctly
-    if (!navigator.userAgent.match(/bot|crawler|spider|crawling/i)) {
+    if (!navigator.userAgent.match(/bot|crawler|spider|crawling|facebookexternalhit|line-poker/i)) {
       window.location.replace('${new URL(canonical).pathname}${new URL(canonical).search}');
     }
   </script>
@@ -83,8 +126,6 @@ export default async function handler(req, res) {
   try {
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     const protocol = req.headers['x-forwarded-proto'] || 'https';
-    // When rewriting in Vercel, req.url might be the rewritten path or original path.
-    // Usually x-vercel-rewrite-path-info contains the original requested path if rewritten.
     const pathInfo = req.headers['x-vercel-rewrite-path-info'];
     const requestUrl = pathInfo ? `${protocol}://${host}${pathInfo}` : `${protocol}://${host}${req.url}`;
     const url = new URL(requestUrl);
@@ -113,9 +154,8 @@ export default async function handler(req, res) {
         `
       });
     } else if (path === '/article' && id) {
-      const doc = await db.collection('content_articles').doc(id).get();
-      if (doc.exists) {
-        const article = doc.data();
+      const article = await getDoc('content_articles', id);
+      if (article) {
         const plainBody = stripHtml(article.body || article.excerpt || '');
         const desc = truncate(plainBody, 160);
         html = generateHtml({
@@ -144,9 +184,7 @@ export default async function handler(req, res) {
         });
       }
     } else if (path === '/articles') {
-      const snap = await db.collection('content_articles').orderBy('date', 'desc').limit(20).get();
-      const articles = snap.docs.map(d => ({id: d.id, ...d.data()}));
-      
+      const articles = await getLatestArticles();
       let listHtml = '<h1>บทความวิชาการอิสลาม</h1><ul>';
       articles.forEach(a => {
         listHtml += `<li><a href="/article?id=${a.id}">${a.title}</a> - ${a.author}</li>`;
@@ -160,9 +198,8 @@ export default async function handler(req, res) {
         bodyContent: listHtml
       });
     } else if (path === '/library-detail' && id) {
-      const doc = await db.collection('content_books').doc(id).get();
-      if (doc.exists) {
-        const book = doc.data();
+      const book = await getDoc('content_books', id);
+      if (book) {
         html = generateHtml({
           title: `${book.title} | Talib Club`,
           description: book.description || `ดาวน์โหลดหนังสือ ${book.title}`,
@@ -185,9 +222,8 @@ export default async function handler(req, res) {
         });
       }
     } else if (path === '/media-detail' && id) {
-      const doc = await db.collection('content_media').doc(id).get();
-      if (doc.exists) {
-        const media = doc.data();
+      const media = await getDoc('content_media', id);
+      if (media) {
         html = generateHtml({
           title: `${media.title} | Talib Club`,
           description: media.description || media.series || `สื่อการเรียนรู้อิสลาม: ${media.title}`,
@@ -210,12 +246,11 @@ export default async function handler(req, res) {
         });
       }
     } else {
-      // Fallback for /library, /media, /scholars, /donate and not found
       html = generateHtml({
         title: 'Talib Club | แหล่งศึกษาอิสลามแนวทางสะลัฟ',
         description: 'คลังความรู้อิสลามวิชาการ สำหรับมุสลิมและผู้สนใจทุกท่าน',
         canonical,
-        bodyContent: `<h1>Talib Club</h1><p>กรุณารอสักครู่ กำลังพาคุณเข้าสู่เว็บไซต์...</p>`
+        bodyContent: `<h1>Talib Club</h1><p>กำลังพาคุณเข้าสู่เว็บไซต์...</p>`
       });
     }
 
