@@ -24,11 +24,11 @@ export default function PaginationBar({ currentPage, totalPages, onPageChange, s
         const prev = range[idx - 1]
         const showGap = prev && p - prev > 1
         return (
-          <span key={p} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span key={p} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             {showGap && <span className="pagination-ellipsis" aria-hidden>…</span>}
             <button
               type="button"
-              className={`pagination-btn ${currentPage === p ? "active" : ""}`}
+              className={`pagination-btn pagination-num ${currentPage === p ? "active" : ""}`}
               onClick={() => go(p)}
             >
               {p}
