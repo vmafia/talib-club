@@ -9,7 +9,6 @@ import AdminTaxonomy from "./admin/AdminTaxonomy.jsx"
 import AdminOpenHouse from "./admin/AdminOpenHouse.jsx"
 import AdminBookCampaigns from "./admin/AdminBookCampaigns.jsx"
 import AdminDashboard from "./admin/AdminDashboard.jsx"
-import AdminMigration from "./admin/AdminMigration.jsx"
 
 const TABS = [
   { id: "dashboard", label: "ภาพรวม", icon: "ti-chart-bar" },
@@ -22,7 +21,6 @@ const TABS = [
   { id: "taxonomy", label: "หมวด/ตัวเลือก", icon: "ti-tags" },
   { id: "tracking", label: "Tracking", icon: "ti-package" },
   { id: "site", label: "ตั้งค่าเว็บ", icon: "ti-settings" },
-  { id: "migration", label: "ย้ายรูปภาพ (Migration)", icon: "ti-database-export" },
 ]
 
 export default function Admin({ go, authState, initialTab = "dashboard" }) {
@@ -199,7 +197,6 @@ export default function Admin({ go, authState, initialTab = "dashboard" }) {
           {tab === "tracking" && <AdminTracking />}
           {tab === "book_campaigns" && <AdminBookCampaigns />}
           {tab === "site" && <AdminSite />}
-          {tab === "migration" && <AdminMigration />}
         </div>
       </div>
     </div>
