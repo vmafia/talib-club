@@ -11,7 +11,7 @@ export default function AdminMigration() {
 
   const addLog = (msg) => setLogs((prev) => [...prev, msg])
 
-  const COLLECTIONS_TO_SCAN = ["articles", "books", "media", "scholars"]
+  const COLLECTIONS_TO_SCAN = ["content_articles", "content_books", "content_media", "content_scholars"]
   const TARGET_STRING = "this_profile's_activity_across_facebook"
 
   const startMigration = async () => {
