@@ -220,7 +220,11 @@ button {
   font-size: 13px;
   font-weight: 600;
   padding: 9px 20px;
-  transition: background .2s, border-color .2s, box-shadow .2s, transform .2s
+  transition: background .2s, border-color .2s, box-shadow .2s, transform .2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .btn:hover {
