@@ -275,11 +275,11 @@ export default function App() {
               <Route path="/article/:category" element={<ArticleDetail item={ctx} go={go} authState={authState} />} />
               <Route path="/library" element={<Library go={go} authState={authState} ctx={ctx} />} />
               <Route path="/library-detail" element={
-                <LibraryDetail item={ctx} go={go} authState={authState} />
+                <RequireLogin authState={authState}>
+                  <LibraryDetail item={ctx} go={go} authState={authState} />
+                </RequireLogin>
               } />
               <Route path="/library-detail/:category" element={
-                <LibraryDetail item={ctx} go={go} authState={authState} />
-              } />
                 <RequireLogin authState={authState}>
                   <LibraryDetail item={ctx} go={go} authState={authState} />
                 </RequireLogin>
