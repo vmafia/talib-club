@@ -9,10 +9,17 @@ export const DEFAULT_TAXONOMY = {
   bookSources: ["Talib Club", "สำนักพิมพ์อื่น"],
   mediaTypes: ["youtube", "spotify", "video"],
   scholarEras: [
-    { id: "1", label: "ยุคแรก (Salaf)" },
-    { id: "2", label: "ยุคกลาง" },
-    { id: "3", label: "ยุคฟื้นฟู" },
-    { id: "4", label: "ยุคปัจจุบัน" },
+    { id: "salaf", label: "ยุคแรก (Salaf)" },
+    { id: "classical", label: "ยุคกลาง" },
+    { id: "revival", label: "ยุคฟื้นฟู" },
+    { id: "modern", label: "ยุคปัจจุบัน" },
   ],
-  scholarFields: ["อากีดะฮ์", "ฟิกฮ์", "หะดีษ", "ตัฟซีร", "ประวัติศาสตร์", "ภาษาอาหรับ"],
+  scholarFields: [
+    { id: "aqeedah", label: "อากีดะฮ์" },
+    { id: "fiqh", label: "ฟิกฮ์" },
+    { id: "hadith", label: "หะดีษ" },
+    { id: "tafsir", label: "ตัฟซีร" },
+    { id: "history", label: "ประวัติศาสตร์" },
+    { id: "arabic", label: "ภาษาอาหรับ" },
+  ],
 }

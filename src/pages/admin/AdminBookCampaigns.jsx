@@ -7,6 +7,7 @@ import { confirmAction } from "../../utils/feedback.jsx"
 import BroadcastModal from "./components/BroadcastModal.jsx"
 import { triggerPushNotification } from "../../utils/pushNotifications.js"
 import CampaignRegistrationsViewer from "./CampaignRegistrationsViewer.jsx"
+import { getNextSequenceId } from "../../lib/contentStore/hooks.js"
 
 export default function AdminBookCampaigns() {
   const [campaigns, setCampaigns] = useState([])
@@ -86,7 +87,8 @@ export default function AdminBookCampaigns() {
           updatedAt: serverTimestamp()
         })
       } else {
-        const newRef = doc(collection(db, "book_campaigns"))
+        const nextId = await getNextSequenceId(db, "book_campaigns", formData);
+        const newRef = doc(db, "book_campaigns", nextId);
         await setDoc(newRef, {
           ...formData,
           createdAt: serverTimestamp(),

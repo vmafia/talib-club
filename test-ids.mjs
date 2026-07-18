@@ -1,0 +1,1 @@
+import admin from './api/_firebase-admin.js'; async function test() { const s = await admin.firestore().collection('content_articles').limit(5).get(); console.log(s.docs.map(d => d.id)); process.exit(0); } test();

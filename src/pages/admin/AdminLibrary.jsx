@@ -118,7 +118,7 @@ export default function AdminLibrary() {
   }
 
   function openNew() {
-    const defaultType = taxonomy.bookTypes?.[0] || "วารสาร"
+    const defaultType = taxonomy.bookTypes?.[0]?.id || "journal"
     const defaultSource = taxonomy.bookSources?.[0] || "Talib Club"
     setEdit({ ...EMPTY, type: defaultType, source: defaultSource, id: crypto.randomUUID() })
   }
@@ -288,7 +288,7 @@ export default function AdminLibrary() {
             <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ background: "var(--card)", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 13 }}>
               <option value="all">-- ทุกประเภท --</option>
               {(taxonomy.bookTypes || []).map(type => (
-                <option key={type} value={type}>{type}</option>
+                <option key={type.id} value={type.id}>{type.label}</option>
               ))}
             </select>
           </label>
@@ -361,7 +361,7 @@ export default function AdminLibrary() {
               <span style={{ fontSize: 11, color: "var(--t2)" }}>เปลี่ยนประเภท</span>
               <select value={bulkType} onChange={e => setBulkType(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", background: "var(--card)" }}>
                 <option value="">-- ไม่เปลี่ยน --</option>
-                {(taxonomy.bookTypes || []).map(type => <option key={type} value={type}>{type}</option>)}
+                {(taxonomy.bookTypes || []).map(type => <option key={type.id} value={type.id}>{type.label}</option>)}
               </select>
             </label>
 
@@ -414,7 +414,7 @@ export default function AdminLibrary() {
                 <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
                   <span className="tag tag-teal">{book.category || "ไม่มีหมวดหมู่"}</span>
                   <span className="tag" style={{ background: "var(--acc2)" }}>{book.type}</span>
-                  {book.type === "วารสาร" && book.issueNumber !== undefined && book.issueNumber !== "" && (
+                  {book.type === "journal" && book.issueNumber !== undefined && book.issueNumber !== "" && (
                     <span className="tag" style={{ background: "rgba(45, 190, 160, 0.15)", color: "var(--teal)" }}>เล่มที่ {book.issueNumber}</span>
                   )}
                   <span className="tag" style={{ background: "var(--acc2)", color: "var(--t2)", border: ".5px solid var(--br)" }}>{book.source}</span>
@@ -508,7 +508,7 @@ function LibraryForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
         </Field>
         <Field label="ประเภท">
           <select value={item.type || ""} onChange={e => set("type", e.target.value)}>
-            {(taxonomy.bookTypes || []).map(type => <option key={type} value={type}>{type}</option>)}
+            {(taxonomy.bookTypes || []).map(type => <option key={type.id} value={type.id}>{type.label}</option>)}
           </select>
         </Field>
         <Field label="หมวดหมู่ (ใช้ร่วมกับบทความ)">
@@ -517,7 +517,7 @@ function LibraryForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
           </select>
         </Field>
         <Field label="ปีพิมพ์ (พ.ศ.)"><input type="number" value={item.year || ""} onChange={e => set("year", e.target.value)} /></Field>
-        {item.type === "วารสาร" && (
+        {item.type === "journal" && (
           <Field label="ลำดับเล่มที่ (issueNumber)">
             <input 
               type="number" 

@@ -37,7 +37,7 @@ export default function Library({ go, authState, ctx }) {
   const filter = ctx?.filter || "all"
   const categoryFilter = ctx?.cat || "all"
   const sourceFilter = ctx?.source || "all"
-  const sortBy = ctx?.sortBy || (filter === "วารสาร" ? "issue-desc" : "newest")
+  const sortBy = ctx?.sortBy || (filter === "journal" ? "issue-desc" : "newest")
   const showAdvancedFilters = ctx?.showAdv === "true"
   const requestedPage = parseInt(ctx?.page, 10) || 1
   const ITEMS_PER_PAGE = 12
@@ -48,7 +48,7 @@ export default function Library({ go, authState, ctx }) {
     setSearch(ctx?.search || "")
   }, [ctx?.search])
 
-  const types = ["all", ...(taxonomy.bookTypes || [])]
+  const types = [{ id: "all", label: "ทั้งหมด" }, ...(taxonomy.bookTypes || []).map(t => typeof t === 'string' ? { id: t, label: t } : t)]
 
   const availableCategories = useMemo(() => {
     const cats = new Set(books.map(b => b.category).filter(Boolean))
@@ -74,9 +74,9 @@ export default function Library({ go, authState, ctx }) {
     if (newParams.filter !== undefined || newParams.cat !== undefined || newParams.source !== undefined || newParams.search !== undefined || newParams.showAdv !== undefined || newParams.sortBy !== undefined) {
       updated.page = 1
     }
-    if (newParams.filter === "วารสาร" && newParams.sortBy === undefined) {
+    if (newParams.filter === "journal" && newParams.sortBy === undefined) {
       updated.sortBy = "issue-desc"
-    } else if (newParams.filter !== undefined && newParams.filter !== "วารสาร" && newParams.sortBy === undefined) {
+    } else if (newParams.filter !== undefined && newParams.filter !== "journal" && newParams.sortBy === undefined) {
       updated.sortBy = "newest"
     }
     go("library", updated, { replace: true, noScroll: true })
@@ -105,7 +105,7 @@ export default function Library({ go, authState, ctx }) {
     })
 
     return [...result].sort((a, b) => {
-      if (filter === "วารสาร") {
+      if (filter === "journal") {
         const issueA = Number(a.issueNumber) || 0
         const issueB = Number(b.issueNumber) || 0
         if (sortBy === "issue-asc") {
@@ -219,7 +219,7 @@ export default function Library({ go, authState, ctx }) {
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 500 }}>ประเภทสื่อ</span>
             <select value={filter} onChange={e => updateFilters({ filter: e.target.value })} style={{ background: "var(--card)", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 13 }}>
-              {types.map(t => <option key={t} value={t}>{t === "all" ? "ทั้งหมด" : t}</option>)}
+              {types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </label>
 
@@ -241,7 +241,7 @@ export default function Library({ go, authState, ctx }) {
 
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 500 }}>เรียงลำดับ</span>
-            {filter === "วารสาร" ? (
+            {filter === "journal" ? (
               <select value={sortBy} onChange={e => updateFilters({ sortBy: e.target.value })} style={{ background: "var(--card)", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 13 }}>
                 <option value="issue-desc">เล่มใหม่ล่าสุด ➜ เล่มเก่า</option>
                 <option value="issue-asc">เล่มเก่าสุด ➜ เล่มใหม่</option>

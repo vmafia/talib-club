@@ -6,7 +6,9 @@ export function slugifyUrlPart(str) {
     .trim()
     .toLowerCase()
     .replace(/[\s_]+/g, '-')
-    .replace(/[^\w\u0E00-\u0E7F\-]/g, '');
+    .replace(/[^\w\-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export function getPagePath(id, data = null) {

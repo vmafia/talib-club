@@ -108,6 +108,13 @@ export function getQueryCacheKey(collectionName, uid, limitCount, orderByField, 
 export function generateDocId(item) {
   if (!item) return Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
   
+  if (item.seriesId && item.part) {
+    const seriesSlug = String(item.seriesId).trim().toLowerCase()
+      .replace(/[\s_]+/g, '-')
+      .replace(/[^\w\u0E00-\u0E7F\-]/g, '');
+    if (seriesSlug) return `${seriesSlug}-${item.part}`;
+  }
+  
   const base = item.title || item.name || item.subject || "";
   if (base) {
     const slug = base.trim().toLowerCase()

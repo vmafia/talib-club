@@ -3,10 +3,10 @@
 // ============================================================
 
 export const BOOK_TYPES = [
-  "หนังสือ",
-  "วารสาร",
-  "PDF",
-  "รายงาน"
+  { id: "book", label: "หนังสือ" },
+  { id: "journal", label: "วารสาร" },
+  { id: "pdf", label: "PDF" },
+  { id: "report", label: "รายงาน" }
 ];
 
 export const BOOKS = [];

@@ -11,18 +11,54 @@ import {
   readCachedUserDocument, writeCachedUserDocument, invalidateUserDocumentCache
 } from "./cache.js"
 
-export async function getNextSequenceId(db, collectionName) {
-  // Use 'counters' collection to track auto-incrementing IDs
-  const counterRef = doc(db, "counters", collectionName)
+export function getItemCategoryKey(name, item) {
+  if (!item) return null;
+  
+  const mapEra = (val) => {
+    if (!val) return "unknown"
+    const str = String(val).trim().toLowerCase()
+    if (str === "1" || str === "ยุคแรก" || str === "salaf") return "salaf"
+    if (str === "2" || str === "ยุคกลาง" || str === "classical") return "classical"
+    if (str === "3" || str === "ยุคฟื้นฟู" || str === "revival") return "revival"
+    if (str === "4" || str === "ยุคปัจจุบัน" || str === "modern") return "modern"
+    return str
+  }
+
+  switch (name) {
+    case 'articles':
+      return item.type === 'series' && item.series ? item.series : (item.category || 'general');
+    case 'books':
+      return item.type || 'book';
+    case 'media':
+      return item.playlist || 'general';
+    case 'scholars':
+      return mapEra(item.era);
+    case 'book_campaigns':
+      return 'campaign';
+    default:
+      return null;
+  }
+}
+
+export async function getNextSequenceId(db, name, item = null) {
+  const collectionName = CONTENT_COLLECTIONS[name] || name;
+  const categorySlug = getItemCategoryKey(name, item);
+  const counterKey = categorySlug ? `${collectionName}_${categorySlug}` : collectionName;
+  const counterRef = doc(db, "counters", counterKey);
+  
   return await runTransaction(db, async (transaction) => {
-    const counterDoc = await transaction.get(counterRef)
-    let nextId = 1
+    const counterDoc = await transaction.get(counterRef);
+    let nextSeq = 1;
     if (counterDoc.exists()) {
-      nextId = (counterDoc.data().count || 0) + 1
+      nextSeq = (counterDoc.data().count || 0) + 1;
     }
-    transaction.set(counterRef, { count: nextId })
-    return String(nextId)
-  })
+    transaction.set(counterRef, { count: nextSeq });
+    
+    if (categorySlug) {
+      return `${categorySlug}-${nextSeq}`;
+    }
+    return String(nextSeq);
+  });
 }
 
 function buildCollectionQuery(collectionName, { uid, isUserSpecific, orderByField, orderDirection, limitCount }) {
@@ -260,7 +296,7 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
 
   const saveItem = useCallback(async (item) => {
     let id = item.id;
-    if (!id) id = await getNextSequenceId(db, name);
+    if (!id) id = await getNextSequenceId(db, name, item);
     id = String(id);
     const payload = {
       ...cleanForFirestore(item),
@@ -384,7 +420,7 @@ export async function saveContentItem(name, item, uid = null) {
 
   const isUserSpecific = USER_SPECIFIC_COLLECTIONS.includes(name)
   let id = item.id;
-  if (!id) id = await getNextSequenceId(db, name);
+  if (!id) id = await getNextSequenceId(db, name, item);
   id = String(id);
   const payload = {
     ...cleanForFirestore(item),
@@ -518,7 +554,7 @@ export async function bulkSaveItems(name, items, uid = null) {
   const payloads = []
   for (const item of items) {
     let id = item.id;
-    if (!id) id = await getNextSequenceId(db, name);
+    if (!id) id = await getNextSequenceId(db, name, item);
     id = String(id);
     const payload = {
       ...cleanForFirestore(item),
@@ -739,7 +775,7 @@ export function useUserCollection(name, uid) {
   const saveItem = useCallback(async (item) => {
     if (!collectionName) return
     let id = item.id;
-    if (!id) id = await getNextSequenceId(db, name);
+    if (!id) id = await getNextSequenceId(db, name, item);
     id = String(id);
     const payload = {
       ...cleanForFirestore(item),

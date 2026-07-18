@@ -4,25 +4,25 @@ import { useContentCollection, useTaxonomySettings } from "../lib/contentStore.j
 import SEOHead, { BASE_URL } from '../components/SEOHead.jsx'
 
 const ERA_LABELS = {
-  1: "ยุคแรก (Salaf) ค.ศ. 600–900",
-  2: "ยุคกลาง ค.ศ. 900–1500",
-  3: "ยุคฟื้นฟู ค.ศ. 1500–1800",
-  4: "ยุคปัจจุบัน ค.ศ. 1800–ปัจจุบัน"
+  salaf: "ยุคแรก (Salaf) ค.ศ. 600–900",
+  classical: "ยุคกลาง ค.ศ. 900–1500",
+  revival: "ยุคฟื้นฟู ค.ศ. 1500–1800",
+  modern: "ยุคปัจจุบัน ค.ศ. 1800–ปัจจุบัน"
 }
 const ERA_COLORS = {
-  1: "var(--teal)",
-  2: "#c9a84c",
-  3: "#8b7dd8",
-  4: "var(--acc)"
+  salaf: "var(--teal)",
+  classical: "#c9a84c",
+  revival: "#8b7dd8",
+  modern: "var(--acc)"
 }
 
 const mapEraValue = (val) => {
   if (!val) return ""
-  const str = String(val).trim()
-  if (str === "1" || str === "ยุคแรก") return "1"
-  if (str === "2" || str === "ยุคกลาง") return "2"
-  if (str === "3" || str === "ยุคฟื้นฟู") return "3"
-  if (str === "4" || str === "ยุคปัจจุบัน") return "4"
+  const str = String(val).trim().toLowerCase()
+  if (str === "1" || str === "ยุคแรก" || str === "salaf") return "salaf"
+  if (str === "2" || str === "ยุคกลาง" || str === "classical") return "classical"
+  if (str === "3" || str === "ยุคฟื้นฟู" || str === "revival") return "revival"
+  if (str === "4" || str === "ยุคปัจจุบัน" || str === "modern") return "modern"
   return str
 }
 
@@ -39,13 +39,13 @@ export default function Scholars() {
   const [mhFilter, setMhFilter] = useState("")
   const [mzFilter, setMzFilter] = useState("")
 
-  const [visibleCounts, setVisibleCounts] = useState({ 1: 6, 2: 6, 3: 6, 4: 6 })
+  const [visibleCounts, setVisibleCounts] = useState({ salaf: 6, classical: 6, revival: 6, modern: 6 })
 
   const resetVisible = () => {
-    setVisibleCounts({ 1: 6, 2: 6, 3: 6, 4: 6 })
+    setVisibleCounts({ salaf: 6, classical: 6, revival: 6, modern: 6 })
   }
 
-  const fields = ["all", ...new Set([...(taxonomy.scholarFields || []), ...scholars.map(s => s.field).filter(Boolean)])]
+  const fields = ["all", ...new Set([...(taxonomy.scholarFields || []).map(f => typeof f === 'string' ? f : f.label), ...scholars.map(s => s.field).filter(Boolean)])]
 
   const filtered = useMemo(() => {
     return scholars.filter(s => {

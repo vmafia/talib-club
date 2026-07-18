@@ -20,11 +20,11 @@ const EMPTY = {
 
 const mapEraValue = (val) => {
   if (!val) return ""
-  const str = String(val).trim()
-  if (str === "1" || str === "ยุคแรก") return "1"
-  if (str === "2" || str === "ยุคกลาง") return "2"
-  if (str === "3" || str === "ยุคฟื้นฟู") return "3"
-  if (str === "4" || str === "ยุคปัจจุบัน") return "4"
+  const str = String(val).trim().toLowerCase()
+  if (str === "1" || str === "ยุคแรก" || str === "salaf") return "salaf"
+  if (str === "2" || str === "ยุคกลาง" || str === "classical") return "classical"
+  if (str === "3" || str === "ยุคฟื้นฟู" || str === "revival") return "revival"
+  if (str === "4" || str === "ยุคปัจจุบัน" || str === "modern") return "modern"
   return str
 }
 
@@ -103,7 +103,7 @@ export default function AdminScholars() {
 
   function openNew() {
     const defaultEra = taxonomy.scholarEras?.[0]?.id || "1"
-    const defaultField = taxonomy.scholarFields?.[0] || ""
+    const defaultField = taxonomy.scholarFields?.[0]?.label || taxonomy.scholarFields?.[0] || ""
     setEdit({ ...EMPTY, era: defaultEra, field: defaultField, id: crypto.randomUUID() })
   }
 
@@ -221,9 +221,10 @@ export default function AdminScholars() {
             <span style={{ fontSize: 12, color: "var(--t2)", fontWeight: 500 }}>สาขาวิชา</span>
             <select value={fieldFilter} onChange={e => setFieldFilter(e.target.value)} style={{ background: "var(--card)", border: "none", borderRadius: 8, padding: "8px 12px", fontSize: 13 }}>
               <option value="all">-- ทุกสาขาวิชา --</option>
-              {(taxonomy.scholarFields || []).map(field => (
-                <option key={field} value={field}>{field}</option>
-              ))}
+              {(taxonomy.scholarFields || []).map(field => {
+                const val = typeof field === 'string' ? field : field.label;
+                return <option key={val} value={val}>{val}</option>;
+              })}
             </select>
           </label>
 
@@ -355,7 +356,10 @@ function ScholarForm({ item, setItem, onSave, onCancel, taxonomy, busy }) {
         <Field label="สาขาความรู้">
           <select value={item.field || ""} onChange={e => set("field", e.target.value)}>
              <option value="">-- ไม่ระบุ --</option>
-            {(taxonomy.scholarFields || []).map(field => <option key={field} value={field}>{field}</option>)}
+            {(taxonomy.scholarFields || []).map(field => {
+              const val = typeof field === 'string' ? field : field.label;
+              return <option key={val} value={val}>{val}</option>;
+            })}
           </select>
         </Field>
         
