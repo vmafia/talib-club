@@ -1,34 +1,8 @@
 import admin from "./_firebase-admin.js";
 
-function generateDocId(item) {
-  if (!item) return Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-  
-  if (item.seriesId && item.part) {
-    const seriesSlug = String(item.seriesId).trim().toLowerCase()
-      .replace(/[\s_]+/g, '-')
-      .replace(/[^\w\u0E00-\u0E7F\-]/g, '');
-    if (seriesSlug) return `${seriesSlug}-${item.part}`;
-  }
-  
-  const base = item.title || item.name || item.subject || "";
-  if (base) {
-    const slug = base.trim().toLowerCase()
-      .replace(/[\s_]+/g, '-')
-      .replace(/[^\w\u0E00-\u0E7F\-]/g, '');
-    
-    if (slug) {
-      const rand = Math.random().toString(36).substring(2, 7);
-      return `${slug}-${rand}`;
-    }
-  }
-  
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
-}
-
 export default async function handler(req, res) {
   try {
     const db = admin.firestore();
-    // Use the actual Firestore collection names here:
     const collections = [
       { name: "content_articles", metaKey: "articles" },
       { name: "content_books", metaKey: "books" },
@@ -44,46 +18,41 @@ export default async function handler(req, res) {
       logs.push(`Processing collection: ${colName}...`);
       const snap = await db.collection(colName).get();
       
-      for (const doc of snap.docs) {
-        const data = doc.data();
-        const oldId = doc.id;
+      // Sort documents by createdAt to assign sequential IDs chronically
+      const docs = snap.docs.map(doc => ({
+         oldId: doc.id,
+         data: doc.data(),
+         createdAt: doc.data().createdAt?.toMillis ? doc.data().createdAt.toMillis() : (doc.data().createdAt || 0)
+      })).sort((a, b) => a.createdAt - b.createdAt);
+      
+      let nextId = 1;
+      
+      for (const item of docs) {
+        const { oldId, data } = item;
         
-        let baseSlug = "";
-        if (data.seriesId && data.part) {
-           baseSlug = String(data.seriesId).trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^\w\u0E00-\u0E7F\-]/g, '');
-           baseSlug = `${baseSlug}-${data.part}`;
-        } else {
-           const base = data.title || data.name || data.subject || "";
-           baseSlug = base.trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^\w\u0E00-\u0E7F\-]/g, '');
-        }
-
-        if (baseSlug && oldId.startsWith(baseSlug)) {
-           continue; // Already migrated
-        }
-        
-        // If it doesn't have a baseSlug (e.g. no title) and is already a random ID, just leave it.
-        if (!baseSlug && (oldId.length === 20 || oldId.length === 36)) {
-           continue;
+        // Skip if it's already a sequential ID (e.g. "1", "2")
+        if (/^\d+$/.test(oldId)) {
+           nextId = Math.max(nextId, parseInt(oldId, 10) + 1);
+           continue; 
         }
         
-        let newId = generateDocId(data);
+        let newId = String(nextId);
         
-        let idCounter = 1;
-        let finalNewId = newId;
+        // Ensure newId doesn't collide with existing oldIds that happen to be numbers
         while (true) {
-          const existSnap = await db.collection(colName).doc(finalNewId).get();
+          const existSnap = await db.collection(colName).doc(String(newId)).get();
           if (!existSnap.exists) break;
-          finalNewId = `${newId}-${idCounter}`;
-          idCounter++;
+          newId = String(parseInt(newId, 10) + 1);
         }
-        newId = finalNewId;
+        
+        nextId = parseInt(newId, 10) + 1;
         
         logs.push(`Migrating [${colName}] ${oldId} -> ${newId}`);
         
         data.id = newId; 
         await db.collection(colName).doc(newId).set(data);
         
-        if (colName === "articles") {
+        if (colName === "content_articles") {
           const bSnap = await db.collection("content_bookmarks").where("articleId", "==", oldId).get();
           for (const bDoc of bSnap.docs) {
             await bDoc.ref.update({ articleId: newId });
@@ -101,6 +70,9 @@ export default async function handler(req, res) {
         
         await db.collection(colName).doc(oldId).delete();
       }
+      
+      // Save the latest sequence ID to the counters collection
+      await db.collection("counters").doc(col.metaKey).set({ count: nextId - 1 }, { merge: true });
     }
     
     // Force cache invalidation on clients
