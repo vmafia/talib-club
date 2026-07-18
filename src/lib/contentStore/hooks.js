@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch, query, where, limit, orderBy, getCountFromServer } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch, query, where, limit, orderBy, getCountFromServer, runTransaction } from "firebase/firestore"
 import { db } from "../firebase.js"
 import { getOfflineItem } from "../offlineStore.js"
 import { CONTENT_COLLECTIONS, USER_SPECIFIC_COLLECTIONS, PUBLIC_COLLECTIONS, LOCAL_STORAGE_CACHE_PREFIX } from "./constants.js"
@@ -10,6 +10,20 @@ import {
   fetchContentMetadata, updateCollectionMetadata,
   readCachedUserDocument, writeCachedUserDocument, invalidateUserDocumentCache
 } from "./cache.js"
+
+export async function getNextSequenceId(db, collectionName) {
+  // Use 'counters' collection to track auto-incrementing IDs
+  const counterRef = doc(db, "counters", collectionName)
+  return await runTransaction(db, async (transaction) => {
+    const counterDoc = await transaction.get(counterRef)
+    let nextId = 1
+    if (counterDoc.exists()) {
+      nextId = (counterDoc.data().count || 0) + 1
+    }
+    transaction.set(counterRef, { count: nextId })
+    return String(nextId)
+  })
+}
 
 function buildCollectionQuery(collectionName, { uid, isUserSpecific, orderByField, orderDirection, limitCount }) {
   let q = collection(db, collectionName)
@@ -245,7 +259,9 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
   }, [stableFallbackItems, loading, remoteItems])
 
   const saveItem = useCallback(async (item) => {
-    const id = String(item.id || generateDocId(item))
+    let id = item.id;
+    if (!id) id = await getNextSequenceId(db, name);
+    id = String(id);
     const payload = {
       ...cleanForFirestore(item),
       id,
@@ -298,7 +314,7 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
       throw err
     }
 
-  }, [collectionName, isUserSpecific, uid])
+  }, [collectionName, isUserSpecific, uid, name])
 
   const deleteItem = useCallback(async (id) => {
     let backupRemoteItems = null
@@ -367,7 +383,9 @@ export async function saveContentItem(name, item, uid = null) {
   if (!collectionName) throw new Error(`Unknown content collection: ${name}`)
 
   const isUserSpecific = USER_SPECIFIC_COLLECTIONS.includes(name)
-  const id = String(item.id || generateDocId(item))
+  let id = item.id;
+  if (!id) id = await getNextSequenceId(db, name);
+  id = String(id);
   const payload = {
     ...cleanForFirestore(item),
     id,
@@ -496,8 +514,12 @@ export async function bulkSaveItems(name, items, uid = null) {
   let saved = 0
   let failed = 0
   const now = serverTimestamp()
-  const payloads = items.map(item => {
-    const id = String(item.id || generateDocId(item))
+  
+  const payloads = []
+  for (const item of items) {
+    let id = item.id;
+    if (!id) id = await getNextSequenceId(db, name);
+    id = String(id);
     const payload = {
       ...cleanForFirestore(item),
       id,
@@ -506,8 +528,8 @@ export async function bulkSaveItems(name, items, uid = null) {
     }
     if (isUserSpecific && uid && !payload.uid) payload.uid = uid
     if (!payload.createdAt && !item.createdAt) payload.createdAt = now
-    return payload
-  })
+    payloads.push(payload)
+  }
 
   for (let i = 0; i < payloads.length; i += BATCH_LIMIT) {
     const chunk = payloads.slice(i, i + BATCH_LIMIT)
@@ -716,7 +738,9 @@ export function useUserCollection(name, uid) {
 
   const saveItem = useCallback(async (item) => {
     if (!collectionName) return
-    const id = String(item.id || generateDocId(item))
+    let id = item.id;
+    if (!id) id = await getNextSequenceId(db, name);
+    id = String(id);
     const payload = {
       ...cleanForFirestore(item),
       id,

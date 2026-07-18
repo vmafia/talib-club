@@ -9,7 +9,7 @@
       "destination": "/api/:path*"
     },
     {
-      "source": "/(article|articles|library|library-detail|media|media-detail|scholars|donate|)",
+      "source": "/(article|articles|library|library-detail|media|media-detail|scholars|donate|)(/.*)?",
       "has": [{
         "type": "header",
         "key": "user-agent",

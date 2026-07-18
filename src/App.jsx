@@ -272,14 +272,21 @@ export default function App() {
               <Route path="/" element={<Home go={go} />} />
               <Route path="/articles" element={<Articles go={go} authState={authState} ctx={ctx} />} />
               <Route path="/article" element={<ArticleDetail item={ctx} go={go} authState={authState} />} />
+              <Route path="/article/:category" element={<ArticleDetail item={ctx} go={go} authState={authState} />} />
               <Route path="/library" element={<Library go={go} authState={authState} ctx={ctx} />} />
               <Route path="/library-detail" element={
+                <LibraryDetail item={ctx} go={go} authState={authState} />
+              } />
+              <Route path="/library-detail/:category" element={
+                <LibraryDetail item={ctx} go={go} authState={authState} />
+              } />
                 <RequireLogin authState={authState}>
                   <LibraryDetail item={ctx} go={go} authState={authState} />
                 </RequireLogin>
               } />
               <Route path="/media" element={<Media go={go} ctx={ctx} />} />
               <Route path="/media-detail" element={<MediaDetail item={ctx} go={go} authState={authState} />} />
+              <Route path="/media-detail/:category" element={<MediaDetail item={ctx} go={go} authState={authState} />} />
               <Route path="/scholars" element={<Scholars />} />
               <Route path="/quran" element={
                 <RequireLogin authState={authState}>
