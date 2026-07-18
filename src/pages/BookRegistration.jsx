@@ -105,8 +105,8 @@ export default function BookRegistration({ go, ctx }) {
       const response = await fetch("/api/reserve-book-campaign", {
         method: "POST",
         headers: {
-          "content-type": "application/json",
-          "authorization": `Bearer ${idToken}`
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
         },
         body: JSON.stringify({ campaignId, name: formData.name })
       })
@@ -150,8 +150,8 @@ export default function BookRegistration({ go, ctx }) {
       const res = await fetch("/api/submit-book-registration", {
         method: "POST",
         headers: {
-          "content-type": "application/json",
-          "authorization": `Bearer ${idToken}`
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
         },
         body: JSON.stringify({
           campaignId,
