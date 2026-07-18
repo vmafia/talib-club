@@ -40,10 +40,11 @@ export default async function handler(req, res) {
         const data = doc.data();
         const oldId = doc.id;
         
-        // Check if it looks like an old auto-generated ID (20 chars, no hyphens)
-        const isAutoId = oldId.length === 20 && !oldId.includes('-');
+        // UUID is 36 chars with 4 hyphens. Firestore auto-id is 20 chars alphanumeric.
+        const isFirestoreId = oldId.length === 20 && !oldId.includes('-');
+        const isUUID = oldId.length === 36 && oldId.split('-').length === 5;
         
-        if (!isAutoId) {
+        if (!isFirestoreId && !isUUID) {
           continue;
         }
         
@@ -83,6 +84,14 @@ export default async function handler(req, res) {
         await db.collection(colName).doc(oldId).delete();
       }
     }
+    
+    // Force cache invalidation on clients
+    const metaPayload = {};
+    const now = Date.now();
+    for (const col of collections) {
+      metaPayload[col] = now;
+    }
+    await db.collection("site_settings").doc("content_meta").set(metaPayload, { merge: true });
     
     res.status(200).json({ success: true, logs });
   } catch (error) {
