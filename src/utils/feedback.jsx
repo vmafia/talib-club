@@ -182,13 +182,8 @@ export function confirmAction(options = {}) {
   danger = false,
 } = typeof options === "string" ? { message: options } : options
   return new Promise(resolve => {
-    const appEl = document.querySelector(".app")
     const container = document.createElement("div")
-    if (appEl) {
-      appEl.appendChild(container)
-    } else {
-      document.body.appendChild(container)
-    }
+    document.body.appendChild(container)
     const root = createRoot(container)
 
     function cleanup(value) {
@@ -219,9 +214,8 @@ export function promptAction({
   cancelText = "Cancel",
 } = {}) {
   return new Promise(resolve => {
-    const appEl = document.querySelector(".app")
     const container = document.createElement("div")
-    ;(appEl || document.body).appendChild(container)
+    document.body.appendChild(container)
     const root = createRoot(container)
 
     function cleanup(value) {

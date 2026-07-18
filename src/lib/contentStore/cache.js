@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "../firebase.js"
 import { setOfflineItem } from "../offlineStore.js"
+import { safeDateNow } from "../../utils/time.js"
 import {
   USER_DOC_CACHE_TTL_MS,
   COLLECTION_CACHE_TTL_MS,
@@ -153,7 +154,7 @@ export async function fetchContentMetadata() {
 export async function updateCollectionMetadata(collectionName) {
   try {
     await setDoc(doc(db, "content_settings", "metadata"), {
-      [collectionName]: Date.now(),
+      [collectionName]: safeDateNow(),
       updatedAt: serverTimestamp(),
     }, { merge: true })
   } catch (e) {

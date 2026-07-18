@@ -50,7 +50,6 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
   const isUserSpecific = USER_SPECIFIC_COLLECTIONS.includes(name)
 
   useEffect(() => {
-    lastRefetchTrigger.current = refetchTrigger
     if (!collectionName) {
       setError(new Error(`Unknown content collection: ${name}`))
       setLoading(false)
@@ -66,6 +65,7 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     const cacheKey = getQueryCacheKey(collectionName, uid, limitCount, orderByField, orderDirection)
     // H7: Fix cache bypass logic
     const cached = !live && !isRefetching ? readCachedCollection(cacheKey) : null
+    lastRefetchTrigger.current = refetchTrigger
     if (cached) {
       setRemoteItems(cached)
       setError(null)
@@ -319,9 +319,8 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     })
 
     // 🟢 มาร์กเป็น deleted: true ใน Cache
-    for (const [key, entry] of collectionCache.entries()) {
+    for (const [key, entry] of [...collectionCache.entries()]) {
       if (key.includes(`"collectionName":"${collectionName}"`)) {
-        backupCacheItems = entry.items
         const idx = entry.items.findIndex(d => String(d.id) === String(id))
         const newItems = idx >= 0
           ? entry.items.map(d => String(d.id) === String(id) ? { ...d, deleted: true } : d)
@@ -588,9 +587,11 @@ export function useCollectionCount(name) {
       return
     }
 
+    let active = true
     setLoading(true)
     getCountFromServer(collection(db, collectionName))
       .then(snapshot => {
+        if (!active) return
         const cnt = snapshot.data().count
         const now = Date.now()
         countCache.set(cacheKey, { count: cnt, at: now })
@@ -601,9 +602,11 @@ export function useCollectionCount(name) {
         setLoading(false)
       })
       .catch(err => {
+        if (!active) return
         console.error(`Error counting ${collectionName}:`, err)
         setLoading(false)
       })
+    return () => { active = false }
   }, [collectionName, name])
 
   return { count, loading }

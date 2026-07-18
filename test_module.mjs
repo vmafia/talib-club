@@ -1,0 +1,1 @@
+export const getFirestore = () => ({ id: 'db' }); export const FieldValue = { serverTimestamp: () => 'now' }; export const Timestamp = { now: () => 'timestamp' }; const firestore = () => getFirestore(); firestore.FieldValue = FieldValue; firestore.Timestamp = Timestamp; export default { firestore };

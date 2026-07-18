@@ -12,6 +12,7 @@ import { AccountDropdown, AccountDrawer } from "./nav/AccountComponents.jsx"
 import { NotificationDropdown, NotificationDrawer } from "./nav/NotificationComponents.jsx"
 // M2: Import shared utilities instead of duplicating them
 import { getMs as getTimeMs, getLocalDayKey } from "../utils/streak.js"
+import { safeDateNow } from "../utils/time.js"
 
 
 
@@ -46,6 +47,9 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
   const [dynamicNotifications, setDynamicNotifications] = useState([])
   const accountRef = useRef(null)
   const notificationRef = useRef(null)
+  const goRef = useRef(go)
+
+  useEffect(() => { goRef.current = go }, [go])
 
   useEffect(() => {
     let unsubs = []
@@ -68,7 +72,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
               time: article.date || "เมื่อเร็วๆ นี้",
               icon: "ti-file-text",
               color: "var(--teal)",
-              onClick: () => nav("article", article)
+              onClick: () => { goRef.current("article", article); setMenuOpen(false); setAccountOpen(false); setNotificationOpen(false) }
             })
           }
           
@@ -80,7 +84,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
               time: media.date || "เมื่อเร็วๆ นี้",
               icon: "ti-brand-youtube",
               color: "#e05555",
-              onClick: () => nav("media-detail", media)
+              onClick: () => { goRef.current("media-detail", media); setMenuOpen(false); setAccountOpen(false); setNotificationOpen(false) }
             })
           }
           
@@ -92,7 +96,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
               time: "เมื่อเร็วๆ นี้",
               icon: "ti-book",
               color: "rgb(255, 179, 0)",
-              onClick: () => nav("library-detail", book)
+              onClick: () => { goRef.current("library-detail", book); setMenuOpen(false); setAccountOpen(false); setNotificationOpen(false) }
             })
           }
 
@@ -104,7 +108,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
               time: "เมื่อเร็วๆ นี้",
               icon: "ti-gift",
               color: "var(--teal)",
-              onClick: () => nav("books")
+              onClick: () => { goRef.current("books"); setMenuOpen(false); setAccountOpen(false); setNotificationOpen(false) }
             })
           }
           
@@ -183,7 +187,7 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date()
+      const now = new Date(safeDateNow())
       const todayStr = getLocalDayKey(now.getTime())
       
       // Reset alerted times if day changed

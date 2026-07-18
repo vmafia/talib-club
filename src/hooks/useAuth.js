@@ -112,6 +112,15 @@ export function useAuth() {
             if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
               snapData = parsed.data;
               exists = true;
+              // BUG-03 fix: Background refresh to catch role changes
+              getDoc(ref).then(snap => {
+                if (currentSeq !== activeSeq || !snap.exists()) return
+                const freshData = snap.data()
+                if (freshData.role !== snapData.role) {
+                  try { localStorage.setItem(cacheKey, JSON.stringify({ data: freshData, timestamp: Date.now() })) } catch(e) {}
+                  setProfile(prev => ({ ...DEFAULT_PROFILE, ...(prev || {}), ...freshData }))
+                }
+              }).catch(() => {})
             }
           }
         } catch(e) {}
@@ -185,11 +194,9 @@ export function useAuth() {
     }
   }, [])
 
-  const value = useMemo(() => ({
-    user,
-    profile,
-    loading,
-    isStaff: profile?.role === "staff" || profile?.role === "admin" || profile?.role === "owner",
+  // BUG-09 fix: Separate stable action functions from reactive values
+  // These functions only depend on the `auth` singleton and `setProfile`, not on user/profile/loading
+  const actions = useMemo(() => ({
     async login(email, password) {
       return signInWithEmailAndPassword(auth, email, password)
     },
@@ -275,7 +282,15 @@ export function useAuth() {
     logout() {
       return signOut(auth)
     },
-  }), [user, profile, loading])
+  }), [])
+
+  const value = useMemo(() => ({
+    user,
+    profile,
+    loading,
+    isStaff: profile?.role === "staff" || profile?.role === "admin" || profile?.role === "owner",
+    ...actions,
+  }), [user, profile, loading, actions])
 
   return value
 }

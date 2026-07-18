@@ -105,7 +105,7 @@ export default function App() {
       parsed[key] = val
     }
     return Object.keys(parsed).length > 0 ? parsed : null
-  }, [location.state, searchParams])
+  }, [location.state, searchParams.toString()])
   const [countdownText, setCountdownText] = useState("")
   const { playingAudio, audioState, autoplayNext, setAutoplayNext, pause, resume, stop } = useAudio()
 
@@ -182,14 +182,14 @@ export default function App() {
     }
 
     const start = () => { if (!interval) interval = setInterval(tick, 1000) }
-    const stop = () => { clearInterval(interval); interval = null }
-    const onVisibility = () => document.hidden ? stop() : start()
+    const stopTick = () => { clearInterval(interval); interval = null }
+    const onVisibility = () => document.hidden ? stopTick() : start()
 
     document.addEventListener('visibilitychange', onVisibility)
     start()
 
     return () => {
-      stop()
+      stopTick()
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [uid, readingSessions])

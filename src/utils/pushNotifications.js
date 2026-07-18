@@ -22,7 +22,7 @@ function urlBase64ToUint8Array(base64String) {
  * Encodes subscription endpoint string to make a safe Firestore document ID
  */
 function getSubscriptionId(endpoint) {
-  return btoa(endpoint).replace(/=/g, '').substring(0, 50);
+  return btoa(unescape(encodeURIComponent(endpoint))).replace(/=/g, '').substring(0, 50);
 }
 
 /**
@@ -80,11 +80,15 @@ export async function subscribeToPushNotifications(userId = null, isStaff = fals
   const subscriptionJson = subscription.toJSON();
   const subId = getSubscriptionId(subscription.endpoint);
 
+  const effectiveUid = userId || auth.currentUser?.uid || null;
+  if (!effectiveUid) {
+    throw new Error('กรุณาล็อกอินก่อนเปิดรับการแจ้งเตือน');
+  }
   const docData = {
     subscription: subscriptionJson,
     endpoint: subscription.endpoint,
-    uid: userId || null,
-    userId: userId || null,
+    uid: effectiveUid,
+    userId: effectiveUid,
     isStaff: !!isStaff,
     updatedAt: new Date().toISOString()
   };

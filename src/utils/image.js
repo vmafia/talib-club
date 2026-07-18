@@ -25,16 +25,13 @@ export function compressImage(file, { maxWidth = 1000, maxHeight = 1000, quality
           let height = img.height;
 
           // Calculate new dimensions preserving aspect ratio
-          if (width > height) {
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = Math.round((width * maxHeight) / height);
-              height = maxHeight;
-            }
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
           }
 
           canvas.width = width;
