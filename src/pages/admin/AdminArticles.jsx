@@ -282,7 +282,7 @@ export default function AdminArticles() {
   }
 
   function openNew() {
-    setEdit({ ...EMPTY, id: crypto.randomUUID() })
+    setEdit({ ...EMPTY })
   }
 
   function openEdit(article) {

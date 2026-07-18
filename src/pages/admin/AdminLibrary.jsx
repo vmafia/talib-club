@@ -120,7 +120,7 @@ export default function AdminLibrary() {
   function openNew() {
     const defaultType = taxonomy.bookTypes?.[0]?.id || "journal"
     const defaultSource = taxonomy.bookSources?.[0] || "Talib Club"
-    setEdit({ ...EMPTY, type: defaultType, source: defaultSource, id: crypto.randomUUID() })
+    setEdit({ ...EMPTY, type: defaultType, source: defaultSource })
   }
 
   // --- ฟังก์ชันที่หายไป เติมกลับมาให้แล้วครับ ---

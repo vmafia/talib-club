@@ -102,9 +102,9 @@ export default function AdminScholars() {
   }
 
   function openNew() {
-    const defaultEra = taxonomy.scholarEras?.[0]?.id || "1"
-    const defaultField = taxonomy.scholarFields?.[0]?.label || taxonomy.scholarFields?.[0] || ""
-    setEdit({ ...EMPTY, era: defaultEra, field: defaultField, id: crypto.randomUUID() })
+    const defaultEra = taxonomy.scholarEras?.[0]?.id || "salaf"
+    const defaultField = taxonomy.scholarFields?.[0] || "อากีดะฮ์"
+    setEdit({ ...EMPTY, era: defaultEra, field: defaultField })
   }
 
   function openEdit(scholar) {

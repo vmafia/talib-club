@@ -106,8 +106,8 @@ export default function AdminMedia() {
   }
 
   function openNew() {
-    const defaultType = taxonomy.mediaTypes?.[0] || "youtube"
-    setEdit({ ...EMPTY, type: defaultType, id: crypto.randomUUID() })
+    const defaultType = taxonomy.mediaTypes?.[0]?.id || "video"
+    setEdit({ ...EMPTY, type: defaultType })
   }
 
   // --- ฟังก์ชันที่หายไป เติมกลับมาให้แล้วครับ ---

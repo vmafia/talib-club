@@ -15,7 +15,7 @@ export default function AdminDraftList({ title, collectionName, initialItems = [
   }, [items, search, fields])
 
   function openNew() {
-    setEditing({ ...emptyItem, id: crypto.randomUUID() })
+    setEditing({ ...emptyItem })
   }
 
   async function save() {
