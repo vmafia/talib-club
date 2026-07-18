@@ -73,8 +73,8 @@ export default function DashboardNav({
     },
     {
       icon: "ti ti-book",
-      label: "แจก/สั่งซื้อหนังสือ",
-      desc: "ลงทะเบียนรับหนังสือหรือสั่งซื้อหนังสือจาก Talib Club",
+      label: "แจกหนังสือ",
+      desc: "ลงทะเบียนรับหนังสือจาก Talib Club",
       view: "books",
       colorVar: "#10b981",
       bgVar: "rgba(16,185,129,0.1)",

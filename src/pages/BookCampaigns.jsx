@@ -7,6 +7,7 @@ export default function BookCampaigns({ go }) {
   const [campaigns, setCampaigns] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeImageIdx, setActiveImageIdx] = useState({})
+  const [quotas, setQuotas] = useState({})
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -27,11 +28,22 @@ export default function BookCampaigns({ go }) {
       }
     }
     fetchCampaigns()
+
+    // Fetch quotas
+    fetch("/api/get-campaign-quotas")
+      .then(res => res.json())
+      .then(data => setQuotas(data))
+      .catch(console.error)
   }, [])
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "60px 20px" }}>
+    <div className="campaigns-container">
       <style dangerouslySetInnerHTML={{__html: `
+        .campaigns-container {
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 60px 20px;
+        }
         .campaign-card {
           transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
           border: 1px solid var(--br);
@@ -107,10 +119,13 @@ export default function BookCampaigns({ go }) {
         }
         
         @media (max-width: 768px) {
+          .campaigns-container {
+            padding: 32px 12px;
+          }
           .campaign-content-layout {
             flex-direction: column;
-            gap: 32px;
-            padding: 32px 24px;
+            gap: 24px;
+            padding: 24px 16px;
           }
           .campaign-image-side {
             flex: 1;
@@ -129,7 +144,7 @@ export default function BookCampaigns({ go }) {
           width: 300, height: 300, background: "var(--teal)", filter: "blur(120px)", opacity: 0.12, zIndex: -1 
         }} />
         <h1 style={{ fontSize: 48, fontWeight: 800, marginBottom: 16, background: "linear-gradient(135deg, var(--teal), #2b8a3e)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          แจก / สั่งซื้อหนังสือ
+          แจกหนังสือ
         </h1>
         <p style={{ color: "var(--t2)", fontSize: 18, maxWidth: 600, margin: "0 auto", lineHeight: 1.6 }}>
           ศูนย์รวมการลงทะเบียนรับสิทธิ์หนังสือและสื่อความรู้จาก Talib Club
@@ -209,7 +224,7 @@ export default function BookCampaigns({ go }) {
                 <div className="campaign-text-side">
                   <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
                     <div className="campaign-badge" style={{ color: "#d97706", background: "rgba(245, 158, 11, 0.1)", borderColor: "rgba(245, 158, 11, 0.2)" }}>
-                      <i className="ti ti-ticket" style={{ fontSize: 16 }}></i> โควตา {c.quota} สิทธิ์
+                      <i className="ti ti-ticket" style={{ fontSize: 16 }}></i> {quotas[c.id] ? `โควตาเหลือ ${quotas[c.id].remaining} จาก ${c.quota} สิทธิ์` : `โควตาทั้งหมด ${c.quota} สิทธิ์`}
                     </div>
                     <div className="campaign-badge" style={{ color: "var(--teal)", background: "rgba(18, 184, 134, 0.1)", borderColor: "rgba(18, 184, 134, 0.2)" }}>
                       <i className="ti ti-truck-delivery" style={{ fontSize: 16 }}></i> {c.shippingFee > 0 ? `ค่าจัดส่ง ${c.shippingFee} ฿` : "จัดส่งฟรี!"}

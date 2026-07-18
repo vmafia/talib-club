@@ -22,6 +22,7 @@ export default function BookRegistration({ go, ctx }) {
     zipcode: "",
     contact: ""
   })
+  const [quotaInfo, setQuotaInfo] = useState(null)
 
   // Timer state
   const [expiresAt, setExpiresAt] = useState(null)
@@ -57,7 +58,26 @@ export default function BookRegistration({ go, ctx }) {
             phone: user.phone || "" // assuming phone might exist
           }))
 
+          // Check if already registered
+          try {
+            const regDoc = await getDoc(doc(db, "book_registrations", `${campaignId}_${user.uid}`))
+            if (regDoc.exists()) {
+              setStep(3)
+            }
+          } catch (e) {
+            console.error("Failed to check registration:", e)
+          }
 
+          // Fetch real-time quota
+          try {
+            const res = await fetch("/api/get-campaign-quotas")
+            const data = await res.json()
+            if (data[campaignId]) {
+              setQuotaInfo(data[campaignId])
+            }
+          } catch (e) {
+            console.error("Failed to fetch quota:", e)
+          }
         }
       } catch (err) {
         console.error(err)
@@ -196,7 +216,7 @@ export default function BookRegistration({ go, ctx }) {
             <i className="ti ti-lock" style={{ fontSize: 28 }}></i>
           </div>
           <h2>กรุณาเข้าสู่ระบบ</h2>
-          <p style={{ color: "var(--t2)", marginBottom: 24 }}>คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถลงทะเบียนรับ/สั่งซื้อหนังสือได้</p>
+          <p style={{ color: "var(--t2)", marginBottom: 24 }}>คุณต้องเข้าสู่ระบบก่อนจึงจะสามารถลงทะเบียนรับหนังสือได้</p>
           <button className="btn btn-teal" onClick={() => go("auth")} style={{ width: "100%", justifyContent: "center" }}>
             <i className="ti ti-login"></i> ไปหน้าเข้าสู่ระบบ
           </button>
@@ -206,7 +226,25 @@ export default function BookRegistration({ go, ctx }) {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 20px" }}>
+    <div className="registration-container">
+      <style dangerouslySetInnerHTML={{__html: `
+        .registration-container {
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 40px 20px;
+        }
+        .form-card {
+          padding: 32px;
+        }
+        @media (max-width: 768px) {
+          .registration-container {
+            padding: 20px 12px;
+          }
+          .form-card {
+            padding: 20px 16px;
+          }
+        }
+      `}} />
       <button className="btn btn-outline" onClick={() => go("books")} style={{ marginBottom: 24 }}>
         <i className="ti ti-arrow-left"></i> กลับไปหน้ารวมหนังสือ
       </button>
@@ -215,7 +253,7 @@ export default function BookRegistration({ go, ctx }) {
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ fontSize: 24, marginBottom: 8, color: "var(--teal)" }}>{campaign.title}</h1>
           <div style={{ display: "flex", gap: 16, fontSize: 14, flexWrap: "wrap" }}>
-            <span style={{ color: "var(--amber)" }}><i className="ti ti-ticket"></i> โควตาทั้งหมด {campaign.quota} สิทธิ์</span>
+            <span style={{ color: "var(--amber)" }}><i className="ti ti-ticket"></i> {quotaInfo ? `โควตาเหลือ ${quotaInfo.remaining} จาก ${campaign.quota} สิทธิ์` : `โควตาทั้งหมด ${campaign.quota} สิทธิ์`}</span>
             <span style={{ color: "var(--t2)" }}><i className="ti ti-truck-delivery"></i> ค่าจัดส่ง {campaign.shippingFee > 0 ? `${campaign.shippingFee} บาท` : "ฟรี"}</span>
           </div>
         </div>
@@ -233,7 +271,7 @@ export default function BookRegistration({ go, ctx }) {
       )}
 
       {step === 1 && (
-        <form className="card" onSubmit={handleReserve} style={{ padding: 32 }}>
+        <form className="card form-card" onSubmit={handleReserve}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid var(--br)" }}>
             <div style={{ width: 32, height: 32, background: "var(--teal)", color: "#fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>1</div>
             <h2 style={{ margin: 0 }}>กรอกข้อมูลเพื่อจองสิทธิ์</h2>
@@ -279,7 +317,7 @@ export default function BookRegistration({ go, ctx }) {
       )}
 
       {step === 2 && (
-        <form className="card" onSubmit={handleUploadAndSubmit} style={{ padding: 32, border: "2px solid var(--teal)" }}>
+        <form className="card form-card" onSubmit={handleUploadAndSubmit} style={{ border: "2px solid var(--teal)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid var(--br)" }}>
             <div style={{ width: 32, height: 32, background: "var(--teal)", color: "#fff", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>2</div>
             <h2 style={{ margin: 0 }}>ชำระเงินและแนบสลิป</h2>
@@ -317,13 +355,16 @@ export default function BookRegistration({ go, ctx }) {
       )}
 
       {step === 3 && (
-        <div className="card" style={{ padding: 40, textAlign: "center", border: "1px solid var(--teal)" }}>
+        <div className="card form-card" style={{ textAlign: "center", border: "1px solid var(--teal)" }}>
           <div style={{ width: 80, height: 80, background: "var(--teal-bg)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", color: "var(--teal)" }}>
             <i className="ti ti-circle-check" style={{ fontSize: 40 }}></i>
           </div>
           <h2 style={{ color: "var(--teal)", marginBottom: 16 }}>ลงทะเบียนสำเร็จ!</h2>
           <p style={{ color: "var(--text)", fontSize: 16 }}>ระบบได้รับข้อมูลและการชำระเงินของคุณเรียบร้อยแล้ว</p>
           <p style={{ color: "var(--t2)", marginTop: 8 }}>ทีมงานจะทำการตรวจสอบสลิปและจัดส่งพัสดุให้คุณตามที่อยู่จัดส่ง คุณสามารถตรวจสอบสถานะพัสดุได้ในเมนู Tracking</p>
+          <div style={{ background: "rgba(18, 184, 134, 0.1)", color: "var(--teal)", padding: "12px 16px", borderRadius: 8, marginTop: 16, fontSize: 14, border: "1px solid rgba(18, 184, 134, 0.2)" }}>
+            <i className="ti ti-info-circle"></i> ทางเราจะประกาศรายชื่อเมื่อมีการปิดรับลงทะเบียนเรียบร้อยแล้ว
+          </div>
           <div style={{ marginTop: 32, display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
             <button className="btn btn-teal" onClick={() => go("tracking-system")} style={{ padding: "12px 24px", fontSize: 16, fontWeight: 600 }}>
               <i className="ti ti-list-search" style={{ marginRight: 8 }}></i> เช็ครายชื่อและสถานะ
