@@ -86,13 +86,12 @@ export default async function handler(req, res) {
     return send(res, 400, { error: err.message });
   }
 
-  const db = admin.firestore();
-  const uid = decodedToken.uid;
-  const campaignRef = db.doc(`book_campaigns/${payload.campaignId}`);
-  const holdRef = campaignRef.collection("holds").doc(uid);
-  const registrationRef = db.doc(`book_registrations/${payload.campaignId}_${uid}`);
-
   try {
+    const uid = decodedToken.uid;
+    const db = admin.firestore();
+    const campaignRef = db.doc(`book_campaigns/${payload.campaignId}`);
+    const holdRef = campaignRef.collection("holds").doc(uid);
+    const registrationRef = db.doc(`book_registrations/${payload.campaignId}_${uid}`);
     await db.runTransaction(async (tx) => {
       const [campaignSnap, holdSnap, registrationSnap] = await Promise.all([
         tx.get(campaignRef),

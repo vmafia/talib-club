@@ -42,11 +42,10 @@ export default async function handler(req, res) {
   const campaignId = String(parseBody(req).campaignId || "").trim().slice(0, 120);
   if (!campaignId) return send(res, 400, { error: "Missing campaignId" });
 
-  const db = admin.firestore();
-  const campaignRef = db.doc(`book_campaigns/${campaignId}`);
-  const holdRef = campaignRef.collection("holds").doc(token.uid);
-
   try {
+    const db = admin.firestore();
+    const campaignRef = db.doc(`book_campaigns/${campaignId}`);
+    const holdRef = campaignRef.collection("holds").doc(token.uid);
     const hold = await db.runTransaction(async (tx) => {
       const campaignSnap = await tx.get(campaignRef);
       if (!campaignSnap.exists) throw new Error("Campaign not found");
