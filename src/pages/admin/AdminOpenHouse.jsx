@@ -12,7 +12,7 @@ export default function AdminOpenHouse() {
   const [loading, setLoading] = useState(true)
   const [showBoothForm, setShowBoothForm] = useState(false)
   const [editingBoothId, setEditingBoothId] = useState(null)
-  const [boothForm, setBoothForm] = useState({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
+  const [boothForm, setBoothForm] = useState({ name: "", slug: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
 
   // Campus Management State
   const [activeBooth, setActiveBooth] = useState(null)
@@ -50,8 +50,8 @@ export default function AdminOpenHouse() {
 
   const handleSaveBooth = async (e) => {
     e.preventDefault()
-    if (!boothForm.name || !boothForm.platforms || boothForm.platforms.length === 0) {
-      notifyError("กรุณากรอกชื่อและเลือกอย่างน้อย 1 แพลตฟอร์ม")
+    if (!boothForm.name || !boothForm.slug || !boothForm.platforms || boothForm.platforms.length === 0) {
+      notifyError("กรุณากรอกชื่อ, รหัส ID (ภาษาอังกฤษ) และเลือกอย่างน้อย 1 แพลตฟอร์ม")
       return
     }
     try {
@@ -66,7 +66,7 @@ export default function AdminOpenHouse() {
       }
       setShowBoothForm(false)
       setEditingBoothId(null)
-      setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
+      setBoothForm({ name: "", slug: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] })
     } catch (err) {
       console.error(err)
       notifyError("เกิดข้อผิดพลาดในการบันทึก")
@@ -90,7 +90,7 @@ export default function AdminOpenHouse() {
   const openEditBooth = (b) => {
     setEditingBoothId(b.id)
     const plats = b.platforms || (b.platform ? [b.platform] : ["YouTube"])
-    setBoothForm({ name: b.name, platforms: plats, socialLinks: b.socialLinks || {}, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1, networks: b.networks || [] })
+    setBoothForm({ name: b.name, slug: b.slug || "", platforms: plats, socialLinks: b.socialLinks || {}, language: b.language || "", description: b.description || "", logoUrl: b.logoUrl || "", themeColor: b.themeColor || "#1a5f7a", order: b.order || 1, networks: b.networks || [] })
     setShowBoothForm(true)
   }
 
@@ -272,7 +272,7 @@ export default function AdminOpenHouse() {
             จัดการแหล่งเรียนรู้ (Open House)
           </h2>
         </div>
-        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 12, fontWeight: 600, flexShrink: 0 }}>
+        <button className="btn btn-teal" onClick={() => { setShowBoothForm(true); setEditingBoothId(null); setBoothForm({ name: "", slug: "", platforms: ["YouTube"], socialLinks: {}, language: "Thai", description: "", logoUrl: "", themeColor: "#1a5f7a", order: 1, networks: [] }); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 12, fontWeight: 600, flexShrink: 0 }}>
           <i className="ti ti-plus"></i> เพิ่มแหล่งเรียนรู้ใหม่
         </button>
       </div>
@@ -294,6 +294,10 @@ export default function AdminOpenHouse() {
                 <label>
                   <span className="label-text">ชื่อช่อง / แหล่งเรียนรู้ *</span>
                   <input required type="text" value={boothForm.name} onChange={e => setBoothForm({...boothForm, name: e.target.value})} placeholder="เช่น Salafi Publications" />
+                </label>
+                <label>
+                  <span className="label-text">รหัส ID (ภาษาอังกฤษเท่านั้น) *</span>
+                  <input required type="text" value={boothForm.slug} onChange={e => setBoothForm({...boothForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})} placeholder="เช่น assabiqoon" />
                 </label>
                 <label>
                   <span className="label-text">ภาษาหลัก</span>

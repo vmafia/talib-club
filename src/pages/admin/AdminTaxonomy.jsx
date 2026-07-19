@@ -9,8 +9,8 @@ const GROUPS = [
   { key: "articleSeries", title: "ซีรีส์บทความ", mode: "series", idLabel: "รหัส", labelLabel: "ชื่อซีรีส์" },
   { key: "bookTypes", title: "ประเภทหนังสือ/PDF", mode: "object", idLabel: "รหัส", labelLabel: "ชื่อประเภท" },
   { key: "bookSources", title: "แหล่งที่มาหนังสือ", mode: "string", labelLabel: "ชื่อแหล่งที่มา" },
-  { key: "mediaTypes", title: "ประเภทมีเดีย", mode: "string", labelLabel: "ชื่อประเภท" },
-  { key: "mediaPlaylists", title: "เพลย์ลิสต์มีเดีย", mode: "string", labelLabel: "ชื่อเพลย์ลิสต์" }, // <-- เพิ่มบรรทัดนี้แล้ว
+  { key: "mediaTypes", title: "ประเภทมีเดีย", mode: "object", idLabel: "รหัส (EN)", labelLabel: "ชื่อประเภท" },
+  { key: "mediaPlaylists", title: "เพลย์ลิสต์มีเดีย", mode: "object", idLabel: "รหัส (EN)", labelLabel: "ชื่อเพลย์ลิสต์ (TH)" },
   { key: "scholarEras", title: "ยุคอุลามาอฺ", mode: "object", idLabel: "รหัสยุค", labelLabel: "ชื่อยุค" },
   { key: "scholarFields", title: "สาขาความรู้อุลามาอฺ", mode: "object", idLabel: "รหัสสาขา", labelLabel: "ชื่อสาขา" },
   { key: "staffCategories", title: "หมวดหมู่งานสตาฟ", mode: "string", labelLabel: "ชื่อหมวดหมู่" },

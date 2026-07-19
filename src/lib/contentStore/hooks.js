@@ -25,16 +25,23 @@ export function getItemCategoryKey(name, item) {
   }
 
   switch (name) {
-    case 'articles':
-      return item.type === 'series' && item.series ? item.series : (item.category || 'general');
+    case 'articles': {
+      const type = (item.type || 'general').toLowerCase();
+      // Series use seriesId as prefix
+      if (type === 'series' && item.series) return item.series.toLowerCase();
+      // Other types use type as prefix (general, specific, refute, qa, etc.)
+      return type;
+    }
     case 'books':
-      return item.type || 'book';
+      return (item.type || 'book').toLowerCase();
     case 'media':
-      return item.playlist || 'general';
+      return (item.playlist || 'media').toLowerCase();
     case 'scholars':
       return mapEra(item.era);
     case 'book_campaigns':
       return 'campaign';
+    case 'openhouse_booths':
+      return (item.slug || 'booth').toLowerCase();
     default:
       return null;
   }

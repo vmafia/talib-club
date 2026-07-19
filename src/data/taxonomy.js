@@ -7,7 +7,13 @@ export const DEFAULT_TAXONOMY = {
   articleSeries: SERIES,
   bookTypes: BOOK_TYPES,
   bookSources: ["Talib Club", "สำนักพิมพ์อื่น"],
-  mediaTypes: ["youtube", "spotify", "video"],
+  mediaTypes: [
+    { id: "youtube", label: "YouTube" },
+    { id: "spotify", label: "Spotify" },
+    { id: "podcast", label: "Podcast" },
+    { id: "video", label: "Video" },
+  ],
+  mediaPlaylists: [],
   scholarEras: [
     { id: "salaf", label: "ยุคแรก (Salaf)" },
     { id: "classical", label: "ยุคกลาง" },

@@ -51,8 +51,12 @@ export const ARTICLE_TYPES = [
     "label": "บทความเฉพาะเรื่อง"
   },
   {
-    "id": "social",
-    "label": "สังคมศาสตร์"
+    "id": "refute",
+    "label": "บทความโต้แย้ง"
+  },
+  {
+    "id": "qa",
+    "label": "ถาม-ตอบ"
   }
 ];
 
