@@ -49,6 +49,12 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    // --- System Analytics Collections ---
+    match /site_visits/{docId} {
+      allow read: if isStaff();
+      allow create: if true;
+    }
+
     // --- Public Content Collections ---
     match /content_articles/{docId} {
       allow read: if true;
