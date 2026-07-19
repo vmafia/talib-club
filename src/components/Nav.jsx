@@ -130,9 +130,9 @@ export default function Nav({ page, go, theme, setTheme, authState, readingSessi
           unsubs.push(unsub)
         }
 
-        watchLatestDoc("content_articles", "date", "article")
-        watchLatestDoc("content_media", "date", "media")
-        watchLatestDoc("content_books", "year", "book")
+        watchLatestDoc("content_articles", "createdAt", "article")
+        watchLatestDoc("content_media", "createdAt", "media")
+        watchLatestDoc("content_books", "createdAt", "book")
         watchLatestDoc("book_campaigns", "createdAt", "campaign")
         
       } catch(e) {
