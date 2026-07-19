@@ -266,6 +266,11 @@ export default function ArticleDetail({ item, go, authState }) {
     // Fix broken PDF SVG icons in older articles
     body = body.replace(/<path\s+d="M11\s+15l-1\.9\s+6h1\.9"\s*\/>\s*<path\s+d="M9\s+15l1\.9\s+6"\s*\/>/g, '<path d="M11 15h1a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-1v-6z" />');
 
+    // Auto-convert legacy plain text to HTML paragraphs and line breaks
+    if (body && !body.includes('<p') && !body.includes('<div') && !body.includes('<br')) {
+      body = body.split(/\n\s*\n/).map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join('');
+    }
+
     let isHtml = /<[a-z][\s\S]*>/i.test(body);
     const tocList = [];
     
