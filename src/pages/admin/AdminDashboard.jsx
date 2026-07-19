@@ -185,7 +185,11 @@ export default function AdminDashboard() {
                   cursor={{ fill: "var(--bg2)" }}
                   contentStyle={{ background: "var(--card)", border: "1px solid var(--br)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                   itemStyle={{ fontWeight: 600 }}
-                  formatter={(value, name) => [value + ' ครั้ง/คน', name]}
+                  formatter={(value, name) => {
+                    if (name === 'สมาชิกใหม่') return [value + ' คน', name];
+                    if (name === 'การเข้าชมเว็บ') return [value + ' ครั้ง', name];
+                    return [value, name];
+                  }}
                 />
                 <Bar dataKey="users" name="สมาชิกใหม่" fill="#f5a623" radius={[4, 4, 0, 0]} barSize={20} />
                 <Bar dataKey="reads" name="การเข้าชมเว็บ" fill="var(--teal)" radius={[4, 4, 0, 0]} barSize={20} />
