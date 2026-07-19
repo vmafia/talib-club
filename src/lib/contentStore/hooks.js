@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch, query, where, limit, orderBy, getCountFromServer, runTransaction } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch, query, where, limit, orderBy, getCountFromServer, runTransaction, deleteDoc } from "firebase/firestore"
 import { db } from "../firebase.js"
 import { getOfflineItem } from "../offlineStore.js"
 import { CONTENT_COLLECTIONS, USER_SPECIFIC_COLLECTIONS, PUBLIC_COLLECTIONS, LOCAL_STORAGE_CACHE_PREFIX } from "./constants.js"
@@ -369,26 +369,17 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     const backupCacheEntries = new Map(
       [...collectionCache.entries()].filter(([key]) => key.includes(`"collectionName":"${collectionName}"`))
     )
-    // 🟢 Optimistic Update: มาร์กเป็น deleted: true บนหน้าจอก่อนทันที (เพื่อแก้ปัญหา Fallback Merge ย้อนกลับมาแสดง)
+    // 🟢 Optimistic Update: เอาออกจาก State บนหน้าจอก่อนทันที
     setRemoteItems(prev => {
       backupRemoteItems = prev
       const list = prev || []
-      const idx = list.findIndex(d => String(d.id) === String(id))
-      if (idx >= 0) {
-        const next = [...list]
-        next[idx] = { ...next[idx], deleted: true }
-        return next
-      }
-      return [...list, { id: String(id), deleted: true }]
+      return list.filter(d => String(d.id) !== String(id))
     })
 
-    // 🟢 มาร์กเป็น deleted: true ใน Cache
+    // 🟢 ลบออกจาก Cache ถาวร
     for (const [key, entry] of [...collectionCache.entries()]) {
       if (key.includes(`"collectionName":"${collectionName}"`)) {
-        const idx = entry.items.findIndex(d => String(d.id) === String(id))
-        const newItems = idx >= 0
-          ? entry.items.map(d => String(d.id) === String(id) ? { ...d, deleted: true } : d)
-          : [...entry.items, { id: String(id), deleted: true }]
+        const newItems = entry.items.filter(d => String(d.id) !== String(id))
         collectionCache.set(key, { ...entry, items: newItems })
         if (PUBLIC_COLLECTIONS.includes(collectionName)) {
           try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
@@ -397,11 +388,7 @@ export function useContentCollection(name, fallbackItems = [], uid = null, optio
     }
 
     try {
-      await setDoc(doc(db, collectionName, String(id)), {
-        id: String(id),
-        deleted: true,
-        updatedAt: serverTimestamp(),
-      }, { merge: true })
+      await deleteDoc(doc(db, collectionName, String(id)))
       await updateCollectionMetadata(collectionName)
     } catch (err) {
       setRemoteItems(backupRemoteItems)
@@ -476,19 +463,12 @@ export async function deleteContentItem(name, id) {
   const collectionName = CONTENT_COLLECTIONS[name]
   if (!collectionName) throw new Error(`Unknown content collection: ${name}`)
 
-  await setDoc(doc(db, collectionName, String(id)), {
-    id: String(id),
-    deleted: true,
-    updatedAt: serverTimestamp(),
-  }, { merge: true })
+  await deleteDoc(doc(db, collectionName, String(id)))
 
-  // 🟢 Optimistic Update แทนการล้าง Cache โดยระบุเป็น deleted: true เพื่อความสอดคล้อง
+  // 🟢 Optimistic Update ลบออกจาก Cache ทันที
   for (const [key, entry] of collectionCache.entries()) {
     if (key.includes(`"collectionName":"${collectionName}"`)) {
-      const idx = entry.items.findIndex(d => String(d.id) === String(id))
-      const newItems = idx >= 0
-        ? entry.items.map(d => String(d.id) === String(id) ? { ...d, deleted: true } : d)
-        : [...entry.items, { id: String(id), deleted: true }]
+      const newItems = entry.items.filter(d => String(d.id) !== String(id))
       collectionCache.set(key, { ...entry, items: newItems })
       if (PUBLIC_COLLECTIONS.includes(collectionName)) {
         try { localStorage.setItem(LOCAL_STORAGE_CACHE_PREFIX + key, JSON.stringify({ items: newItems, at: Date.now() })) } catch (e) { }
@@ -517,11 +497,7 @@ export async function bulkDeleteItems(name, ids) {
     const chunk = ids.slice(i, i + BATCH_LIMIT)
     const batch = writeBatch(db)
     chunk.forEach(id => {
-      batch.set(doc(db, collectionName, String(id)), {
-        id: String(id),
-        deleted: true,
-        updatedAt: now,
-      }, { merge: true })
+      batch.delete(doc(db, collectionName, String(id)))
     })
     try {
       await batch.commit()
