@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer } from 'react-konva';
 import useImage from 'use-image';
 import getStroke from 'perfect-freehand';
 import toast from 'react-hot-toast';
@@ -101,6 +101,28 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
      return results;
   }, [searchQuery, pages]);
   
+  const [selectedId, selectShape] = useState(null);
+  const transformerRef = useRef();
+
+  useEffect(() => {
+    if (selectedId && transformerRef.current) {
+       const node = stageRef.current.findOne(`#${selectedId}`);
+       if (node) {
+          transformerRef.current.nodes([node]);
+          transformerRef.current.getLayer().batchDraw();
+       }
+    } else if (transformerRef.current) {
+       transformerRef.current.nodes([]);
+    }
+  }, [selectedId]);
+
+  const checkDeselect = (e) => {
+    const clickedOnEmpty = e.target === e.target.getStage() || e.target.name() === 'background';
+    if (clickedOnEmpty) {
+      selectShape(null);
+    }
+  };
+  
   const colors = [
     '#111827', '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#10B981', '#06B6D4', 
     '#3B82F6', '#6366F1', '#8B5CF6', '#D946EF', '#F43F5E', '#78716C', '#FFFFFF'
@@ -128,6 +150,9 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recordingStartTimeRef = useRef(null);
+  const [playbackTime, setPlaybackTime] = useState(Number.MAX_SAFE_INTEGER);
+  const animationRef = useRef(null);
   
   const isDrawing = useRef(false);
 
@@ -254,6 +279,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
         
         // Capture the index when recording starts so sticker goes to the right page
         const targetPageIndex = currentPageIndex;
+        recordingStartTimeRef.current = Date.now();
         
         mediaRecorder.onstop = () => {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
@@ -290,11 +316,22 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
     const audio = new Audio(url);
     audio.play();
     
+    setPlaybackTime(0);
+    
     updatePage(pageIndex, (page) => {
       page.stickers = page.stickers.map(s => s.id === id ? { ...s, isPlaying: true } : s);
     });
     
+    const startTime = performance.now();
+    const animate = (time) => {
+       setPlaybackTime(time - startTime);
+       animationRef.current = requestAnimationFrame(animate);
+    };
+    animationRef.current = requestAnimationFrame(animate);
+    
     audio.onended = () => {
+      cancelAnimationFrame(animationRef.current);
+      setPlaybackTime(Number.MAX_SAFE_INTEGER);
       updatePage(pageIndex, (page) => {
         page.stickers = page.stickers.map(s => s.id === id ? { ...s, isPlaying: false } : s);
       });
@@ -387,10 +424,14 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
     };
   };
 
-  const handlePointerDown = () => {
+  const handlePointerDown = (e) => {
+    checkDeselect(e);
+  
     if (tool === 'pan') return;
     const pos = getPointerPosRelativeToPage();
     if (!pos) return;
+    
+    const relativeTime = isRecording && recordingStartTimeRef.current ? Date.now() - recordingStartTimeRef.current : null;
     
     if (tool === 'text') {
        const newText = { id: `text-${Date.now()}`, text: 'พิมพ์ข้อความที่นี่...', x: pos.x, y: pos.y, color: penColor, size: penSize * 4 };
@@ -444,7 +485,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
     
     isDrawing.current = true;
     updatePage(currentPageIndex, (page) => {
-       page.lines.push({ tool, color: penColor, size: penSize, opacity: penOpacity, points: [pos.x, pos.y, pos.x, pos.y] });
+       page.lines.push({ tool, color: penColor, size: penSize, opacity: penOpacity, points: [pos.x, pos.y, pos.x, pos.y], startTime: relativeTime });
     });
   };
 
@@ -904,10 +945,13 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
           <Group x={pageX} y={pageY}>
             {/* Page Paper Background */}
             <Rect 
+               name="background"
                width={currentPage.width} 
                height={currentPage.height} 
                fill={currentPage.paperColor === 'yellow' ? '#FEF3C7' : currentPage.paperColor === 'dark' ? '#1F2937' : 'white'} 
                shadowColor="rgba(0,0,0,0.15)" shadowBlur={20} shadowOffsetY={10} 
+               onClick={checkDeselect}
+               onTap={checkDeselect}
             />
             
             {/* Paper Pattern */}
@@ -924,6 +968,8 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
             {currentPage.images && currentPage.images.map((img) => (
               <Group 
                 key={img.id}
+                id={img.id}
+                name="object"
                 x={img.x}
                 y={img.y}
                 draggable={tool === 'pan'}
@@ -934,10 +980,45 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
                     if(i) { i.x = x; i.y = y; }
                   });
                 }}
+                onClick={() => { if (tool === 'pan' || tool === 'lasso') selectShape(img.id); }}
+                onTap={() => { if (tool === 'pan' || tool === 'lasso') selectShape(img.id); }}
               >
                  <PDFPageImage src={img.src} width={img.width} height={img.height} />
               </Group>
             ))}
+            
+            {/* Shapes */}
+            {currentPage.shapes && currentPage.shapes.map((s, i) => {
+              const width = s.x2 - s.x1;
+              const height = s.y2 - s.y1;
+              const shapeProps = {
+                 key: s.id, id: s.id, name: "object",
+                 x: s.x1, y: s.y1, stroke: s.color, strokeWidth: s.size, opacity: s.opacity,
+                 draggable: tool === 'pan',
+                 onClick: () => { if (tool === 'pan' || tool === 'lasso') selectShape(s.id); },
+                 onTap: () => { if (tool === 'pan' || tool === 'lasso') selectShape(s.id); },
+                 onDragEnd: (e) => {
+                    const { x, y } = e.target.position();
+                    updatePage(currentPageIndex, (page) => {
+                       const shp = page.shapes.find(sh => sh.id === s.id);
+                       if (shp) {
+                          const dx = x - shp.x1; const dy = y - shp.y1;
+                          shp.x1 += dx; shp.x2 += dx; shp.y1 += dy; shp.y2 += dy;
+                       }
+                    });
+                 }
+              };
+              
+              if (s.type === 'rect') {
+                 return <Rect {...shapeProps} width={width} height={height} dash={s.isDashed ? [10, 5] : []} />;
+              } else if (s.type === 'circle') {
+                 const radius = Math.sqrt(width * width + height * height);
+                 return <Circle {...shapeProps} radius={radius} />;
+              } else if (s.type === 'line') {
+                 return <Path {...shapeProps} data={`M 0 0 L ${width} ${height}`} lineCap="round" lineJoin="round" />;
+              }
+              return null;
+            })}
           </Group>
         </Layer>
         
@@ -946,6 +1027,9 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
           <Group x={pageX} y={pageY}>
             {/* Strokes */}
             {currentPage.lines.map((line, i) => {
+              const isVisible = line.startTime === undefined || line.startTime === null || line.startTime <= playbackTime;
+              if (!isVisible) return null;
+              
               const pointPairs = [];
               for(let p = 0; p < line.points.length; p+=2) {
                   pointPairs.push([line.points[p], line.points[p+1]]);
@@ -1075,6 +1159,8 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
             {currentPage.texts && currentPage.texts.map((t) => (
               <Group
                 key={t.id}
+                id={t.id}
+                name="object"
                 x={t.x}
                 y={t.y}
                 draggable={tool === 'pan' || tool === 'text'}
@@ -1086,15 +1172,19 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
                    });
                 }}
                 onClick={() => {
-                   if (tool === 'text') {
-                     setEditingTextId(t.id);
-                     setEditingTextValue(t.text);
+                   if (tool === 'pan' || tool === 'lasso') {
+                      selectShape(t.id);
+                   } else if (tool === 'text') {
+                      setEditingTextId(t.id);
+                      setEditingTextValue(t.text);
                    }
                 }}
                 onTap={() => {
-                   if (tool === 'text') {
-                     setEditingTextId(t.id);
-                     setEditingTextValue(t.text);
+                   if (tool === 'pan' || tool === 'lasso') {
+                      selectShape(t.id);
+                   } else if (tool === 'text') {
+                      setEditingTextId(t.id);
+                      setEditingTextValue(t.text);
                    }
                 }}
               >
@@ -1113,6 +1203,8 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
             {currentPage.stickers.map((sticker) => (
                <Group 
                  key={sticker.id}
+                 id={sticker.id}
+                 name="object"
                  x={sticker.x}
                  y={sticker.y}
                  draggable={tool === 'pan'}
@@ -1123,8 +1215,14 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
                      if(s) { s.x = x; s.y = y; }
                    });
                  }}
-                 onClick={() => playAudioSticker(currentPageIndex, sticker.id, sticker.audioUrl)}
-                 onTap={() => playAudioSticker(currentPageIndex, sticker.id, sticker.audioUrl)}
+                 onClick={() => {
+                    if (tool === 'pan' || tool === 'lasso') selectShape(sticker.id);
+                    else playAudioSticker(currentPageIndex, sticker.id, sticker.audioUrl);
+                 }}
+                 onTap={() => {
+                    if (tool === 'pan' || tool === 'lasso') selectShape(sticker.id);
+                    else playAudioSticker(currentPageIndex, sticker.id, sticker.audioUrl);
+                 }}
                >
                  <Circle radius={24} fill={sticker.isPlaying ? '#10B981' : '#F59E0B'} shadowColor="rgba(0,0,0,0.2)" shadowBlur={10} shadowOffsetY={4} />
                  <Text text="🎤" fontSize={24} x={-12} y={-12} />
@@ -1132,6 +1230,19 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
                </Group>
             ))}
           </Group>
+        </Layer>
+        
+        {/* Transformer Layer */}
+        <Layer>
+           {selectedId && (
+              <Transformer 
+                ref={transformerRef} 
+                boundBoxFunc={(oldBox, newBox) => {
+                  if (newBox.width < 10 || newBox.height < 10) return oldBox;
+                  return newBox;
+                }}
+              />
+           )}
         </Layer>
       </Stage>
 
