@@ -7,6 +7,10 @@ import getStroke from 'perfect-freehand';
 import toast from 'react-hot-toast';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import { uploadNotebookData, downloadNotebookData } from '../../../utils/notebookStorage.js';
+import { db, storage } from '../../../lib/firebase.js';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -48,7 +52,7 @@ const PaperPattern = ({ width, height, type, color }) => {
   return <Group>{lines}</Group>;
 };
 
-export default function ProNotebook({ bookId, uid, activeBook }) {
+export default function ProNotebook({ bookId, uid, activeBook, readonly = false }) {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   
@@ -65,21 +69,40 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const isMobile = windowWidth < 768;
   const isDesktop = windowWidth >= 1024;
   
-  const saveKey = `talib_notebook_${bookId || 'default'}`;
+  const notebookId = bookId || 'default';
   
   useEffect(() => {
-     const saved = localStorage.getItem(saveKey);
-     if (saved) {
+     const loadData = async () => {
+        toast.loading("กำลังซิงก์ข้อมูลคลาวด์...", { id: "cloud-sync" });
         try {
-           const parsed = JSON.parse(saved);
-           if (parsed && parsed.length > 0) {
-              setPages(parsed);
+           const cloudData = await downloadNotebookData(uid, notebookId);
+           if (cloudData && cloudData.length > 0) {
+              setPages(cloudData);
+              toast.success("ซิงก์ข้อมูลสำเร็จ!", { id: "cloud-sync" });
+           } else {
+              toast.dismiss("cloud-sync");
            }
         } catch (e) {
-           console.error("Load save failed", e);
+           console.error("Cloud load failed", e);
+           const saved = localStorage.getItem(`talib_notebook_${notebookId}`);
+           if (saved) {
+              setPages(JSON.parse(saved));
+              toast.error("ออฟไลน์: โหลดจากเครื่องแทน", { id: "cloud-sync" });
+           } else {
+              toast.dismiss("cloud-sync");
+           }
+        }
+     };
+     
+     if (uid && notebookId !== 'default') {
+        loadData();
+     } else {
+        const saved = localStorage.getItem(`talib_notebook_${notebookId}`);
+        if (saved) {
+           try { setPages(JSON.parse(saved)); } catch (e) {}
         }
      }
-  }, [bookId]);
+  }, [notebookId, uid]);
   
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [showModeSelection, setShowModeSelection] = useState(activeBook?.book?.fileUrl ? true : false);
@@ -284,11 +307,24 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
     }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (file && file.type === 'application/pdf') {
-      const objectUrl = URL.createObjectURL(file);
-      startLoadingPDF(objectUrl);
+      if (file.size > 10 * 1024 * 1024) {
+         toast.error('ไฟล์ PDF มีขนาดใหญ่เกิน 10MB');
+         return;
+      }
+      toast.loading('กำลังอัปโหลด PDF ไปยังคลาวด์...', { id: 'pdf-upload' });
+      try {
+         const storageRef = ref(storage, `user_pdfs/${uid}/${Date.now()}_${file.name}`);
+         await uploadBytes(storageRef, file);
+         const downloadUrl = await getDownloadURL(storageRef);
+         toast.success('อัปโหลดสำเร็จ!', { id: 'pdf-upload' });
+         startLoadingPDF(downloadUrl);
+      } catch (err) {
+         console.error(err);
+         toast.error('อัปโหลดล้มเหลว', { id: 'pdf-upload' });
+      }
     } else if (file) {
       toast.error('กรุณาเลือกไฟล์ PDF เท่านั้นครับ');
     }
@@ -421,9 +457,30 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
     toast.success('ลบหน้ากระดาษแล้ว');
   };
 
-  const saveNotebook = () => {
-     localStorage.setItem(saveKey, JSON.stringify(pages));
-     toast.success("บันทึกสมุดโน้ตเรียบร้อยแล้ว!", { icon: '💾' });
+  const saveNotebook = async () => {
+     if (readonly) return;
+     toast.loading("กำลังบันทึกขึ้นคลาวด์...", { id: "cloud-save" });
+     try {
+        await uploadNotebookData(uid, notebookId, pages);
+        
+        // Save metadata to Firestore
+        const metadataRef = doc(db, 'content_notebooks', `${uid}_${notebookId}`);
+        await setDoc(metadataRef, {
+           uid,
+           bookId: notebookId,
+           title: activeBook?.book?.title || 'สมุดโน้ตส่วนตัว',
+           updatedAt: serverTimestamp(),
+           coverColor: 'red',
+        }, { merge: true });
+
+        // Backup locally
+        localStorage.setItem(`talib_notebook_${notebookId}`, JSON.stringify(pages));
+        toast.success("บันทึกคลาวด์เรียบร้อย!", { id: "cloud-save", icon: '💾' });
+     } catch (err) {
+        console.error(err);
+        localStorage.setItem(`talib_notebook_${notebookId}`, JSON.stringify(pages));
+        toast.error("บันทึกคลาวด์ล้มเหลว (เซฟลงเครื่องแล้ว)", { id: "cloud-save" });
+     }
   };
   
   const exportPage = () => {
@@ -460,7 +517,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const handlePointerDown = (e) => {
     checkDeselect(e);
   
-    if (tool === 'pan' || isSpaceDown) return;
+    if (readonly || tool === 'pan' || isSpaceDown) return;
     const pos = getPointerPosRelativeToPage();
     if (!pos) return;
     
@@ -722,20 +779,24 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
-      const objectUrl = URL.createObjectURL(file);
-      pushHistory();
-      updatePage(currentPageIndex, (page) => {
-         if (!page.images) page.images = [];
-         page.images.push({
-           id: `img-${Date.now()}`,
-           src: objectUrl,
-           x: 100,
-           y: 100,
-           width: 300,
-           height: 300
-         });
-      });
-      toast.success('แทรกรูปภาพเรียบร้อย');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target.result;
+        pushHistory();
+        updatePage(currentPageIndex, (page) => {
+           if (!page.images) page.images = [];
+           page.images.push({
+             id: `img-${Date.now()}`,
+             src: base64,
+             x: 100,
+             y: 100,
+             width: 300,
+             height: 300
+           });
+        });
+        toast.success('แทรกรูปภาพเรียบร้อย');
+      };
+      reader.readAsDataURL(file);
     }
     e.target.value = null;
   };
@@ -790,24 +851,33 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
-               <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showAddMenu ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                  <Plus size={24} strokeWidth={1.5} />
-               </button>
-               
-               <button onClick={() => setShowSearch(!showSearch)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Search size={22} strokeWidth={1.5} />
-               </button>
+               {!readonly && (
+                 <>
+                   <button onClick={() => setShowAddMenu(!showAddMenu)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showAddMenu ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                      <Plus size={24} strokeWidth={1.5} />
+                   </button>
+                   
+                   <button onClick={() => setShowSearch(!showSearch)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Search size={22} strokeWidth={1.5} />
+                   </button>
 
-               <button style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Columns size={22} strokeWidth={1.5} />
-               </button>
+                   <button style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Columns size={22} strokeWidth={1.5} />
+                   </button>
 
-               <button onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showMoreMenu ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                  <LayoutGrid size={22} strokeWidth={1.5} />
-               </button>
+                   <button onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showMoreMenu ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                      <LayoutGrid size={22} strokeWidth={1.5} />
+                   </button>
+                 </>
+               )}
+               {readonly && (
+                 <button onClick={exportPage} style={{ padding: '8px 16px', borderRadius: 20, border: 'none', background: 'var(--teal)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                    <Download size={18} strokeWidth={2} /> Export Image
+                 </button>
+               )}
 
                {/* Add Menu Dropdown */}
-               {showAddMenu && (
+               {showAddMenu && !readonly && (
                  <div style={{ position: 'absolute', top: 56, right: 120, zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: 8, borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 220, display: 'flex', flexDirection: 'column' }}>
                     <button style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <FilePlus size={20} strokeWidth={1.5} color="#4B5563" /> หน้าใหม่
@@ -826,7 +896,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
                )}
 
                {/* More Menu Dropdown */}
-               {showMoreMenu && (
+               {showMoreMenu && !readonly && (
                  <div style={{ position: 'absolute', top: 56, right: 0, zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: 8, borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 280, display: 'flex', flexDirection: 'column' }}>
                     <button onClick={() => setShowPageSettings(true)} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Settings size={20} strokeWidth={1.5} color="#4B5563" /> เปลี่ยนแม่แบบกระดาษ
@@ -944,7 +1014,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
       )}
 
       {/* Huawei Notes Unified Draggable Floating Toolbar (Tablet & Desktop) */}
-      {!isMobile && (
+      {!isMobile && !readonly && (
         <Draggable handle=".huawei-drag-handle">
           <div style={{ position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: '6px 8px', borderRadius: 16, display: 'flex', gap: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)', flexWrap: 'nowrap', alignItems: 'center', width: 'auto', maxWidth: '95vw' }}>
             
@@ -1188,12 +1258,12 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
         onMouseUp={handlePointerUp}
         onTouchEnd={handleTouchEnd}
         onWheel={handleWheel}
-        draggable={tool === 'pan'}
+        draggable={readonly || tool === 'pan'}
         scaleX={scale}
         scaleY={scale}
         x={position.x}
         y={position.y}
-        style={{ cursor: tool === 'pan' ? 'grab' : 'crosshair' }}
+        style={{ cursor: readonly || tool === 'pan' ? 'grab' : 'crosshair' }}
       >
         {/* Background Layer (Paper + PDF + Images) */}
         <Layer>

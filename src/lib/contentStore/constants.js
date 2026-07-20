@@ -10,6 +10,7 @@ export const CONTENT_COLLECTIONS = {
   quran_bookmarks: "content_quran_bookmarks",
   quran_last_read: "content_quran_last_read",
   history: "content_history",
+  notebooks: "content_notebooks",
 }
 
 export const SITE_DOC = { collection: "content_settings", id: "site" }
@@ -23,6 +24,7 @@ export const USER_SPECIFIC_COLLECTIONS = [
   "quran_bookmarks",
   "quran_last_read",
   "history",
+  "notebooks",
 ]
 
 export const COLLECTION_CACHE_TTL_MS = 5 * 60 * 1000

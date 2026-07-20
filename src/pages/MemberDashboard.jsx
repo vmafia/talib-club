@@ -11,6 +11,7 @@ import ProfilePanel from "../components/dashboard/ProfilePanel.jsx"
 import SavedVersesPanel from "../components/dashboard/SavedVersesPanel.jsx"
 import LeaderboardPanel from "../components/dashboard/LeaderboardPanel.jsx"
 import ReflectionsPanel from "../components/dashboard/ReflectionsPanel.jsx"
+import NotebookGalleryPanel from "../components/dashboard/NotebookGalleryPanel.jsx"
 
 function resolveDashboardView(initialView) {
   if (!initialView || initialView === "bookshelf" || initialView === "streak") return "overview"
@@ -226,6 +227,12 @@ export default function MemberDashboard({ authState, go, initialView = "overview
           authState={authState}
           setView={setView}
           theme={theme}
+        />
+      )}
+      {view === "notebooks" && (
+        <NotebookGalleryPanel
+          authState={authState}
+          setView={setView}
         />
       )}
     </div>

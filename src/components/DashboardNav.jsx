@@ -64,6 +64,14 @@ export default function DashboardNav({
       bgVar: "rgba(168,85,247,0.1)",
     },
     {
+      icon: "ti ti-books",
+      label: "คลังสมุดโน้ตส่วนตัว (Notebooks)",
+      desc: "สมุดจดบันทึกทั้งหมดของคุณ ทบทวน อ่านอย่างเดียว และส่งออกเป็นรูปภาพ",
+      view: "notebooks",
+      colorVar: "#14b8a6",
+      bgVar: "rgba(20,184,166,0.1)",
+    },
+    {
       icon: "ti ti-user-circle",
       label: "โปรไฟล์ของฉัน",
       desc: "จัดการข้อมูลบัญชีและรหัสสมาชิก",
