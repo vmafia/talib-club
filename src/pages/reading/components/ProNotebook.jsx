@@ -657,92 +657,64 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const [showPageManager, setShowPageManager] = useState(false);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: 'var(--gray-light)', display: 'flex' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#F3F4F6', display: 'flex', flexDirection: 'column' }}>
       
-      {isDesktop && (
-        <Draggable handle=".drag-handle">
-          <div style={{ position: 'absolute', top: 24, left: 24, width: 64, background: '#111827', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0', zIndex: 60, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', borderRadius: 16 }}>
-            <div className="drag-handle" style={{ cursor: 'grab', color: '#4B5563', marginBottom: 16, display: 'flex', justifyContent: 'center', width: '100%' }}>
-               <GripHorizontal size={20} />
-            </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', alignItems: 'center' }}>
-            {[
-              { id: 'pan', icon: MousePointer2 },
-              { id: 'lasso', icon: Lasso },
-              { id: 'pen', icon: PenTool },
-              { id: 'highlighter', icon: Highlighter },
-              { id: 'laser', icon: Zap },
-              { id: 'shape', icon: Square },
-              { id: 'text', icon: Type },
-              { id: 'eraser', icon: Eraser },
-            ].map(t => (
-               <button 
-                 key={t.id}
-                 onClick={() => { setTool(t.id); if (t.id === tool && (t.id === 'pen' || t.id === 'highlighter' || t.id === 'shape' || t.id === 'text')) setShowToolSettings(!showToolSettings); else setShowToolSettings(true); }} 
-                 style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: tool === t.id ? 'rgba(255,255,255,0.15)' : 'transparent', color: tool === t.id ? '#10B981' : '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', position: 'relative' }}
-               >
-                 <t.icon size={22} strokeWidth={tool === t.id ? 2.5 : 2} />
-                 {tool === t.id && (t.id === 'pen' || t.id === 'highlighter' || t.id === 'shape' || t.id === 'text') && <div style={{ position: 'absolute', right: 4, bottom: 4, width: 4, height: 4, borderRadius: '50%', background: '#10B981' }}></div>}
+      {/* Huawei Notes Top Navigation Bar */}
+      {!isMobile && (
+         <div style={{ height: 56, flexShrink: 0, width: '100%', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', zIndex: 50, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+               <button onClick={() => window.history.back()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ChevronLeft size={24} strokeWidth={1.5} />
                </button>
-            ))}
-          </div>
-          
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-            <button onClick={() => document.getElementById('image-upload').click()} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: 'transparent', color: '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-              <ImageIcon size={22} />
-            </button>
-            <button onClick={toggleRecording} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: isRecording ? 'rgba(239, 68, 68, 0.2)' : 'transparent', color: isRecording ? '#EF4444' : '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', animation: isRecording ? 'pulse 1.5s infinite' : 'none' }}>
-              <Mic size={22} />
-            </button>
-          </div>
-          </div>
-        </Draggable>
-      )}
-
-      {/* Expanded Desktop Tool Settings Panel */}
-      {isDesktop && showToolSettings && (tool === 'pen' || tool === 'pencil' || tool === 'highlighter' || tool === 'laser' || tool === 'text' || tool === 'shape') && (
-        <Draggable handle=".settings-drag-handle">
-          <div style={{ position: 'absolute', top: 24, left: 100, width: 280, background: 'white', display: 'flex', flexDirection: 'column', padding: 24, zIndex: 59, borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', border: '1px solid var(--br2)' }}>
-            <div className="settings-drag-handle" style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', cursor: 'grab', color: '#D1D5DB' }}>
-               <GripHorizontal size={16} />
+               <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{activeBook?.book?.title || 'สมุดโน้ต'}</span>
             </div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#111827', margin: '16px 0 24px 0', textTransform: 'capitalize' }}>{tool === 'pen' ? 'Pen Options' : tool === 'highlighter' ? 'Highlighter' : tool === 'shape' ? 'Shapes' : tool === 'text' ? 'Text' : 'Settings'}</h3>
-           
-           <label style={{ fontSize: 13, fontWeight: 500, color: '#4B5563', marginBottom: 8 }}>Size</label>
-           <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-             {sizes.map(s => (
-                <div key={s} onClick={() => setPenSize(s)} style={{ width: 32, height: 32, borderRadius: '50%', background: penSize === s ? '#F3F4F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: penSize === s ? '1px solid #D1D5DB' : '1px solid transparent' }}>
-                   <div style={{ width: s, height: s, borderRadius: '50%', background: penSize === s ? '#111827' : '#9CA3AF' }}></div>
-                </div>
-             ))}
-           </div>
-           
-           {tool === 'shape' && (
-              <>
-                 <label style={{ fontSize: 13, fontWeight: 500, color: '#4B5563', marginBottom: 8 }}>Shape Type</label>
-                 <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-                    <button onClick={() => setShapeType('rect')} style={{ flex: 1, padding: 8, borderRadius: 8, border: shapeType === 'rect' ? '2px solid #10B981' : '1px solid #D1D5DB', background: 'white', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}><Square size={20} color={shapeType === 'rect' ? '#10B981' : '#4B5563'} /></button>
-                    <button onClick={() => setShapeType('circle')} style={{ flex: 1, padding: 8, borderRadius: 8, border: shapeType === 'circle' ? '2px solid #10B981' : '1px solid #D1D5DB', background: 'white', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}><CircleIcon size={20} color={shapeType === 'circle' ? '#10B981' : '#4B5563'} /></button>
-                    <button onClick={() => setShapeType('line')} style={{ flex: 1, padding: 8, borderRadius: 8, border: shapeType === 'line' ? '2px solid #10B981' : '1px solid #D1D5DB', background: 'white', display: 'flex', justifyContent: 'center', cursor: 'pointer' }}><Minus size={20} color={shapeType === 'line' ? '#10B981' : '#4B5563'} /></button>
-                 </div>
-              </>
-           )}
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+               <button onClick={() => setShowSearch(!showSearch)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Search size={20} strokeWidth={1.5} />
+               </button>
+               <button onClick={() => setShowPageManager(true)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <SquareSquare size={20} strokeWidth={1.5} />
+               </button>
+               <button onClick={saveNotebook} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Save size={20} strokeWidth={1.5} />
+               </button>
+               <button onClick={exportPage} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Download size={20} strokeWidth={1.5} />
+               </button>
+               <button onClick={() => setShowPageSettings(!showPageSettings)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showPageSettings ? '#F3F4F6' : 'transparent', color: showPageSettings ? '#111827' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                  <Settings size={20} strokeWidth={1.5} />
+               </button>
 
-           <label style={{ fontSize: 13, fontWeight: 500, color: '#4B5563', marginBottom: 8 }}>Color</label>
-           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
-             {colors.map(c => (
-                <div key={c} onClick={() => setPenColor(c)} style={{ width: 32, height: 32, borderRadius: '50%', background: c, cursor: 'pointer', border: penColor === c ? '2px solid white' : '1px solid rgba(0,0,0,0.1)', outline: penColor === c ? '2px solid #10B981' : 'none', margin: 'auto' }} />
-             ))}
-           </div>
-           
-           <label style={{ fontSize: 13, fontWeight: 500, color: '#4B5563', marginBottom: 8 }}>Opacity</label>
-           <input type="range" min="0.1" max="1" step="0.1" value={penOpacity} onChange={(e) => setPenOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: '#10B981' }} />
+               {/* Page Settings Popover */}
+               {showPageSettings && (
+                 <div style={{ position: 'absolute', top: 56, right: 0, zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: 16, borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 260 }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: '#111827' }}>ลวดลายกระดาษ</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                       {['blank', 'lines', 'grid', 'dots'].map(pt => (
+                         <button key={pt} onClick={() => updatePage(currentPageIndex, p => { p.paperType = pt; pushHistory(); })} style={{ padding: '8px', borderRadius: 8, border: currentPage.paperType === pt ? '2px solid #111827' : '1px solid #E5E7EB', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#4B5563' }}>
+                           {pt === 'blank' ? 'กระดาษเปล่า' : pt === 'lines' ? 'เส้นบรรทัด' : pt === 'grid' ? 'ตาราง (Grid)' : 'จุด (Dots)'}
+                         </button>
+                       ))}
+                    </div>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: '#111827' }}>สีพื้นหลังกระดาษ</h4>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                       {['white', 'yellow', 'dark'].map(pc => (
+                         <button key={pc} onClick={() => updatePage(currentPageIndex, p => { p.paperColor = pc; pushHistory(); })} style={{ width: 32, height: 32, borderRadius: '50%', border: currentPage.paperColor === pc ? '2px solid #111827' : '1px solid #E5E7EB', background: pc === 'yellow' ? '#FEF3C7' : pc === 'dark' ? '#1F2937' : 'white', cursor: 'pointer' }} />
+                       ))}
+                    </div>
+                    
+                    <div style={{ height: 1, background: '#E5E7EB', margin: '12px 0' }}></div>
+                    
+                    <button onClick={clearPage} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: 'white', color: '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8 }}>ลบเนื้อหาในหน้านี้</button>
+                    <button onClick={deletePage} disabled={pages.length <= 1} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: 'none', background: '#FEE2E2', color: '#EF4444', cursor: pages.length <= 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, opacity: pages.length <= 1 ? 0.5 : 1 }}>ลบหน้านี้ทิ้ง</button>
+                 </div>
+               )}
+            </div>
          </div>
-        </Draggable>
       )}
 
-      <div ref={containerRef} style={{ flex: 1, position: 'relative' }}>
+      <div ref={containerRef} style={{ flex: 1, position: 'relative', display: 'flex' }}>
       
       {showModeSelection && !isMobile && (
          <div style={{ position: 'absolute', inset: 0, zIndex: 20, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -834,71 +806,74 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
          </div>
       )}
 
-      {/* Huawei Notes style Top Pill Toolbar for Tablet (Hidden on Desktop & Mobile) */}
-      {!isDesktop && !isMobile && (
-        <Draggable handle=".tablet-drag-handle">
-          <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 5, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)', padding: '6px', borderRadius: 100, display: 'flex', gap: 4, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)', flexWrap: 'nowrap', alignItems: 'center' }}>
+      {/* Huawei Notes Unified Draggable Floating Toolbar (Tablet & Desktop) */}
+      {!isMobile && (
+        <Draggable handle=".huawei-drag-handle">
+          <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: '6px 8px', borderRadius: 16, display: 'flex', gap: 4, boxShadow: '0 10px 40px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)', flexWrap: 'nowrap', alignItems: 'center' }}>
             
-            <div className="tablet-drag-handle" style={{ cursor: 'grab', color: '#D1D5DB', display: 'flex', alignItems: 'center', padding: '0 4px' }}>
-              <GripHorizontal size={16} />
+            <div className="huawei-drag-handle" style={{ cursor: 'grab', color: '#D1D5DB', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+              <GripHorizontal size={16} strokeWidth={2} />
             </div>
-            <div style={{ width: 1, background: '#E5E7EB', margin: '0 2px', height: 20 }}></div>
-
             
-            <button onClick={undo} disabled={!canUndo} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Undo2 size={18} />
+            <button onClick={undo} disabled={!canUndo} style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Undo2 size={20} strokeWidth={1.5} />
             </button>
-            <button onClick={redo} disabled={!canRedo} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'transparent', color: canRedo ? '#4B5563' : '#D1D5DB', cursor: canRedo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Redo2 size={18} />
+            <button onClick={redo} disabled={!canRedo} style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canRedo ? '#4B5563' : '#D1D5DB', cursor: canRedo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Redo2 size={20} strokeWidth={1.5} />
             </button>
             
-            <div style={{ width: 1, background: '#E5E7EB', margin: '0 2px', height: 20 }}></div>
+            <div style={{ width: 1, background: '#E5E7EB', margin: '0 6px', height: 24 }}></div>
             
             {[
               { id: 'pan', icon: MousePointer2 },
               { id: 'pen', icon: PenTool },
               { id: 'highlighter', icon: Highlighter },
               { id: 'eraser', icon: Eraser },
+              { id: 'lasso', icon: Lasso },
               { id: 'text', icon: Type },
-              { id: 'lasso', icon: Lasso }
+              { id: 'laser', icon: Zap }
             ].map(t => (
                <button 
                  key={t.id}
-                 onClick={() => { setTool(t.id); if (t.id === tool) setShowToolSettings(!showToolSettings); else setShowToolSettings(true); }}
-                 style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: tool === t.id ? '#F3F4F6' : 'transparent', color: tool === t.id ? '#111827' : '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', position: 'relative' }}
+                 onClick={() => { setTool(t.id); if (t.id === tool && (t.id === 'pen' || t.id === 'highlighter' || t.id === 'text' || t.id === 'shape')) setShowToolSettings(!showToolSettings); else setShowToolSettings(true); }}
+                 style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: tool === t.id ? '#F3F4F6' : 'transparent', color: tool === t.id ? '#111827' : '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', position: 'relative' }}
                >
-                 <t.icon size={18} />
-                 {tool === t.id && (t.id === 'pen' || t.id === 'highlighter' || t.id === 'text') && <div style={{ position: 'absolute', bottom: 4, width: 4, height: 4, borderRadius: '50%', background: '#111827' }}></div>}
+                 <t.icon size={20} strokeWidth={1.5} />
+                 {tool === t.id && (t.id === 'pen' || t.id === 'highlighter' || t.id === 'text') && <div style={{ position: 'absolute', bottom: 4, width: 16, height: 2, borderRadius: 2, background: '#111827' }}></div>}
                </button>
             ))}
             
-            <div style={{ width: 1, background: '#E5E7EB', margin: '0 2px', height: 20 }}></div>
+            <div style={{ width: 1, background: '#E5E7EB', margin: '0 6px', height: 24 }}></div>
             
-            <button onClick={() => document.getElementById('image-upload').click()} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'transparent', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ImageIcon size={18} />
+            <button onClick={() => document.getElementById('image-upload').click()} style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: 'transparent', color: '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ImageIcon size={20} strokeWidth={1.5} />
             </button>
             
-            <button onClick={toggleRecording} style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: isRecording ? '#FEE2E2' : 'transparent', color: isRecording ? '#EF4444' : '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', animation: isRecording ? 'pulse 1.5s infinite' : 'none' }}>
-              <Mic size={18} />
+            <button onClick={toggleRecording} style={{ width: 40, height: 40, borderRadius: 8, border: 'none', background: isRecording ? '#FEE2E2' : 'transparent', color: isRecording ? '#EF4444' : '#6B7280', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', animation: isRecording ? 'pulse 1.5s infinite' : 'none' }}>
+              <Mic size={20} strokeWidth={1.5} />
             </button>
             
-            {/* Huawei Glassmorphism Popover for Tool Settings (Attached to Pill) */}
+            {/* Huawei Glassmorphism Popover for Tool Settings (Attached below Pill) */}
             {showToolSettings && (tool === 'pen' || tool === 'highlighter' || tool === 'text') && (
-              <div style={{ position: 'absolute', top: '100%', marginTop: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)', padding: 16, borderRadius: 16, boxShadow: '0 10px 40px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 220 }}>
-                 <label style={{ fontSize: 12, fontWeight: 500, color: '#6B7280', marginBottom: 8, display: 'block' }}>Size</label>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                   {sizes.map(s => (
-                      <div key={s} onClick={() => setPenSize(s)} style={{ width: 28, height: 28, borderRadius: '50%', background: penSize === s ? '#F3F4F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: penSize === s ? '1px solid #D1D5DB' : '1px solid transparent' }}>
-                         <div style={{ width: s, height: s, borderRadius: '50%', background: penSize === s ? '#111827' : '#9CA3AF' }}></div>
-                      </div>
-                   ))}
+              <div style={{ position: 'absolute', top: '100%', marginTop: 12, left: '50%', transform: 'translateX(-50%)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: '16px 20px', borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                 
+                 {/* Thickness Slider */}
+                 <div>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                     <span style={{ fontSize: 13, fontWeight: 500, color: '#4B5563' }}>ความหนา (Thickness)</span>
+                     <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{penSize}px</span>
+                   </div>
+                   <input type="range" min="1" max="24" step="1" value={penSize} onChange={(e) => setPenSize(parseInt(e.target.value))} style={{ width: '100%', accentColor: '#111827' }} />
                  </div>
                  
-                 <label style={{ fontSize: 12, fontWeight: 500, color: '#6B7280', marginBottom: 8, display: 'block' }}>Color</label>
-                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-                   {colors.map(c => (
-                      <div key={c} onClick={() => setPenColor(c)} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: penColor === c ? '2px solid white' : '1px solid rgba(0,0,0,0.1)', outline: penColor === c ? '2px solid #10B981' : 'none', margin: 'auto' }} />
-                   ))}
+                 {/* Color Palette (Tightly Packed) */}
+                 <div>
+                   <span style={{ fontSize: 13, fontWeight: 500, color: '#4B5563', display: 'block', marginBottom: 12 }}>สี (Color)</span>
+                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                     {colors.slice(0, 10).map(c => (
+                        <div key={c} onClick={() => setPenColor(c)} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: c === '#FFFFFF' ? '1px solid #E5E7EB' : 'none', outline: penColor === c ? '2px solid #111827' : 'none', outlineOffset: 2, transition: 'all 0.1s' }} />
+                     ))}
+                   </div>
                  </div>
               </div>
             )}
@@ -906,82 +881,45 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
         </Draggable>
       )}
       
-      {/* Universal Pagination & Actions (Bottom) */}
+      {/* Small Page Indicator (Huawei Style) */}
       {!isMobile && (
-        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 5, background: 'white', padding: '6px 12px', borderRadius: 100, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)' }}>
-
-        
-        <button 
-          onClick={() => setShowPageManager(true)}
-          style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--gray-light)', color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-          <Settings size={18} />
-        </button>
-        
-        <div style={{ width: 1, height: 24, background: 'var(--br2)' }}></div>
-        
-        <button 
-          onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
-          disabled={currentPageIndex === 0}
-          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === 0 ? 'default' : 'pointer', opacity: currentPageIndex === 0 ? 0.3 : 1 }}>
-          <ChevronLeft size={20} />
-        </button>
-        
-        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', minWidth: 60, textAlign: 'center' }}>
-          {currentPageIndex + 1} / {pages.length}
-        </span>
-        
-        <button 
-          onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
-          disabled={currentPageIndex === pages.length - 1}
-          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer', opacity: currentPageIndex === pages.length - 1 ? 0.3 : 1 }}>
-          <ChevronRight size={20} />
-        </button>
-
-        <div style={{ width: 1, height: 24, background: 'var(--br2)' }}></div>
-        
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', bottom: 24, right: 24, zIndex: 5, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: '6px 16px', borderRadius: 100, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)' }}>
           <button 
-            onClick={() => setShowPageSettings(!showPageSettings)}
-            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: showPageSettings ? 'var(--teal)' : 'transparent', color: showPageSettings ? 'white' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-            <Settings size={18} />
+            onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
+            disabled={currentPageIndex === 0}
+            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === 0 ? 'default' : 'pointer', opacity: currentPageIndex === 0 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4B5563' }}>
+            <ChevronLeft size={20} strokeWidth={1.5} />
           </button>
           
-          {showPageSettings && (
-            <div style={{ position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)', background: 'white', padding: 16, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.15)', border: '1px solid var(--br2)', width: 240 }}>
-               <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--text)' }}>ลวดลายกระดาษ</h4>
-               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                  {['blank', 'lines', 'grid', 'dots'].map(pt => (
-                    <button key={pt} onClick={() => updatePage(currentPageIndex, p => { p.paperType = pt; pushHistory(); })} style={{ padding: '8px', borderRadius: 8, border: currentPage.paperType === pt ? '2px solid var(--teal)' : '1px solid var(--br2)', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-                      {pt === 'blank' ? 'กระดาษเปล่า' : pt === 'lines' ? 'เส้นบรรทัด' : pt === 'grid' ? 'ตาราง (Grid)' : 'จุด (Dots)'}
-                    </button>
-                  ))}
-               </div>
-               <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--text)' }}>สีพื้นหลังกระดาษ</h4>
-               <div style={{ display: 'flex', gap: 12 }}>
-                  {['white', 'yellow', 'dark'].map(pc => (
-                    <button key={pc} onClick={() => updatePage(currentPageIndex, p => { p.paperColor = pc; pushHistory(); })} style={{ width: 32, height: 32, borderRadius: '50%', border: currentPage.paperColor === pc ? '2px solid var(--teal)' : '1px solid var(--br2)', background: pc === 'yellow' ? '#FEF3C7' : pc === 'dark' ? '#1F2937' : 'white', cursor: 'pointer' }} />
-                  ))}
-               </div>
-            </div>
-          )}
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', fontFamily: 'monospace' }}>
+            {currentPageIndex + 1} / {pages.length}
+          </span>
+          
+          <button 
+            onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
+            disabled={currentPageIndex === pages.length - 1}
+            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer', opacity: currentPageIndex === pages.length - 1 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4B5563' }}>
+            <ChevronRight size={20} strokeWidth={1.5} />
+          </button>
+          
+          <div style={{ width: 1, background: '#E5E7EB', height: 16 }}></div>
+          
+          <button 
+            onClick={() => {
+              const newPage = { id: `blank-${Date.now()}`, src: null, width: dimensions.width > 0 ? dimensions.width - 40 : 800, height: 1130, lines: [], stickers: [], images: [], texts: [], shapes: [], paperType: currentPage.paperType, paperColor: currentPage.paperColor };
+              pushHistory();
+              setPages((prev) => {
+                const p = [...prev];
+                p.splice(currentPageIndex + 1, 0, newPage);
+                return p;
+              });
+              setCurrentPageIndex(currentPageIndex + 1);
+            }}
+            style={{ padding: '4px 12px', borderRadius: 100, border: 'none', background: '#F3F4F6', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 12, transition: 'all 0.2s' }}>
+            <FilePlus size={14} strokeWidth={2} />
+            เพิ่มหน้า
+          </button>
         </div>
-        
-        <button 
-          onClick={() => {
-            const newPage = { id: `blank-${Date.now()}`, src: null, width: dimensions.width > 0 ? dimensions.width - 40 : 800, height: 1130, lines: [], stickers: [], images: [], texts: [], shapes: [], paperType: currentPage.paperType, paperColor: currentPage.paperColor };
-            pushHistory();
-            setPages((prev) => {
-              const p = [...prev];
-              p.splice(currentPageIndex + 1, 0, newPage);
-              return p;
-            });
-            setCurrentPageIndex(currentPageIndex + 1);
-          }}
-          style={{ padding: '6px 12px', borderRadius: 100, border: 'none', background: 'var(--teal-light)', color: 'var(--teal-dark)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
-          <FilePlus size={16} />
-          แทรกหน้าเปล่า
-        </button>
-      </div>
       )}
 
       <Stage
