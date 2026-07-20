@@ -982,7 +982,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
           {/* Far Right Panel: Pro Notebook (Tldraw) */}
           {showNotebook && (
             <div className="reader-notebook" style={{ height: "100%" }}>
-              <ProNotebook bookId={activeBook.book.id} uid={uid} />
+              <ProNotebook bookId={activeBook.book.id} uid={uid} activeBook={activeBook} />
             </div>
           )}
         </div>
