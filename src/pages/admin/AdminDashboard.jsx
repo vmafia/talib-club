@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, sessions: 0, newUsers: 0, campaigns: 0 })
   const [chartData, setChartData] = useState([])
+  const [recentVisitors, setRecentVisitors] = useState([])
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState("12h")
 
@@ -64,6 +65,8 @@ export default function AdminDashboard() {
         const sessionsSnap = await getDocs(query(collection(db, "site_visits"), where("createdAt", ">=", startDate), orderBy("createdAt", "asc")))
         const usersSnapList = await getDocs(query(collection(db, "users"), where("createdAt", ">=", startDate), orderBy("createdAt", "asc")))
 
+        const visitorsList = []
+
         sessionsSnap.forEach(doc => {
           const data = doc.data()
           if (data.createdAt) {
@@ -72,6 +75,13 @@ export default function AdminDashboard() {
             if (counts[key] !== undefined) {
               counts[key].reads++
             }
+            visitorsList.push({
+              id: doc.id,
+              date,
+              path: data.path || "/",
+              displayName: data.displayName || "Unknown",
+              uid: data.uid || "unknown"
+            })
           }
         })
 
@@ -99,6 +109,7 @@ export default function AdminDashboard() {
           campaigns: campaignsSnap.data().count
         })
 
+        setRecentVisitors(visitorsList.sort((a, b) => b.date - a.date).slice(0, 30))
         setChartData(formattedData)
       } catch (err) {
         console.error("Dashboard error:", err)
@@ -235,6 +246,48 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="card" style={{ padding: 24, marginTop: 24 }}>
+        <h3 style={{ fontSize: 16, margin: "0 0 16px 0" }}><i className="ti ti-users" style={{ color: "var(--teal)", marginRight: 8 }}></i> ประวัติการเข้าชมล่าสุด (30 รายการ)</h3>
+        {loading ? (
+           <div style={{ color: "var(--t2)", fontSize: 14 }}>กำลังโหลดข้อมูล...</div>
+        ) : recentVisitors.length === 0 ? (
+           <div style={{ color: "var(--t3)", fontSize: 14 }}>ไม่มีการเข้าชมในช่วงเวลานี้</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--br)", color: "var(--t2)", textAlign: "left" }}>
+                  <th style={{ padding: "12px 8px", fontWeight: 600 }}>เวลา</th>
+                  <th style={{ padding: "12px 8px", fontWeight: 600 }}>ผู้ใช้งาน</th>
+                  <th style={{ padding: "12px 8px", fontWeight: 600 }}>หน้าเว็บ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentVisitors.map(v => (
+                  <tr key={v.id} style={{ borderBottom: "1px solid var(--br2)" }}>
+                    <td style={{ padding: "12px 8px", color: "var(--t2)" }}>
+                      {v.date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
+                    </td>
+                    <td style={{ padding: "12px 8px", fontWeight: 500, color: v.uid !== "unknown" ? "var(--teal)" : "var(--t2)" }}>
+                      {v.uid !== "unknown" ? (
+                         <span><i className="ti ti-user-check" style={{ marginRight: 4 }}></i> {v.displayName}</span>
+                      ) : (
+                         <span><i className="ti ti-user-x" style={{ marginRight: 4 }}></i> ไม่ระบุตัวตน (Unknown)</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 8px", color: "var(--text)" }}>
+                      <a href={v.path} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
+                        {v.path}
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

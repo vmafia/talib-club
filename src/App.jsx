@@ -116,6 +116,8 @@ export default function App() {
 
   // Site Visit Tracker
   useEffect(() => {
+    if (authState?.loading) return; // Wait for auth to resolve
+    
     const logVisit = async () => {
       try {
         if (!sessionStorage.getItem("talib_visited_session")) {
@@ -125,7 +127,10 @@ export default function App() {
           await addDoc(collection(db, "site_visits"), {
             createdAt: serverTimestamp(),
             userAgent: navigator.userAgent,
-            path: window.location.pathname
+            path: window.location.pathname,
+            uid: authState?.user?.uid || "unknown",
+            displayName: authState?.user?.displayName || "unknown",
+            email: authState?.user?.email || "unknown"
           })
         }
       } catch (err) {
@@ -133,7 +138,7 @@ export default function App() {
       }
     }
     logVisit()
-  }, [])
+  }, [authState?.loading, authState?.user])
 
   useEffect(() => {
     window.__isStaff = authState?.isStaff;
