@@ -124,8 +124,15 @@ if (Quill) {
   class AudioBlot extends BlockEmbed {
     static create(value) {
       let node = super.create();
+      let src = value;
+      if (src && src.includes('drive.google.com/file/d/')) {
+        const match = src.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          src = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+        }
+      }
       node.setAttribute('controls', '');
-      node.setAttribute('src', value);
+      node.setAttribute('src', src);
       node.style.width = '100%';
       node.style.maxWidth = '400px';
       node.style.margin = '16px 0';
@@ -306,7 +313,8 @@ export default function AdminArticles() {
       setEdit(null)
       notifySuccess("บันทึกบทความขึ้นเว็บไซต์เรียบร้อยแล้ว")
     } catch (err) {
-      notifyError("บันทึกไม่สำเร็จ กรุณาตรวจสิทธิ์ Firestore")
+      console.error("Save Article Error:", err)
+      notifyError(`บันทึกไม่สำเร็จ: ${err.message || "กรุณาตรวจสิทธิ์ Firestore"}`)
     } finally {
       setBusy(false)
     }

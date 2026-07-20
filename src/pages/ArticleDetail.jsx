@@ -437,6 +437,9 @@ export default function ArticleDetail({ item, go, authState }) {
        body += notesHtml;
     }
 
+    // แปลงลิงก์ Google Drive ในแท็ก <audio> ให้เป็นลิงก์ดาวน์โหลดตรง เพื่อให้เล่นเสียงได้ (สำหรับบทความเก่า)
+    body = body.replace(/<audio([^>]*)src="https?:\/\/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)[^"]*"([^>]*)>/gi, '<audio$1src="https://drive.google.com/uc?export=download&id=$2"$3>');
+
     return { toc: tocList, finalHtml: body };
   }, [displayItem?.body]);
 

@@ -144,6 +144,10 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
+    match /counters/{docId} {
+      allow read, write: if isStaff();
+    }
+
     match /submissions/{docId} {
       allow read, write: if isStaff();
     }

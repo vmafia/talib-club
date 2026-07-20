@@ -15,6 +15,7 @@ import { QuizModal } from "./reading/components/QuizModal.jsx"
 import { MissionRow } from "./reading/components/MissionRow.jsx"
 import ReadingDashboard from "./reading/components/ReadingDashboard.jsx"
 import TimerPanel from "./reading/components/TimerPanel.jsx"
+import ProNotebook from "./reading/components/ProNotebook.jsx"
 
 // --- Helper Functions ---
 function sanitizeStorageName(name) {
@@ -122,6 +123,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   const [activeMobileTab, setActiveMobileTab] = useState("form") // "preview" or "form" for mobile split layout, default to form first
   const [showTutorial, setShowTutorial] = useState(false)
   const [readingTab, setReadingTab] = useState("reading") // "reading" | "finished" | "stats"
+  const [showNotebook, setShowNotebook] = useState(false) // Toggle Notebook on Desktop
 
   // External Upload States
   const [addMode, setAddMode] = useState("library")
@@ -892,14 +894,28 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
           </button>
         </div>
 
+        {/* Notebook Toggle Button for Desktop */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }} className="desktop-only-btn">
+          <button 
+            className={`btn ${showNotebook ? "btn-teal" : "btn-outline"}`} 
+            onClick={() => setShowNotebook(!showNotebook)}
+            style={{ padding: "8px 16px", borderRadius: 20, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}
+          >
+            <i className="ti ti-pencil"></i> {showNotebook ? "ปิดสมุดโน้ต" : "เปิดสมุดโน้ต (Pro)"}
+          </button>
+        </div>
+
         {/* Workspace Split */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr", gap: 18, flex: 1, minHeight: 0 }} className="reader-split">
+        <div style={{ display: "grid", gridTemplateColumns: showNotebook ? "250px 1fr 1fr" : "1fr 2.2fr", gap: 18, flex: 1, minHeight: 0 }} className="reader-split">
           <style dangerouslySetInnerHTML={{
             __html: `
             .mobile-only-btn {
               display: none !important;
             }
             @media (max-width: 900px) {
+              .desktop-only-btn {
+                display: none !important;
+              }
               .mobile-tabs-container {
                 display: flex !important;
               }
@@ -911,6 +927,9 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
               .reader-preview {
                 display: ${activeMobileTab === "preview" ? "block" : "none"} !important;
                 height: 100% !important;
+              }
+              .reader-notebook {
+                display: none !important;
               }
               .reader-form-card {
                 display: ${activeMobileTab === "form" ? "flex" : "none"} !important;
@@ -940,7 +959,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
           />
 
           {/* Right Panel: Embedded Google Preview Viewer */}
-          <div className="reader-preview" style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--br2)", background: "var(--bg2)", height: "100%" }}>
+          <div className="reader-preview" style={{ borderRadius: 16, overflow: "hidden", border: "1px solid var(--br2)", background: "var(--bg2)", height: "100%", display: showNotebook ? "block" : "block" }}>
             {activeBook.book.fileUrl ? (
               <iframe
                 src={getPreviewUrl(activeBook.book.fileUrl)}
@@ -956,6 +975,13 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
               </div>
             )}
           </div>
+
+          {/* Far Right Panel: Pro Notebook (Tldraw) */}
+          {showNotebook && (
+            <div className="reader-notebook" style={{ height: "100%" }}>
+              <ProNotebook bookId={activeBook.book.id} uid={uid} />
+            </div>
+          )}
         </div>
       </div>,
       document.body
