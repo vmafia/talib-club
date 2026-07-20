@@ -9,18 +9,9 @@ import { AudioShapeUtil } from './AudioShapeUtil.jsx';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export default function ProNotebook({ bookId, uid, activeBook }) {
-  const [mode, setMode] = useState(null); // 'blank' or 'annotate'
-  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [mode, setMode] = useState(activeBook?.book?.fileUrl ? 'annotate' : 'blank'); 
+  const [loadingPdf, setLoadingPdf] = useState(activeBook?.book?.fileUrl ? true : false);
   const [tldrawEditor, setTldrawEditor] = useState(null);
-
-  const handleStartBlank = () => {
-    setMode('blank');
-  };
-
-  const handleStartAnnotate = async () => {
-    setMode('annotate');
-    setLoadingPdf(true);
-  };
 
   const handleMount = async (editor) => {
     setTldrawEditor(editor);
@@ -36,8 +27,11 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
            }
         }
         
+        // Pass the URL through our Vercel Serverless Proxy to bypass CORS!
+        const proxyUrl = `/api/proxy-pdf?url=${encodeURIComponent(url)}`;
+        
         toast.loading(`กำลังโหลด PDF...`, { id: 'pdf-load' });
-        const loadingTask = pdfjsLib.getDocument(url);
+        const loadingTask = pdfjsLib.getDocument(proxyUrl);
         const pdf = await loadingTask.promise;
         const numPages = Math.min(pdf.numPages, 30); // จำกัดแค่ 30 หน้าแรกเพื่อประสิทธิภาพ
         
@@ -96,39 +90,13 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
         toast.success('โหลดหน้าหนังสือลงกระดานสำเร็จ!', { id: 'pdf-load' });
       } catch (err) {
         console.error("PDF Load Error", err);
-        toast.error('ดึงข้อมูล PDF ไม่สำเร็จ (อาจติด CORS หรือลิงก์ไม่อนุญาต) จะใช้สมุดเปล่าแทน', { id: 'pdf-load', duration: 4000 });
+        toast.error('ดึงข้อมูล PDF ไม่สำเร็จ (อาจติด Permissions) จะใช้สมุดเปล่าแทน', { id: 'pdf-load', duration: 4000 });
+        setMode('blank'); // Fallback to blank note
       } finally {
         setLoadingPdf(false);
       }
     }
   };
-
-  if (!mode) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'var(--bg2)', borderRadius: 16, border: '1px solid var(--br2)' }}>
-        <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--teal-bg)', color: 'var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <i className="ti ti-notebook" style={{ fontSize: 32 }}></i>
-        </div>
-        <h3 style={{ fontSize: 18, marginBottom: 8, fontWeight: 600 }}>สมุดโน้ต Pro 🚀</h3>
-        <p style={{ fontSize: 13, color: 'var(--t2)', marginBottom: 32, textAlign: 'center', maxWidth: 320, lineHeight: 1.6 }}>
-          เลือกรูปแบบการจดบันทึกที่คุณต้องการสำหรับหนังสือเล่มนี้ (ข้อมูลที่จดจะถูกบันทึกไว้ในเครื่องของคุณโดยอัตโนมัติ)
-        </p>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button className="btn btn-outline" onClick={handleStartBlank} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', minWidth: 160, borderRadius: 16 }}>
-            <i className="ti ti-pencil" style={{ fontSize: 28, color: 'var(--text)' }}></i>
-            <span style={{ fontWeight: 500 }}>สมุดโน้ตเปล่า</span>
-          </button>
-          
-          {activeBook?.book?.fileUrl && (
-            <button className="btn btn-teal" onClick={handleStartAnnotate} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', minWidth: 160, borderRadius: 16 }}>
-              <i className="ti ti-book-download" style={{ fontSize: 28 }}></i>
-              <span style={{ fontWeight: 500 }}>เขียนทับหนังสือ (PDF)</span>
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--br2)', background: 'white' }}>
