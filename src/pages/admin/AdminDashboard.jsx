@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { collection, getDocs, query, orderBy, where, getCountFromServer } from "firebase/firestore"
+import { collection, getDocs, query, orderBy, where, getCountFromServer, deleteDoc, doc, writeBatch } from "firebase/firestore"
 import { db } from "../../lib/firebase.js"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
@@ -117,11 +117,45 @@ export default function AdminDashboard() {
     "1y": "1 ปีเต็ม (รายเดือน)",
   }[timeRange]
 
+  const [fixing, setFixing] = useState(false)
+  const fixDb = async () => {
+    if (!window.confirm("ฟังก์ชันนี้จะทำความสะอาดข้อมูลที่ถูกลบซ่อนอยู่ (soft delete) ออกจากฐานข้อมูลทั้งหมด เพื่อให้ตัวเลขนับรวมตรงกับความจริง ยืนยันการทำงาน?")) return;
+    setFixing(true);
+    try {
+      const collections = ["content_articles", "content_books", "content_media", "content_scholars"];
+      let totalDeleted = 0;
+      for (const col of collections) {
+        const snap = await getDocs(collection(db, col));
+        const batch = writeBatch(db);
+        let count = 0;
+        snap.forEach(docSnap => {
+          if (docSnap.data().deleted === true) {
+            batch.delete(docSnap.ref);
+            count++;
+            totalDeleted++;
+          }
+        });
+        if (count > 0) {
+          await batch.commit();
+        }
+      }
+      alert(`ลบข้อมูลที่ตกค้างสำเร็จทั้งหมด ${totalDeleted} รายการ กรุณารีเฟรชหน้าเว็บ`);
+    } catch (e) {
+      alert("เกิดข้อผิดพลาด: " + e.message);
+    }
+    setFixing(false);
+  }
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h2><i className="ti ti-chart-bar" style={{ color: "var(--teal)", marginRight: 8 }}></i> ภาพรวมระบบ (Dashboard)</h2>
-        <p style={{ marginTop: 8 }}>สถิติการใช้งานและจำนวนข้อมูลทั้งหมดในระบบ</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <div>
+          <h2><i className="ti ti-chart-bar" style={{ color: "var(--teal)", marginRight: 8 }}></i> ภาพรวมระบบ (Dashboard)</h2>
+          <p style={{ marginTop: 8 }}>สถิติการใช้งานและจำนวนข้อมูลทั้งหมดในระบบ</p>
+        </div>
+        <button onClick={fixDb} disabled={fixing} style={{ background: "var(--red)", color: "white", padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer" }}>
+          {fixing ? "กำลังเคลียร์..." : "ซ่อมแซมตัวเลขสถิติ"}
+        </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 32 }}>
