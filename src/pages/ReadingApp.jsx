@@ -906,11 +906,14 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         </div>
 
         {/* Workspace Split */}
-        <div style={{ display: "grid", gridTemplateColumns: showNotebook ? "250px 1fr 1fr" : "1fr 2.2fr", gap: 18, flex: 1, minHeight: 0 }} className="reader-split">
+        <div style={{ display: "grid", gridTemplateColumns: showNotebook ? "1fr 1.2fr" : "1fr 2.2fr", gap: 18, flex: 1, minHeight: 0 }} className="reader-split">
           <style dangerouslySetInnerHTML={{
             __html: `
             .mobile-only-btn {
               display: none !important;
+            }
+            .reader-form-card {
+              display: ${showNotebook ? "none" : "flex"} !important;
             }
             @media (max-width: 900px) {
               .desktop-only-btn {
