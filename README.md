@@ -1,100 +1,75 @@
-# Talib Club — เว็บไซต์วิชาการอิสลาม
+﻿# Talib Club — เว็บไซต์วิชาการอิสลาม
 
-## โครงสร้างโปรเจกต์
+เว็บไซต์รวบรวมบทความวิชาการอิสลาม หนังสือ/วารสาร (PDF) แหล่งรวมวิดีโอ/พอดแคสต์ และทำเนียบประวัติอุลามาอ์ จัดทำโดย Talib Publisher เพื่อให้ความรู้อิสลามเข้าถึงง่าย อ่านสบายตา และมีความทันสมัย
+
+## โครงสร้างโปรเจกต์ (Tech Stack)
+- **Frontend:** React 18 + Vite
+- **Routing:** React Router DOM
+- **Database & Auth:** Firebase (Firestore + Authentication)
+- **Styling:** CSS Variables (Dark/Light theme) + Tabler Icons
+- **Deployment:** Vercel
+
+## โครงสร้างโฟลเดอร์หลัก
 
 ```
 talib-club/
 ├── src/
-│   ├── data/               ← แก้ตรงนี้เพื่ออัปเดตข้อมูล
-│   │   ├── site.js         ← ชื่อเว็บ, social links, อายะฮ์
-│   │   ├── articles.js     ← บทความทั้งหมด
-│   │   ├── books.js        ← หนังสือ/วารสาร/PDF
-│   │   ├── media.js        ← YouTube / Spotify
-│   │   ├── scholars.js     ← รายนามอุลามาอ์
-│   │   ├── tracking.js     ← ออเดอร์ tracking
-│   │   └── index.js        ← re-export (ไม่ต้องแตะ)
-│   │
-│   ├── pages/              ← แต่ละหน้าของเว็บ
-│   │   ├── Home.jsx
-│   │   ├── Articles.jsx + ArticleDetail.jsx
-│   │   ├── Library.jsx
-│   │   ├── Media.jsx
-│   │   ├── Scholars.jsx
-│   │   └── Tracking.jsx
-│   │
-│   ├── components/
-│   │   ├── Nav.jsx         ← navigation bar
-│   │   └── ui/index.js     ← Tag, Card, Pills, SearchInput, ...
-│   │
-│   ├── hooks/
-│   │   └── useTheme.js     ← dark/light mode
-│   │
-│   ├── utils/
-│   │   └── format.js       ← formatDate, truncate
-│   │
-│   ├── styles/
-│   │   └── global.css      ← theme variables + global styles
-│   │
-│   ├── App.jsx             ← routing หลัก
-│   └── main.jsx            ← entry point
+│   ├── components/         ← UI Components (Nav, Card, Button ฯลฯ)
+│   ├── data/               ← Fallback Data (ใช้เมื่อโหลด Firebase ไม่ได้)
+│   ├── hooks/              ← Custom Hooks (useTheme, useAuth, useContentCollection)
+│   ├── lib/                ← ตั้งค่าและระบบหลังบ้าน (Firebase, Cache)
+│   ├── pages/              ← หน้าเพจต่างๆ แบ่งหมวดหมู่
+│   │   ├── admin/          ← ระบบหลังบ้าน (Dashboard, จัดการบทความ, ตั้งค่า)
+│   │   └── ...             ← หน้าเว็บฝั่งผู้ใช้งาน (Home, Articles, Library ฯลฯ)
+│   ├── styles/             ← CSS หลักของโปรเจกต์
+│   ├── App.jsx             ← ตั้งค่า Route และ Context หลัก
+│   └── main.jsx            ← Entry Point
 │
-├── public/                 ← static files (favicon ฯลฯ)
+├── public/                 ← Static files
 ├── index.html
 ├── vite.config.js
 └── package.json
 ```
 
-## วิธีรัน
+## วิธีการรันโปรเจกต์ (Development)
 
-```bash
-npm install
-npm run dev     # development (http://localhost:5173)
-npm run build   # build สำหรับ deploy
-```
+1. ติดตั้ง Dependencies:
+   ```bash
+   npm install
+   ```
+2. รันเซิร์ฟเวอร์จำลอง:
+   ```bash
+   npm run dev
+   ```
+   เว็บไซต์จะเปิดใช้งานที่ `http://localhost:5173`
 
-## วิธีอัปเดตข้อมูล (ไม่ต้องรู้โค้ด)
+3. Build สำหรับนำไป Deploy:
+   ```bash
+   npm run build
+   ```
 
-### เพิ่มบทความ
-แก้ไฟล์ `src/data/articles.js` — copy object ที่มีอยู่แล้วแก้ข้อมูล:
-```js
-{
-  id: 6,                    // ← เพิ่มทีละ 1
-  type: "general",          // general | series | specific | social
-  title: "ชื่อบทความ",
-  category: "fiqh",         // ดู ARTICLE_CATEGORIES สำหรับ id ที่มี
-  excerpt: "บทคัดย่อ",
-  author: "ชื่อผู้เขียน",
-  date: "2568-05-01",
-  readTime: 10,
-  coverEmoji: "📚",
-  tags: ["tag1", "tag2"],
-  body: `เนื้อหาบทความ...`,
-}
-```
+## การจัดการข้อมูล (Admin Dashboard)
 
-### เพิ่มหนังสือ/PDF
-แก้ไฟล์ `src/data/books.js` — ใส่ Google Drive link ใน `fileUrl`
+ปัจจุบันโปรเจกต์ได้เชื่อมต่อกับ **Firebase Firestore** เพื่อทำหน้าที่เป็นฐานข้อมูล (CMS) คุณไม่ต้องแก้โค้ดเพื่ออัปเดตข้อมูลอีกต่อไป
+1. สมัครสมาชิก / ล็อกอินผ่านหน้าเว็บ
+2. หากบัญชีของคุณมีสิทธิ์เป็น `owner`, `admin`, หรือ `staff` จะสามารถเข้าถึงเมนู **"ระบบหลังบ้าน"** (Admin Dashboard) ได้
+3. ในระบบหลังบ้าน คุณสามารถ:
+   - เพิ่ม/แก้ไข/ลบ บทความ, หนังสือ, มีเดีย, และรายนามอุลามาอ์
+   - ดูสถิติผู้เข้าชมเว็บไซต์แบบ Real-time
+   - อัปโหลดรูปภาพเข้าสู่ระบบ Storage
+   - จัดการข้อมูลหมวดหมู่ (Taxonomy) และเนื้อหาหน้าเว็บไซต์ (Site Settings)
 
-### เพิ่มวิดีโอ YouTube
-แก้ไฟล์ `src/data/media.js` — copy URL จาก YouTube แล้วเอา ID ใส่ `embedId`
-เช่น `youtube.com/watch?v=ABC123` → `embedId: "ABC123"`
+## การ Deploy บน Vercel
 
-### เพิ่มอุลามาอ์
-แก้ไฟล์ `src/data/scholars.js` — ระบุ `era` 1-4
+เว็บไซต์นี้ตั้งค่าให้รองรับการ Deploy ผ่าน **Vercel** โดยอัตโนมัติ:
+1. เชื่อมต่อ Repository นี้กับ Vercel Dashboard
+2. เมื่อมีการ Push โค้ดขึ้น Branch `main` ระบบจะทำการ Build และ Deploy ให้ทันที
+3. ตรวจสอบให้แน่ใจว่าได้ตั้งค่า Environment Variables (`.env`) ของ Firebase ไว้ใน Vercel ครบถ้วน เพื่อให้ระบบสามารถดึงข้อมูลได้
 
-## Deploy บน Netlify (ฟรี)
+## Roadmap สถานะปัจจุบัน
+- [x] **Phase 1:** ระบบนำเสนอเนื้อหา (บทความ, ห้องสมุด, มีเดีย, อุลามาอ์)
+- [x] **Phase 2:** ระบบ Login + ระบบสมาชิก (Firebase Auth)
+- [x] **Phase 2.5:** ระบบ Admin Dashboard สำหรับจัดการเนื้อหาทั้งหมด (CMS)
+- [x] **Phase 3:** ระบบสถิติผู้เข้าชมและ Reading Sessions
+- [ ] **Phase 4:** AI Quiz และระบบ Reading Streak (กำลังดำเนินการ)
 
-1. สมัคร [netlify.com](https://netlify.com)
-2. "Add new site" → "Deploy manually"
-3. รัน `npm run build` แล้วลาก folder `dist/` ไปวาง
-4. ได้ URL เว็บทันที!
-
-หรือเชื่อม GitHub แล้ว auto-deploy ทุกครั้งที่ push
-
-## Roadmap
-
-- [x] Phase 1: หน้าหลัก, บทความ, ห้องสมุด, มีเดีย, อุลามาอ์, Tracking
-- [ ] Phase 2: ระบบ Login + สมาชิก (Supabase)
-- [ ] Phase 2: Reading Streak แบบ Duolingo
-- [ ] Phase 3: AI Quiz หลังอ่านหนังสือ (Claude API)
-- [ ] Phase 3: My Bookshelf ส่วนตัว
