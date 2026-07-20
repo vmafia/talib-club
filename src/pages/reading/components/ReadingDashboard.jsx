@@ -206,7 +206,7 @@ export default function ReadingDashboard(props) {
                       padding: "10px 12px", color: "var(--t2)", fontSize: 12, cursor: "pointer"
                     }}>
                       <i className="ti ti-upload" style={{ color: "var(--teal)", fontSize: 18 }}></i>
-                      <span>{externalBook.file ? externalBook.file.name : "หรือคลิกอัปโหลดไฟล์ PDF จากเครื่อง (จำกัด 20MB)"}</span>
+                      <span>{externalBook.file ? externalBook.file.name : "หรือคลิกอัปโหลดไฟล์ PDF จากเครื่อง (จำกัด 100MB)"}</span>
                       <input
                         type="file"
                         accept=".pdf,.epub,.doc,.docx,.txt"
@@ -217,10 +217,10 @@ export default function ReadingDashboard(props) {
                             return;
                           }
 
-                          // 🟢 ดักจับขนาดไฟล์ไม่เกิน 20MB (20 * 1024 * 1024 = 20,971,520 bytes)
-                          const MAX_FILE_SIZE = 20 * 1024 * 1024;
+                          // 🟢 ดักจับขนาดไฟล์ไม่เกิน 100MB
+                          const MAX_FILE_SIZE = 100 * 1024 * 1024;
                           if (file.size > MAX_FILE_SIZE) {
-                            toast.error("ขนาดไฟล์ใหญ่เกินไป (จำกัดไม่เกิน 20MB)");
+                            toast.error("ขนาดไฟล์ใหญ่เกินไป (จำกัดไม่เกิน 100MB)");
                             event.target.value = ""; // เคลียร์ค่า input เพื่อให้เลือกไฟล์ใหม่ได้
                             return;
                           }
