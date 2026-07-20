@@ -635,7 +635,7 @@ export function useCollectionCount(name) {
 
     let active = true
     setLoading(true)
-    getCountFromServer(query(collection(db, collectionName), where("deleted", "==", false)))
+    getCountFromServer(collection(db, collectionName))
       .then(snapshot => {
         if (!active) return
         const cnt = snapshot.data().count
