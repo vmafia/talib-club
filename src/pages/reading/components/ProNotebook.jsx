@@ -108,6 +108,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
          </div>
       )}
       <Tldraw 
+        key={mode}
         persistenceKey={`tldraw-notebook-${uid}-${bookId}-${mode}`} 
         onMount={handleMount} 
         shapeUtils={[AudioShapeUtil]}
