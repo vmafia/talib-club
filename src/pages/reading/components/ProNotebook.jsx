@@ -1197,7 +1197,7 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
       >
         {/* Background Layer (Paper + PDF + Images) */}
         <Layer>
-          <Group x={pageX} y={pageY}>
+          <Group x={pageX} y={pageY} clipX={0} clipY={0} clipWidth={currentPage.width} clipHeight={currentPage.height}>
             {/* Page Paper Background */}
             <Rect 
                name="background"
@@ -1555,5 +1555,6 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
       })()}
       </div>{/* End flex-1 Canvas Container */}
     </div>
+    </>
   );
 }
