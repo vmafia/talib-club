@@ -19,12 +19,39 @@ const PDFPageImage = ({ src, width, height }) => {
   );
 };
 
+const PaperPattern = ({ width, height, type, color }) => {
+  const lineGap = 40;
+  const isDark = color === 'dark';
+  const strokeColor = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+
+  const lines = [];
+  if (type === 'lines' || type === 'grid') {
+    for (let y = lineGap; y < height; y += lineGap) {
+      lines.push(<Path key={`h-${y}`} data={`M 0 ${y} L ${width} ${y}`} stroke={strokeColor} strokeWidth={1} />);
+    }
+  }
+  if (type === 'grid') {
+    for (let x = lineGap; x < width; x += lineGap) {
+      lines.push(<Path key={`v-${x}`} data={`M ${x} 0 L ${x} ${height}`} stroke={strokeColor} strokeWidth={1} />);
+    }
+  }
+  if (type === 'dots') {
+    for (let y = lineGap; y < height; y += lineGap) {
+      for (let x = lineGap; x < width; x += lineGap) {
+        lines.push(<Circle key={`d-${x}-${y}`} x={x} y={y} radius={2} fill={strokeColor} />);
+      }
+    }
+  }
+  
+  return <Group>{lines}</Group>;
+};
+
 export default function ProNotebook({ bookId, uid, activeBook }) {
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [pages, setPages] = useState([{ id: 'page-default', src: null, width: 800, height: 1130, lines: [], stickers: [] }]);
+  const [pages, setPages] = useState([{ id: 'page-default', src: null, width: 800, height: 1130, lines: [], stickers: [], images: [], paperType: 'lines', paperColor: 'white' }]);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -137,7 +164,10 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
           width: displayWidth,
           height: displayHeight,
           lines: [],
-          stickers: []
+          stickers: [],
+          images: [],
+          paperType: 'blank',
+          paperColor: 'white'
         });
       }
       
@@ -380,6 +410,9 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   const pageX = Math.max(0, (dimensions.width - currentPage.width * scale) / 2 / scale);
   const pageY = 20; 
 
+  const [showPageSettings, setShowPageSettings] = useState(false);
+  const [showPageManager, setShowPageManager] = useState(false);
+
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--br2)', background: '#E5E7EB' }}>
       
@@ -397,6 +430,32 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
              <button onClick={() => startLoadingPDF(null)} style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--teal)', color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0, 169, 143, 0.2)' }}>
                <i className="ti ti-link" style={{ fontSize: 20 }}></i> ดึงจากลิงก์หนังสือ
              </button>
+           </div>
+         </div>
+      )}
+
+      {showPageManager && (
+         <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(243,244,246,0.95)', backdropFilter: 'blur(10px)', overflowY: 'auto', padding: 24 }}>
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, background: 'white', padding: '12px 24px', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+             <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>จัดการหน้ากระดาษ ({pages.length} หน้า)</h3>
+             <button onClick={() => setShowPageManager(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>ปิด</button>
+           </div>
+           
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 24 }}>
+             {pages.map((p, i) => (
+                <div 
+                  key={p.id} 
+                  onClick={() => { setCurrentPageIndex(i); setShowPageManager(false); }}
+                  style={{ background: 'white', borderRadius: 12, padding: 12, cursor: 'pointer', border: currentPageIndex === i ? '2px solid var(--teal)' : '2px solid transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.2s' }}
+                >
+                  <div style={{ width: '100%', aspectRatio: '800/1130', background: p.paperColor === 'yellow' ? '#FEF3C7' : p.paperColor === 'dark' ? '#1F2937' : 'white', border: '1px solid var(--br2)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                    {p.src && <img src={p.src} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="pdf page" />}
+                    {!p.src && p.paperType !== 'blank' && <i className={`ti ti-grid-dots`} style={{ fontSize: 24, color: 'var(--t2)', opacity: 0.3 }}></i>}
+                    {p.lines.length > 0 && <i className="ti ti-pencil" style={{ position: 'absolute', bottom: 4, right: 4, color: 'var(--teal)', fontSize: 16 }}></i>}
+                  </div>
+                  <span style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: 'var(--t2)' }}>หน้า {i + 1}</span>
+                </div>
+             ))}
            </div>
          </div>
       )}
@@ -492,6 +551,15 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
       
       {/* Goodnotes Pagination Controls */}
       <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 5, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)', padding: '8px 16px', borderRadius: 100, display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', border: '1px solid var(--br2)' }}>
+        
+        <button 
+          onClick={() => setShowPageManager(true)}
+          style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'var(--gray-light)', color: 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+          <i className="ti ti-layout-grid" style={{ fontSize: 20 }}></i>
+        </button>
+        
+        <div style={{ width: 1, height: 24, background: 'var(--br2)' }}></div>
+        
         <button 
           onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
           disabled={currentPageIndex === 0}
@@ -512,9 +580,37 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
 
         <div style={{ width: 1, height: 24, background: 'var(--br2)' }}></div>
         
+        <div style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setShowPageSettings(!showPageSettings)}
+            style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: showPageSettings ? 'var(--teal)' : 'transparent', color: showPageSettings ? 'white' : 'var(--text)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+            <i className="ti ti-settings" style={{ fontSize: 20 }}></i>
+          </button>
+          
+          {showPageSettings && (
+            <div style={{ position: 'absolute', bottom: '120%', left: '50%', transform: 'translateX(-50%)', background: 'white', padding: 16, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.15)', border: '1px solid var(--br2)', width: 240 }}>
+               <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--text)' }}>ลวดลายกระดาษ</h4>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                  {['blank', 'lines', 'grid', 'dots'].map(pt => (
+                    <button key={pt} onClick={() => updatePage(currentPageIndex, p => { p.paperType = pt; pushHistory(); })} style={{ padding: '8px', borderRadius: 8, border: currentPage.paperType === pt ? '2px solid var(--teal)' : '1px solid var(--br2)', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                      {pt === 'blank' ? 'กระดาษเปล่า' : pt === 'lines' ? 'เส้นบรรทัด' : pt === 'grid' ? 'ตาราง (Grid)' : 'จุด (Dots)'}
+                    </button>
+                  ))}
+               </div>
+               <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--text)' }}>สีพื้นหลังกระดาษ</h4>
+               <div style={{ display: 'flex', gap: 12 }}>
+                  {['white', 'yellow', 'dark'].map(pc => (
+                    <button key={pc} onClick={() => updatePage(currentPageIndex, p => { p.paperColor = pc; pushHistory(); })} style={{ width: 32, height: 32, borderRadius: '50%', border: currentPage.paperColor === pc ? '2px solid var(--teal)' : '1px solid var(--br2)', background: pc === 'yellow' ? '#FEF3C7' : pc === 'dark' ? '#1F2937' : 'white', cursor: 'pointer' }} />
+                  ))}
+               </div>
+            </div>
+          )}
+        </div>
+        
         <button 
           onClick={() => {
-            const newPage = { id: `blank-${Date.now()}`, src: null, width: dimensions.width > 0 ? dimensions.width - 40 : 800, height: 1130, lines: [], stickers: [] };
+            const newPage = { id: `blank-${Date.now()}`, src: null, width: dimensions.width > 0 ? dimensions.width - 40 : 800, height: 1130, lines: [], stickers: [], images: [], paperType: currentPage.paperType, paperColor: currentPage.paperColor };
+            pushHistory();
             setPages((prev) => {
               const p = [...prev];
               p.splice(currentPageIndex + 1, 0, newPage);
@@ -550,7 +646,17 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
         <Layer>
           <Group x={pageX} y={pageY}>
             {/* Page Paper Background */}
-            <Rect width={currentPage.width} height={currentPage.height} fill="white" shadowColor="rgba(0,0,0,0.15)" shadowBlur={20} shadowOffsetY={10} />
+            <Rect 
+               width={currentPage.width} 
+               height={currentPage.height} 
+               fill={currentPage.paperColor === 'yellow' ? '#FEF3C7' : currentPage.paperColor === 'dark' ? '#1F2937' : 'white'} 
+               shadowColor="rgba(0,0,0,0.15)" shadowBlur={20} shadowOffsetY={10} 
+            />
+            
+            {/* Paper Pattern */}
+            {!currentPage.src && currentPage.paperType !== 'blank' && (
+               <PaperPattern width={currentPage.width} height={currentPage.height} type={currentPage.paperType || 'lines'} color={currentPage.paperColor || 'white'} />
+            )}
             
             {/* PDF Render */}
             {currentPage.src && (
