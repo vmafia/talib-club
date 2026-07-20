@@ -39,19 +39,23 @@ export default function ProNotebook({ bookId, uid, activeBook }) {
   
   const isDrawing = useRef(false);
 
-  // Measure container size
+  // Measure container size using ResizeObserver
   useEffect(() => {
-    if (containerRef.current) {
-      const { clientWidth, clientHeight } = containerRef.current;
-      setDimensions({ width: clientWidth, height: clientHeight });
-    }
-    const handleResize = () => {
-      if (containerRef.current) {
-        setDimensions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight });
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        // Only update if size is valid to avoid 0x0 canvas
+        if (width > 0 && height > 0) {
+          setDimensions({ width, height });
+        }
       }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
   }, []);
 
   // Load PDF
