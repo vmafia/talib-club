@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera } from 'lucide-react';
 import CropModal from './CropModal';
+import ColorPickerPanel from './ColorPickerPanel';
+import BookSnipModal from './BookSnipModal';
 import { recognizeShape, shapeFromRecognition, pointInPolygon, distToSegmentXY } from '../utils/shapeRecognition.js';
 import useImage from 'use-image';
 import getStroke from 'perfect-freehand';
@@ -383,6 +385,30 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const sizes = [2, 4, 6, 8, 12, 16, 24];
   const [penColor, setPenColor] = useState('#111827');
   const [penSize, setPenSize] = useState(4);
+  // Free colour choice. The native <input type="color"> is dead on several tablet
+  // browsers, so an in-app picker panel replaces it; picked colours are kept as
+  // reusable swatches.
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customColors, setCustomColors] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('talib_custom_colors')) || []; } catch { return []; }
+  });
+  const rememberCustomColor = (c) => {
+    setCustomColors((prev) => {
+      const next = [c, ...prev.filter((x) => x.toLowerCase() !== c.toLowerCase())].slice(0, 8);
+      localStorage.setItem('talib_custom_colors', JSON.stringify(next));
+      return next;
+    });
+  };
+  // Live colour changes flow into the text being edited/selected too, so the
+  // picker behaves the same as tapping a preset swatch while on the text tool.
+  const applyColorToActiveText = (c) => {
+    const id = editingTextId || selectedId;
+    if (!id) return;
+    updatePage(currentPageIndex, (page) => {
+      page.texts = (page.texts || []).map((t) => (t.id === id ? { ...t, color: c } : t));
+    });
+  };
+  const [showBookSnip, setShowBookSnip] = useState(false);
   const [penOpacity, setPenOpacity] = useState(1);
   const [stickerStyle, setStickerStyle] = useState('classic');
   // Huawei Notes offers two erasers: whole-stroke and area ("pixel").
@@ -963,6 +989,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
     // Touching the canvas puts the tool to work — tuck its options away.
     if (showToolOptions) setShowToolOptions(false);
+    if (showColorPicker) setShowColorPicker(false);
 
     // If clicking on lasso group, don't bake, just return so they can drag it
     const targetName = e.target.name();
@@ -2032,6 +2059,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                    {[
                      { id: 'addpage', icon: FilePlus, title: 'เพิ่มหน้าใหม่', onClick: handleAddPage },
                      { id: 'pdf', icon: FileText, title: 'นำเข้า PDF', onClick: () => document.getElementById('pdf-upload').click() },
+                     // Snip a region of the companion book straight into the note.
+                     ...(activeBook?.book?.fileUrl ? [{ id: 'snip', icon: Camera, title: 'แคปจากหนังสือ', onClick: () => setShowBookSnip(true), active: showBookSnip }] : []),
                      { id: 'zoomwrite', icon: Maximize2, title: 'ขยายเขียน', onClick: () => setZoomWriter(v => !v), active: zoomWriter },
                      { id: 'search', icon: Search, title: 'ค้นหา', onClick: () => setShowSearch(!showSearch), active: showSearch },
                      { id: 'pages', icon: Columns, title: 'จัดการหน้า', onClick: () => setShowPageManager(!showPageManager), active: showPageManager },
@@ -2156,7 +2185,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     { id: 'shape', icon: Square, title: 'รูปร่าง' },
                     { id: 'image', icon: ImageIcon, title: 'แทรกรูปภาพ' },
                     { id: 'sticker', icon: StickyNote, title: 'โพสต์อิท' },
-                    { id: 'laser', icon: Zap, title: 'เลเซอร์' },
+                    { id: 'laser', icon: Wand2, title: 'เลเซอร์พอยเตอร์' },
                     { id: 'mic', icon: Mic, title: 'อัดเสียง' }
                   ].map(t => (
                      <button 
@@ -2173,7 +2202,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                           // Tapping the active tool toggles the popover.
                           const hasOptions = ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser', 'text'].includes(t.id);
                           if (tool === t.id) setShowToolOptions(v => !v);
-                          else { setTool(t.id); setShowToolOptions(hasOptions); }
+                          else { setTool(t.id); setShowToolOptions(hasOptions); setShowColorPicker(false); }
                        }}
                        style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 12, border: 'none', background: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? HW.accentSoft : 'transparent', color: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? 'translateY(-4px)' : 'none' }}
                      >
@@ -2203,6 +2232,20 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                )}
              </div>
             </div>
+
+            {/* In-app colour picker — sits above the options popover, outside the
+                scrollable capsule so it can never be clipped */}
+            {showColorPicker && (
+              <div style={{ order: -2 }}>
+                <ColorPickerPanel
+                  color={penColor}
+                  recentColors={customColors}
+                  onChange={(c) => { setPenColor(c); if (tool === 'text') applyColorToActiveText(c); }}
+                  onCommit={(c) => { setPenColor(c); if (tool === 'text') applyColorToActiveText(c); rememberCustomColor(c); setShowColorPicker(false); }}
+                  onClose={() => setShowColorPicker(false)}
+                />
+              </div>
+            )}
 
             {/* Tool options popover — floats above the capsule, Huawei style */}
             {showToolOptions && ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser', 'text'].includes(tool) && (
@@ -2247,9 +2290,19 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                                 style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2, transition: 'outline 0.15s' }}
                               />
                            ))}
-                           <label title="เลือกสีเอง" style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
-                              <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-                           </label>
+                           {customColors.slice(0, 3).map((c) => (
+                              <div
+                                key={`custom-${c}`}
+                                onClick={() => setPenColor(c)}
+                                title={c}
+                                style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
+                              />
+                           ))}
+                           <button
+                             title="เลือกสีเอง"
+                             onClick={() => setShowColorPicker(v => !v)}
+                             style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: 'none', padding: 0, background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: showColorPicker ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
+                           />
                         </div>
 
                         {['pen', 'fountain', 'marker', 'pencil'].includes(tool) && (
@@ -2333,9 +2386,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                                   style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
                                 />
                              ))}
-                             <label title="เลือกสีเอง" style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
-                                <input type="color" value={penColor} onChange={(e) => { setPenColor(e.target.value); applyToActive({ color: e.target.value }); }} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-                             </label>
+                             <button
+                               title="เลือกสีเอง"
+                               onClick={() => setShowColorPicker(v => !v)}
+                               style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: 'none', padding: 0, background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: showColorPicker ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
+                             />
                           </div>
                        </>
                      );
@@ -3244,6 +3299,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
            </div>
          );
       })()}
+
+      {/* Snip-from-book overlay */}
+      {showBookSnip && activeBook?.book?.fileUrl && (
+         <BookSnipModal
+           fileUrl={activeBook.book.fileUrl}
+           onClose={() => setShowBookSnip(false)}
+           onInsert={({ src, width, height }) => {
+             const w = Math.min(Math.min(440, currentPage.width * 0.75), width);
+             const h = height * (w / width);
+             pushHistory();
+             updatePage(currentPageIndex, (page) => {
+               if (!page.images) page.images = [];
+               page.images.push({ id: `img-${Date.now()}`, src, x: (currentPage.width - w) / 2, y: 60, width: w, height: h });
+             });
+             setShowBookSnip(false);
+             toast.success('แปะภาพจากหนังสือลงโน้ตแล้ว เลือกเครื่องมือเลื่อน (มือ) เพื่อจัดตำแหน่ง');
+           }}
+         />
+      )}
 
       {/* Crop Modal Overlay */}
       {croppingImageId && (() => {
