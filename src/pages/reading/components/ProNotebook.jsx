@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown } from 'lucide-react';
 import CropModal from './CropModal';
 import ColorPickerPanel from './ColorPickerPanel';
 import BookSnipModal from './BookSnipModal';
@@ -195,6 +195,19 @@ const textDecorationOf = (o) => [o.underline ? 'underline' : '', o.strikethrough
 // Default width of a text box, so alignment and lists have a column to work in.
 const TEXT_BOX_WIDTH = 340;
 
+// Sticky-note palette and styles, shared by the tool options and the context menu.
+const STICKY_COLORS = ['#FEF08A', '#FBCFE8', '#BAE6FD', '#BBF7D0', '#FED7AA', '#DDD6FE', '#FECACA', '#A7F3D0'];
+const STICKY_STYLES = [
+  { id: 'classic', label: 'คลาสสิก' },
+  { id: 'round', label: 'โค้งมน' },
+  { id: 'pin', label: 'หมุดปัก' },
+  { id: 'tape', label: 'เทปกาว' },
+  { id: 'polaroid', label: 'โพลารอยด์' },
+  { id: 'bubble', label: 'บับเบิล' },
+  { id: 'torn', label: 'ขอบฉีก' },
+  { id: 'lined', label: 'มีเส้น' },
+];
+
 // HarmonyOS / Huawei Notes design tokens
 const HW = {
   accent: '#0A59F7',
@@ -250,6 +263,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   }, []);
   const isMobile = windowWidth < 768;
   const isDesktop = windowWidth >= 1024;
+  // Coarse pointer = finger/stylus on a touchscreen. Drives bigger tap targets and
+  // fatter transform handles so the notebook feels right on a tablet, while staying
+  // compact with a mouse.
+  const isCoarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches;
+  const TOOL_BTN = isCoarse ? 46 : 40;   // tool button size in the bottom capsule
   
   const notebookId = bookId || 'default';
 
@@ -477,6 +495,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [textStyle, setTextStyle] = useState({ fontFamily: 'Kanit', fontSize: 24, bold: false, italic: false, underline: false, strikethrough: false, align: 'left', list: 'none' });
   // Emoji / imported-sticker picker toggle.
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // Right-click / long-press action menu for objects: { id, x, y } in viewport coords.
+  const [contextMenu, setContextMenu] = useState(null);
+  const longPressRef = useRef(null); // { timer, startX, startY, id }
 
   // "Zoom-in writing": a magnified strip at the bottom of the screen. You write
   // large in the strip and the ink lands small on the page, which is how Huawei
@@ -1034,10 +1055,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     if (showToolOptions) setShowToolOptions(false);
     if (showColorPicker) setShowColorPicker(false);
     if (showEmojiPicker) setShowEmojiPicker(false);
+    if (contextMenu) setContextMenu(null);
 
     // If clicking on lasso group, don't bake, just return so they can drag it
     const targetName = e.target.name();
     const parentName = e.target.getParent()?.name();
+
+    // Long-press on an object (touch/pen) opens the same menu as a right-click.
+    // Started here for every pointer; movement or lift before 500ms cancels it.
+    if ((tool === 'pan' || tool === 'lasso') && (targetName === 'object' || parentName === 'object') && evt) {
+      const objId = e.target.id() || e.target.getParent()?.id();
+      if (objId) {
+        if (longPressRef.current?.timer) clearTimeout(longPressRef.current.timer);
+        const cx = evt.clientX, cy = evt.clientY;
+        longPressRef.current = {
+          startX: cx, startY: cy, id: objId,
+          timer: setTimeout(() => { openContextMenu(objId, cx, cy); longPressRef.current = null; }, 500),
+        };
+      }
+    }
     if (tool === 'lasso' && (targetName === 'lasso-group' || parentName === 'lasso-group')) {
        return;
     }
@@ -1113,7 +1149,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     
     if (tool === 'sticker') {
        if (hitExistingObject || editingStickerId) return;
-       const stickerColor = ['#FEF08A', '#FBCFE8', '#BAE6FD', '#BBF7D0'].includes(penColor) ? penColor : '#FEF08A';
+       const stickerColor = STICKY_COLORS.includes(penColor) ? penColor : '#FEF08A';
        const newSticker = { id: `sticker-${Date.now()}`, x: pos.x, y: pos.y, color: stickerColor, text: '', style: stickerStyle };
        pushHistory();
        updatePage(currentPageIndex, (page) => {
@@ -1458,6 +1494,27 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     });
   };
 
+  // Draw order is array order; moving an object to the end of its kind array puts
+  // it in front, to the start puts it behind its siblings.
+  const reorderSelectedObject = (toFront) => {
+    if (!selectedInfo) return;
+    const { kind, obj } = selectedInfo;
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      const arr = (page[kind] || []).filter((o) => o.id !== obj.id);
+      page[kind] = toFront ? [...arr, obj] : [obj, ...arr];
+    });
+  };
+
+  // Right-click (desktop) and long-press (touch) both land here, opening a small
+  // action menu anchored at the pointer. clientX/Y are viewport coords, which is
+  // what the HTML menu is positioned in.
+  const openContextMenu = (id, clientX, clientY) => {
+    if (!id) return;
+    selectShape(id);
+    setContextMenu({ id, x: clientX, y: clientY });
+  };
+
   // --- Lasso selection actions ---
   // While a selection is live its strokes are held in `selectedLassoLines` and
   // drawn inside a draggable group, so they are absent from the page until baked.
@@ -1597,8 +1654,19 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     setSelectedLassoLines(next);
   };
 
+  // A drifting pointer is a drag, not a long-press — drop the pending menu timer.
+  const cancelLongPress = (evt) => {
+    const lp = longPressRef.current;
+    if (!lp) return;
+    if (!evt || Math.hypot((evt.clientX ?? lp.startX) - lp.startX, (evt.clientY ?? lp.startY) - lp.startY) > 8) {
+      clearTimeout(lp.timer);
+      longPressRef.current = null;
+    }
+  };
+
   const handlePointerMove = (e) => {
     const evt = e?.evt;
+    cancelLongPress(evt);
     if (evt && evt.pointerId !== undefined && activePointers.current.has(evt.pointerId)) {
       activePointers.current.set(evt.pointerId, { type: evt.pointerType, clientX: evt.clientX, clientY: evt.clientY });
     }
@@ -1680,6 +1748,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
   const handlePointerUp = (e) => {
     const evt = e?.evt;
+    if (longPressRef.current?.timer) { clearTimeout(longPressRef.current.timer); longPressRef.current = null; }
     if (evt && evt.pointerId !== undefined) activePointers.current.delete(evt.pointerId);
     let remainingTouches = 0;
     for (const p of activePointers.current.values()) if (p.type === 'touch') remainingTouches++;
@@ -2189,7 +2258,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       {/* Huawei Notes floating tool capsule (bottom-centered, overlays the canvas) */}
       {!readonly && (
          <div style={{ position: 'absolute', bottom: zoomWriter ? WRITER_H + 44 + 14 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 46, maxWidth: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, transition: 'bottom 0.22s cubic-bezier(0.2,0.8,0.2,1)' }}>
-            <div style={{ height: 52, background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: HW.radius, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6, maxWidth: '100%' }}>
+            <div style={{ height: TOOL_BTN + 12, background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: HW.radius, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, display: 'flex', alignItems: 'center', padding: '0 8px', gap: isCoarse ? 4 : 6, maxWidth: '100%' }}>
                  {/* FIXED Undo / Redo */}
                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                     <button onClick={undo} disabled={!canUndo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2258,7 +2327,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                        }}
                        style={(() => {
                           const active = t.id === 'ruler' ? rulerOn : t.id === 'emoji' ? showEmojiPicker : (tool === t.id && !['image','mic'].includes(t.id));
-                          return { flexShrink: 0, width: 40, height: 40, borderRadius: 12, border: 'none', background: active ? HW.accentSoft : 'transparent', color: active ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: active ? 'translateY(-4px)' : 'none' };
+                          return { flexShrink: 0, width: TOOL_BTN, height: TOOL_BTN, borderRadius: 12, border: 'none', background: active ? HW.accentSoft : 'transparent', color: active ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: active ? 'translateY(-4px)' : 'none' };
                        })()}
                      >
                        <t.icon size={20} strokeWidth={1.6} />
@@ -2503,15 +2572,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                   {tool === 'sticker' && (
                      <>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          {['#FEF08A', '#FBCFE8', '#BAE6FD', '#BBF7D0'].map(c => (
+                          {STICKY_COLORS.map(c => (
                              <div key={c} onClick={() => setPenColor(c)} style={{ width: 22, height: 22, borderRadius: 6, background: c, cursor: 'pointer', outline: penColor === c ? '2px solid #3B82F6' : 'none', outlineOffset: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                           ))}
                         </div>
                         <div style={{ width: 1, background: '#E5E7EB', height: 20, flexShrink: 0 }}></div>
                         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                           {['classic', 'pin', 'tape', 'round'].map(s => (
-                              <button key={s} onClick={() => setStickerStyle(s)} style={{ padding: '4px 8px', background: stickerStyle === s ? '#E0F2FE' : '#F3F4F6', color: stickerStyle === s ? '#0369A1' : '#4B5563', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                                 {s === 'classic' ? 'คลาสสิก' : s === 'pin' ? 'หมุดปัก' : s === 'tape' ? 'เทปกาว' : 'โค้งมน'}
+                           {STICKY_STYLES.map(s => (
+                              <button key={s.id} onClick={() => setStickerStyle(s.id)} title={s.label} style={{ padding: '4px 8px', background: stickerStyle === s.id ? '#E0F2FE' : '#F3F4F6', color: stickerStyle === s.id ? '#0369A1' : '#4B5563', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                 {s.label}
                               </button>
                            ))}
                         </div>
@@ -2682,7 +2751,13 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
-        onContextMenu={(e) => e.evt.preventDefault()}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          const name = e.target.name();
+          const parentName = e.target.getParent()?.name();
+          const id = e.target.id() || e.target.getParent()?.id();
+          if ((name === 'object' || parentName === 'object') && id) openContextMenu(id, e.evt.clientX, e.evt.clientY);
+        }}
         scaleX={scale}
         scaleY={scale}
         x={position.x}
@@ -2958,6 +3033,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 name="object"
                 x={t.x + objectOffset('texts', t.id).x}
                 y={t.y + objectOffset('texts', t.id).y}
+                scaleX={t.scaleX || 1}
+                scaleY={t.scaleY || 1}
+                rotation={t.rotation || 0}
                 draggable={tool === 'pan' || tool === 'text'}
                 onDragEnd={(e) => {
                    const { x, y } = e.target.position();
@@ -2966,10 +3044,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                      if(txt) { txt.x = x; txt.y = y; }
                    });
                 }}
+                onTransformEnd={(e) => {
+                   const node = e.target;
+                   updatePage(currentPageIndex, (page) => {
+                     const txt = page.texts.find(tx => tx.id === t.id);
+                     if (txt) { txt.x = node.x(); txt.y = node.y(); txt.scaleX = node.scaleX(); txt.scaleY = node.scaleY(); txt.rotation = node.rotation(); }
+                   });
+                }}
                 onClick={() => {
                    if (tool === 'pan' || tool === 'lasso') {
                       selectShape(t.id);
-                   } else if (tool === 'text') {
+                   } else if (tool === 'text' && !t.isEmoji) {
                       setEditingTextId(t.id);
                       setEditingTextValue(t.text);
                       isEditingText.current = true;
@@ -2978,7 +3063,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 onTap={() => {
                    if (tool === 'pan' || tool === 'lasso') {
                       selectShape(t.id);
-                   } else if (tool === 'text') {
+                   } else if (tool === 'text' && !t.isEmoji) {
                       setEditingTextId(t.id);
                       setEditingTextValue(t.text);
                       isEditingText.current = true;
@@ -3082,24 +3167,49 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                   onClick={(e) => { e.cancelBubble = true; if (tool === 'sticker') { setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); } else if (tool === 'pan' || tool === 'lasso') { selectShape(st.id); } }}
                   onTap={(e) => { e.cancelBubble = true; if (tool === 'sticker') { setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); } else if (tool === 'pan' || tool === 'lasso') { selectShape(st.id); } }}
                 >
-                  <Rect width={150} height={150} fill={st.color} shadowColor="rgba(0,0,0,0.15)" shadowBlur={10} shadowOffsetY={4} cornerRadius={st.style === 'round' ? 16 : 2} />
-                  
-                  {(!st.style || st.style === 'classic') ? (
+                  {st.style === 'polaroid' ? (
+                     <>
+                        {/* White photo frame with a thick caption strip at the bottom */}
+                        <Rect width={150} height={150} fill="#FFFFFF" shadowColor="rgba(0,0,0,0.18)" shadowBlur={10} shadowOffsetY={4} cornerRadius={3} />
+                        <Rect x={10} y={10} width={130} height={104} fill={st.color} cornerRadius={2} />
+                     </>
+                  ) : st.style === 'bubble' ? (
+                     <>
+                        {/* Speech bubble: rounded body + a little tail bottom-left */}
+                        <Rect width={150} height={132} fill={st.color} shadowColor="rgba(0,0,0,0.15)" shadowBlur={10} shadowOffsetY={4} cornerRadius={24} />
+                        <Path data="M 28 128 L 20 150 L 52 130 Z" fill={st.color} />
+                     </>
+                  ) : (
+                     <Rect width={150} height={150} fill={st.color} shadowColor="rgba(0,0,0,0.15)" shadowBlur={10} shadowOffsetY={4} cornerRadius={st.style === 'round' ? 16 : 2} />
+                  )}
+
+                  {(!st.style || st.style === 'classic') && (
                      <>
                         <Rect width={150} height={20} fill="rgba(0,0,0,0.05)" cornerRadius={[2, 2, 0, 0]} />
                         <Path data="M 150 150 L 130 150 L 150 130 Z" fill="rgba(0,0,0,0.08)" />
                      </>
-                  ) : st.style === 'pin' ? (
+                  )}
+                  {st.style === 'pin' && (
                      <>
                         <Circle x={75} y={12} radius={5} fill="#EF4444" shadowColor="rgba(0,0,0,0.3)" shadowBlur={3} shadowOffsetY={1} />
                         <Circle x={74} y={11} radius={2} fill="#FCA5A5" />
                      </>
-                  ) : st.style === 'tape' ? (
+                  )}
+                  {st.style === 'tape' && (
                      <Rect x={45} y={-8} width={60} height={20} fill="rgba(255,255,255,0.5)" rotation={-2} shadowColor="rgba(0,0,0,0.05)" shadowBlur={2} shadowOffsetY={1} />
-                  ) : null}
+                  )}
+                  {st.style === 'torn' && (
+                     // Jagged white strip along the bottom edge, like a torn-off note.
+                     <Path data="M 0 132 L 15 142 L 30 133 L 45 143 L 60 134 L 75 144 L 90 133 L 105 143 L 120 134 L 135 143 L 150 133 L 150 150 L 0 150 Z" fill="rgba(255,255,255,0.85)" />
+                  )}
+                  {st.style === 'lined' && (
+                     [48, 72, 96, 120].map((ly) => (
+                        <Path key={`line-${ly}`} data={`M 12 ${ly} L 138 ${ly}`} stroke="rgba(0,0,0,0.12)" strokeWidth={1} />
+                     ))
+                  )}
 
                   {editingStickerId !== st.id && st.text && (
-                     <Text text={st.text} x={10} y={24} width={130} height={116} fontSize={16} fill="#111827" fontFamily="Kanit, sans-serif" />
+                     <Text text={st.text} x={12} y={st.style === 'polaroid' ? 118 : 24} width={126} height={st.style === 'polaroid' ? 28 : 116} fontSize={st.style === 'polaroid' ? 13 : 16} fill="#111827" fontFamily="Kanit, sans-serif" align={st.style === 'polaroid' ? 'center' : 'left'} />
                   )}
                 </Group>
               );
@@ -3110,8 +3220,23 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         {/* Transformer Layer */}
         <Layer>
            {selectedId && (
-              <Transformer 
-                ref={transformerRef} 
+              <Transformer
+                ref={transformerRef}
+                // Fat, teal, rounded handles — easy to grab with a fingertip. Emoji,
+                // images and text scale uniformly (corner anchors only); shapes may
+                // stretch freely.
+                anchorSize={isCoarse ? 18 : 11}
+                anchorCornerRadius={isCoarse ? 9 : 5}
+                anchorStroke={HW.accent}
+                anchorFill="#FFFFFF"
+                borderStroke={HW.accent}
+                borderStrokeWidth={1.5}
+                rotateEnabled={true}
+                rotateAnchorOffset={isCoarse ? 34 : 24}
+                keepRatio={selectedInfo?.kind !== 'shapes'}
+                enabledAnchors={selectedInfo?.kind === 'shapes'
+                  ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+                  : ['top-left', 'top-right', 'bottom-left', 'bottom-right']}
                 boundBoxFunc={(oldBox, newBox) => {
                   if (newBox.width < 10 || newBox.height < 10) return oldBox;
                   return newBox;
@@ -3120,6 +3245,52 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
            )}
         </Layer>
       </Stage>
+
+      {/* Right-click / long-press context menu */}
+      {contextMenu && (() => {
+        const info = (() => {
+          const page = pages[currentPageIndex];
+          if (!page) return null;
+          for (const kind of ['images', 'shapes', 'texts', 'stickers']) {
+            const obj = (page[kind] || []).find((o) => o.id === contextMenu.id);
+            if (obj) return { kind, obj };
+          }
+          return null;
+        })();
+        if (!info) return null;
+        const canRecolor = info.kind === 'shapes' || info.kind === 'texts' || info.kind === 'stickers';
+        const menuW = 180;
+        const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
+        const top = Math.min(contextMenu.y, window.innerHeight - 300);
+        const Item = ({ icon, label, onClick, danger }) => (
+          <button
+            onClick={() => { onClick(); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', color: danger ? '#EF4444' : '#111827', cursor: 'pointer', fontSize: 14, textAlign: 'left', fontFamily: 'Kanit, sans-serif' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >{icon} {label}</button>
+        );
+        return (
+          <>
+            <div onPointerDown={() => setContextMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
+            <div style={{ position: 'fixed', left, top, zIndex: 201, width: menuW, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', border: '1px solid rgba(0,0,0,0.06)', padding: 6, overflow: 'hidden' }}>
+              <Item icon={<FileStack size={17} color="#4B5563" />} label="ทำซ้ำ" onClick={duplicateSelectedObject} />
+              <Item icon={<ChevronsUp size={17} color="#4B5563" />} label="นำไปด้านหน้า" onClick={() => reorderSelectedObject(true)} />
+              <Item icon={<ChevronsDown size={17} color="#4B5563" />} label="ส่งไปด้านหลัง" onClick={() => reorderSelectedObject(false)} />
+              {canRecolor && (
+                <div style={{ padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: 6, borderTop: '1px solid #F3F4F6', marginTop: 4 }}>
+                  {['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#FEF08A'].map((c) => (
+                    <div key={c} onClick={() => { recolorSelectedObject(c); setContextMenu(null); }} style={{ width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)' }} />
+                  ))}
+                </div>
+              )}
+              <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 4 }}>
+                <Item icon={<Trash2 size={17} color="#EF4444" />} label="ลบ" onClick={deleteSelected} danger />
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Floating Textarea for inline editing */}
       {(() => {
@@ -3317,7 +3488,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          const top = (box.minY + pageY) * scale + position.y - 54;
          const btn = { height: 32, padding: '0 10px', borderRadius: 10, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' };
          const divider = <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 3px' }} />;
-         const swatches = kind === 'stickers' ? ['#FEF08A', '#FBCFE8', '#BAE6FD', '#BBF7D0'] : ['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'];
+         const swatches = kind === 'stickers' ? STICKY_COLORS : ['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'];
 
          return (
            <div
