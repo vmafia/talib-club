@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line, Star as KonvaStar, Arrow as KonvaArrow } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown, ListMusic, X } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown, ListMusic, X, ArrowRight, Star } from 'lucide-react';
 import CropModal from './CropModal';
 import ColorPickerPanel from './ColorPickerPanel';
 import BookSnipModal from './BookSnipModal';
@@ -166,10 +166,11 @@ const StrokeShape = ({ line }) => {
 };
 
 // Committed ink. Re-renders only when the stroke list itself changes.
-const CommittedStrokes = React.memo(({ lines, playbackTime }) => (
+const CommittedStrokes = React.memo(({ lines, playbackTime, nowPlayingId }) => (
   <>
     {lines.map((line, i) => {
-      const isVisible = line.startTime === undefined || line.startTime === null || line.startTime <= playbackTime;
+      const isPlayingThis = nowPlayingId && (line.recordingId === nowPlayingId || (!line.recordingId && line.startTime != null));
+      const isVisible = !isPlayingThis || line.startTime === undefined || line.startTime === null || line.startTime <= playbackTime;
       if (!isVisible) return null;
       return <StrokeShape key={i} line={line} />;
     })}
@@ -643,8 +644,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingStartTimeRef = useRef(null);
+  const recordingIdRef = useRef(null);
   const [playbackTime, setPlaybackTime] = useState(Number.MAX_SAFE_INTEGER);
   const animationRef = useRef(null);
+  
+  useEffect(() => {
+    if (nowPlaying) {
+      setPlaybackTime(audioProgress.current);
+    } else {
+      setPlaybackTime(Number.MAX_SAFE_INTEGER);
+    }
+  }, [nowPlaying, audioProgress.current]);
   
   const isDrawing = useRef(false);
   // The stroke currently under the pointer. Kept out of `pages` so that only the
@@ -814,13 +824,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         
         // Capture the index when recording starts so sticker goes to the right page
         const targetPageIndex = currentPageIndex;
+        const currentRecordingId = `audio-${Date.now()}`;
+        recordingIdRef.current = currentRecordingId;
         recordingStartTimeRef.current = Date.now();
         
         mediaRecorder.onstop = async () => {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const localUrl = URL.createObjectURL(audioBlob);
           
-          const stickerId = `audio-${Date.now()}`;
+          const stickerId = currentRecordingId;
           const totalAudio = pagesRef.current.reduce((n, pg) => n + (pg.stickers || []).filter((s) => s.audioUrl).length, 0);
 
           updatePage(targetPageIndex, (page) => {
@@ -1413,6 +1425,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       points: [start.x, start.y],
       pressures: [pressure],
       startTime: relativeTime,
+      recordingId: isRecording ? recordingIdRef.current : null,
     };
     liveStrokeRef.current = stroke;
     ruledStrokeRef.current = ruled;
@@ -2123,6 +2136,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [showPageManager, setShowPageManager] = useState(false);
+  const [pageManagerTab, setPageManagerTab] = useState('all');
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showEraserSettings, setShowEraserSettings] = useState(false);
@@ -2221,7 +2235,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#F3F4F6', display: 'flex', flexDirection: 'column' }}>
       
       {/* Huawei Notes Top Navigation Bar (Fixed App Header) */}
-         <div className="hide-scroll" style={{ height: 52, flexShrink: 0, width: '100%', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', zIndex: 50, borderBottom: `1px solid ${HW.hairline}`, overflowX: 'auto' }}>
+         <div className="hide-scroll" style={{ height: 52, flexShrink: 0, width: '100%', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, display: 'flex', alignItems: 'center', justifyContent: readonly ? 'center' : 'space-between', padding: '0 12px', zIndex: 50, borderBottom: `1px solid ${HW.hairline}`, overflowX: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                {/* No in-notebook back button: it called window.history.back(), which
                    would kick the user out of the reading room entirely. The reader
@@ -2544,7 +2558,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                         {tool === 'shape' && (
                            <>
                              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                                {[{ t: 'rect', Icon: Square }, { t: 'circle', Icon: CircleIcon }, { t: 'triangle', Icon: Triangle }, { t: 'line', Icon: Minus }].map(({ t, Icon }) => (
+                                {[{ t: 'rect', Icon: Square }, { t: 'circle', Icon: CircleIcon }, { t: 'triangle', Icon: Triangle }, { t: 'line', Icon: Minus }, { t: 'arrow', Icon: ArrowRight }, { t: 'star', Icon: Star }].map(({ t, Icon }) => (
                                   <button key={t} onClick={() => setShapeType(t)} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: shapeType === t ? HW.accentSoft : 'transparent', color: shapeType === t ? HW.accent : '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Icon size={20} strokeWidth={1.6} />
                                   </button>
@@ -2828,17 +2842,35 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       {showPageManager && (
          <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(243,244,246,0.95)', backdropFilter: 'blur(10px)', overflowY: 'auto', padding: 24 }}>
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, background: 'white', padding: '12px 24px', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-             <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>จัดการหน้ากระดาษ ({pages.length} หน้า)</h3>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+               <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>จัดการหน้ากระดาษ</h3>
+               <div style={{ display: 'flex', gap: 8, background: '#F3F4F6', padding: 4, borderRadius: 10 }}>
+                 <button onClick={() => setPageManagerTab('all')} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: pageManagerTab === 'all' ? 'white' : 'transparent', color: pageManagerTab === 'all' ? '#111827' : '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: pageManagerTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>ทั้งหมด ({pages.length})</button>
+                 <button onClick={() => setPageManagerTab('bookmarks')} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: pageManagerTab === 'bookmarks' ? 'white' : 'transparent', color: pageManagerTab === 'bookmarks' ? '#111827' : '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: pageManagerTab === 'bookmarks' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                   <Bookmark size={16} fill={pageManagerTab === 'bookmarks' ? '#F59E0B' : 'none'} color={pageManagerTab === 'bookmarks' ? '#F59E0B' : 'currentColor'} /> คั่นหน้าไว้ ({pages.filter(p => p.isBookmarked).length})
+                 </button>
+               </div>
+             </div>
              <button onClick={() => setShowPageManager(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>ปิด</button>
            </div>
            
            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 24 }}>
-             {pages.map((p, i) => (
+             {pages.map((p, i) => ({ p, i })).filter(({ p }) => pageManagerTab === 'all' || p.isBookmarked).length === 0 && (
+               <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 0', color: '#6B7280' }}>
+                 ไม่มีหน้ากระดาษที่ค้นหา
+               </div>
+             )}
+             {pages.map((p, i) => ({ p, i })).filter(({ p }) => pageManagerTab === 'all' || p.isBookmarked).map(({ p, i }) => (
                 <div 
                   key={p.id} 
                   onClick={() => { setCurrentPageIndex(i); setShowPageManager(false); }}
-                  style={{ background: 'white', borderRadius: 12, padding: 12, cursor: 'pointer', border: currentPageIndex === i ? '2px solid var(--teal)' : '2px solid transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.2s' }}
+                  style={{ background: 'white', borderRadius: 12, padding: 12, cursor: 'pointer', border: currentPageIndex === i ? '2px solid var(--teal)' : '2px solid transparent', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.2s', position: 'relative' }}
                 >
+                  {p.isBookmarked && (
+                    <div style={{ position: 'absolute', top: -4, right: 16, zIndex: 10 }}>
+                      <Bookmark size={24} color="#F59E0B" fill="#F59E0B" />
+                    </div>
+                  )}
                   <div style={{ width: '100%', aspectRatio: '800/1130', background: p.paperColor === 'yellow' ? '#FEF3C7' : p.paperColor === 'dark' ? '#1F2937' : 'white', border: '1px solid var(--br2)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
                     {p.src && <img src={p.src} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="pdf page" />}
                     {!p.src && p.paperType !== 'blank' && <SquareSquare size={24} color="#9CA3AF" opacity={0.3} />}
@@ -2972,6 +3004,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 scaleY={img.scaleY || 1}
                 rotation={img.rotation || 0}
                 draggable={tool === 'pan'}
+                listening={['pan', 'lasso', 'select'].includes(tool) || selectedId === img.id}
                 onDragEnd={(e) => {
                   const { x, y } = e.target.position();
                   updatePage(currentPageIndex, (page) => {
@@ -3008,6 +3041,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                  x: s.x1 + objectOffset('shapes', s.id).x, y: s.y1 + objectOffset('shapes', s.id).y, stroke: s.color, strokeWidth: s.size, opacity: s.opacity,
                  scaleX: s.scaleX || 1, scaleY: s.scaleY || 1, rotation: s.rotation || 0,
                  draggable: tool === 'pan',
+                 listening: ['pan', 'lasso', 'select'].includes(tool) || selectedId === s.id,
                  onClick: () => { if (tool === 'pan' || tool === 'lasso') selectShape(s.id); },
                  onTap: () => { if (tool === 'pan' || tool === 'lasso') selectShape(s.id); },
                  onDragEnd: (e) => {
@@ -3045,6 +3079,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                  return <RegularPolygon key={s.id} {...shapeProps} sides={3} radius={radius} />;
               } else if (s.type === 'line') {
                  return <Path key={s.id} {...shapeProps} data={`M 0 0 L ${width} ${height}`} lineCap="round" lineJoin="round" />;
+              } else if (s.type === 'arrow') {
+                 return <KonvaArrow key={s.id} {...shapeProps} points={[0, 0, width, height]} pointerLength={20} pointerWidth={20} />;
+              } else if (s.type === 'star') {
+                 const radius = Math.sqrt(width * width + height * height) / 2;
+                 return <KonvaStar key={s.id} {...shapeProps} numPoints={5} innerRadius={radius * 0.4} outerRadius={radius} offsetX={-width/2} offsetY={-height/2} />;
               }
               return null;
             })}
@@ -3056,7 +3095,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         <Layer>
           <Group x={pageX} y={pageY} clipX={0} clipY={0} clipWidth={currentPage.width} clipHeight={currentPage.height}>
             {/* Strokes */}
-            <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} />
+            <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} nowPlayingId={nowPlaying?.id} />
             {/* The stroke under the pointer lives here so committed ink stays untouched
                 while drawing. It has to share this layer for the area eraser's
                 destination-out compositing to bite into the ink below it. */}
@@ -3207,6 +3246,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 scaleY={t.scaleY || 1}
                 rotation={t.rotation || 0}
                 draggable={tool === 'pan' || tool === 'text'}
+                listening={['pan', 'lasso', 'text'].includes(tool) || selectedId === t.id}
                 onDragEnd={(e) => {
                    const { x, y } = e.target.position();
                    updatePage(currentPageIndex, (page) => {
@@ -3273,6 +3313,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                   scaleY={st.scaleY || 1}
                   rotation={st.rotation || 0}
                   draggable={tool === 'pan' || tool === 'sticker'} 
+                  listening={['pan', 'lasso', 'sticker'].includes(tool) || selectedId === st.id}
+                  onClick={() => { if (['pan', 'lasso', 'sticker'].includes(tool)) selectShape(st.id, 'stickers'); }}
+                  onTap={() => { if (['pan', 'lasso', 'sticker'].includes(tool)) selectShape(st.id, 'stickers'); }}
                   onDragEnd={(e) => {
                     updatePage(currentPageIndex, (page) => {
                        const sticker = page.stickers.find(s => s.id === st.id);
@@ -3429,58 +3472,117 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          const absoluteY = (t.y + pageY) * scale + position.y;
          
          return (
-           <textarea
-             key={`textarea-${editingTextId}`}
-             ref={textareaRef}
-             placeholder="พิมพ์ข้อความที่นี่..."
-             value={editingTextValue}
-             onChange={(e) => {
-                setEditingTextValue(e.target.value);
-             }}
-             onBlur={() => {
-                if (!isEditingText.current) return;
-                isEditingText.current = false;
-                
-                if (editingTextValue.trim() === '') {
-                   updatePage(currentPageIndex, (page) => {
-                      page.texts = page.texts.filter(tx => tx.id !== editingTextId);
-                   });
-                } else {
-                   updatePage(currentPageIndex, (page) => {
-                      const txt = page.texts?.find(tx => tx.id === editingTextId);
-                      if (txt) txt.text = editingTextValue;
-                   });
-                }
-                setEditingTextId(null);
-             }}
-             onPointerDown={(e) => e.stopPropagation()}
-             onMouseDown={(e) => e.stopPropagation()}
-             style={{
-                position: 'absolute',
-                top: absoluteY,
-                left: absoluteX,
-                margin: 0,
-                padding: 4,
-                border: '1px dashed var(--teal)',
-                background: 'rgba(255,255,255,0.95)',
-                color: t.color,
-                fontSize: `${t.size * scale}px`,
-                fontFamily: t.fontFamily || 'Kanit',
-                fontWeight: t.bold ? 700 : 400,
-                fontStyle: t.italic ? 'italic' : 'normal',
-                textDecoration: [t.underline ? 'underline' : '', t.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
-                textAlign: t.align || 'left',
-                lineHeight: 1.2,
-                outline: 'none',
-                resize: 'none',
-                minWidth: 200,
-                minHeight: 100,
-                overflow: 'hidden',
-                zIndex: 100,
-                borderRadius: 8,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-             }}
-           />
+           <div style={{ position: 'absolute', top: absoluteY - 50, left: absoluteX, zIndex: 101, display: 'flex', flexDirection: 'column', gap: 8 }}>
+             <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'white', padding: '6px', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', border: '1px solid var(--br2)' }}>
+                {[ 
+                  { id: 'bold', icon: <span style={{fontWeight: 700, fontFamily: 'serif', fontSize: 16}}>B</span>, prop: 'bold' },
+                  { id: 'italic', icon: <span style={{fontStyle: 'italic', fontFamily: 'serif', fontSize: 16}}>I</span>, prop: 'italic' },
+                  { id: 'underline', icon: <span style={{textDecoration: 'underline', fontFamily: 'serif', fontSize: 16}}>U</span>, prop: 'underline' }
+                ].map(btn => (
+                  <button
+                    key={btn.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       updatePage(currentPageIndex, (page) => {
+                          const txt = page.texts?.find(tx => tx.id === editingTextId);
+                          if (txt) txt[btn.prop] = !txt[btn.prop];
+                       });
+                    }}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: t[btn.prop] ? 'var(--teal-light)' : 'transparent', color: t[btn.prop] ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >{btn.icon}</button>
+                ))}
+                <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }}></div>
+                {[ 
+                  { id: 'left', icon: <AlignLeft size={16} />, prop: 'align', val: 'left' },
+                  { id: 'center', icon: <AlignCenter size={16} />, prop: 'align', val: 'center' },
+                  { id: 'right', icon: <AlignRight size={16} />, prop: 'align', val: 'right' }
+                ].map(btn => (
+                  <button
+                    key={btn.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       updatePage(currentPageIndex, (page) => {
+                          const txt = page.texts?.find(tx => tx.id === editingTextId);
+                          if (txt) txt[btn.prop] = btn.val;
+                       });
+                    }}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: (t.align || 'left') === btn.val ? 'var(--teal-light)' : 'transparent', color: (t.align || 'left') === btn.val ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >{btn.icon}</button>
+                ))}
+                <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }}></div>
+                {[ 
+                  { id: 'bullet', icon: <List size={16} />, prop: 'list', val: 'bullet' },
+                  { id: 'number', icon: <ListOrdered size={16} />, prop: 'list', val: 'number' }
+                ].map(btn => (
+                  <button
+                    key={btn.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       updatePage(currentPageIndex, (page) => {
+                          const txt = page.texts?.find(tx => tx.id === editingTextId);
+                          if (txt) {
+                             if (txt.list === btn.val) txt.list = 'none';
+                             else txt.list = btn.val;
+                          }
+                       });
+                    }}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: t.list === btn.val ? 'var(--teal-light)' : 'transparent', color: t.list === btn.val ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >{btn.icon}</button>
+                ))}
+             </div>
+             <textarea
+               key={`textarea-${editingTextId}`}
+               ref={textareaRef}
+               placeholder="พิมพ์ข้อความที่นี่..."
+               value={editingTextValue}
+               onChange={(e) => {
+                  setEditingTextValue(e.target.value);
+               }}
+               onBlur={() => {
+                  if (!isEditingText.current) return;
+                  isEditingText.current = false;
+                  
+                  if (editingTextValue.trim() === '') {
+                     updatePage(currentPageIndex, (page) => {
+                        page.texts = page.texts.filter(tx => tx.id !== editingTextId);
+                     });
+                  } else {
+                     updatePage(currentPageIndex, (page) => {
+                        const txt = page.texts?.find(tx => tx.id === editingTextId);
+                        if (txt) txt.text = editingTextValue;
+                     });
+                  }
+                  setEditingTextId(null);
+               }}
+               onPointerDown={(e) => e.stopPropagation()}
+               onMouseDown={(e) => e.stopPropagation()}
+               style={{
+                  margin: 0,
+                  padding: 8,
+                  border: '2px solid var(--teal)',
+                  background: 'rgba(255,255,255,0.95)',
+                  color: t.color,
+                  fontSize: `${t.size * scale}px`,
+                  fontFamily: t.fontFamily || 'Kanit',
+                  fontWeight: t.bold ? 700 : 400,
+                  fontStyle: t.italic ? 'italic' : 'normal',
+                  textDecoration: [t.underline ? 'underline' : '', t.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                  textAlign: t.align || 'left',
+                  lineHeight: 1.2,
+                  outline: 'none',
+                  resize: 'none',
+                  minWidth: 240,
+                  minHeight: 100,
+                  overflow: 'hidden',
+                  zIndex: 100,
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+               }}
+             />
+           </div>
          );
       })()}
       
@@ -3601,7 +3703,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
               )}
             </Layer>
             <Layer>
-              <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} />
+              <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} nowPlayingId={nowPlaying?.id} />
               {liveStroke && <StrokeShape line={liveStroke} />}
             </Layer>
           </Stage>
