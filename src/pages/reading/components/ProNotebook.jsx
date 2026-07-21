@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2 } from 'lucide-react';
 import CropModal from './CropModal';
+import { recognizeShape, shapeFromRecognition, pointInPolygon, distToSegmentXY } from '../utils/shapeRecognition.js';
 import useImage from 'use-image';
 import getStroke from 'perfect-freehand';
 import toast from 'react-hot-toast';
@@ -51,6 +52,135 @@ const PaperPattern = ({ width, height, type, color }) => {
   }
   
   return <Group>{lines}</Group>;
+};
+
+const getSvgPathFromStroke = (stroke) => {
+  if (!stroke.length) return "";
+  const d = stroke.reduce((acc, [x0, y0], i, arr) => {
+      const [x1, y1] = arr[(i + 1) % arr.length];
+      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
+      return acc;
+  }, ["M", ...stroke[0], "Q"]);
+  d.push("Z");
+  return d.join(" ");
+};
+
+// What actually distinguishes one pen from another. `stroke` goes to
+// perfect-freehand and shapes the outline; the rest controls how it is painted.
+//
+//  pen         ballpoint — near-constant width, fully opaque
+//  fountain    strong width response and tapered ends, like a flexible nib
+//  pencil      graphite: light, grainy, and it darkens where strokes overlap
+//  marker      chisel tip — flat width, slightly translucent
+//  highlighter wide, flat, multiplied so text stays readable underneath
+const PEN_STYLES = {
+  pen: {
+    stroke: { thinning: 0.22, smoothing: 0.5, streamline: 0.5 },
+    opacity: 1, composite: 'source-over',
+  },
+  fountain: {
+    stroke: {
+      thinning: 0.78, smoothing: 0.62, streamline: 0.42,
+      start: { taper: 14, cap: true }, end: { taper: 32, cap: true },
+    },
+    opacity: 1, composite: 'source-over',
+  },
+  pencil: {
+    stroke: { thinning: 0.55, smoothing: 0.4, streamline: 0.32 },
+    opacity: 0.62, composite: 'multiply', grain: true,
+  },
+  marker: {
+    stroke: { thinning: 0.05, smoothing: 0.55, streamline: 0.5, start: { cap: true }, end: { cap: true } },
+    sizeScale: 1.7, opacity: 0.9, composite: 'source-over',
+  },
+  highlighter: {
+    stroke: { thinning: 0, smoothing: 0.6, streamline: 0.6, start: { cap: false }, end: { cap: false } },
+    sizeScale: 3, opacity: 0.42, composite: 'multiply',
+  },
+  eraser: {
+    stroke: { thinning: 0, smoothing: 0.5, streamline: 0.5 },
+    opacity: 1, composite: 'destination-out',
+  },
+};
+
+// Graphite grain, one tile per colour, built once and reused. Without this the
+// pencil is just a thin translucent line and reads as a weak pen.
+const grainCache = new Map();
+const getGrainTile = (color) => {
+  if (grainCache.has(color)) return grainCache.get(color);
+  const c = document.createElement('canvas');
+  c.width = c.height = 48;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  for (let i = 0; i < 1100; i++) {
+    ctx.globalAlpha = 0.2 + Math.random() * 0.6;
+    ctx.fillRect(Math.random() * 48, Math.random() * 48, 1, 1);
+  }
+  grainCache.set(color, c);
+  return c;
+};
+
+// One rendered stroke. Pulled out of the component (and memoised at the layer
+// level) so that drawing a new stroke does not re-run getStroke for every stroke
+// already on the page — that was the source of the lag as a page filled up.
+const StrokeShape = ({ line }) => {
+  const style = PEN_STYLES[line.tool] || PEN_STYLES.pen;
+  const color = line.color || '#111827';
+
+  // Feed real stylus pressure to perfect-freehand when we captured it; fall back
+  // to its velocity simulation for strokes drawn with a mouse or saved earlier.
+  const hasPressure = Array.isArray(line.pressures) && line.pressures.length === line.points.length / 2;
+  const pointPairs = [];
+  for (let p = 0; p < line.points.length; p += 2) {
+    pointPairs.push(hasPressure
+      ? [line.points[p], line.points[p + 1], line.pressures[p / 2]]
+      : [line.points[p], line.points[p + 1]]);
+  }
+
+  const baseSize = line.tool === 'eraser' ? (line.size || 24) : (line.size || 4) * (style.sizeScale || 1);
+  const outline = getStroke(pointPairs, {
+    size: baseSize,
+    ...style.stroke,
+    simulatePressure: !hasPressure,
+  });
+  const pathData = getSvgPathFromStroke(outline);
+
+  const common = {
+    data: pathData,
+    opacity: (line.opacity ?? 1) * style.opacity,
+    globalCompositeOperation: style.composite,
+    lineCap: 'round',
+    lineJoin: 'round',
+  };
+
+  if (style.grain) {
+    return <Path {...common} fillPriority="pattern" fillPatternImage={getGrainTile(color)} fillPatternRepeat="repeat" />;
+  }
+  return <Path {...common} fill={line.tool === 'eraser' ? 'black' : color} />;
+};
+
+// Committed ink. Re-renders only when the stroke list itself changes.
+const CommittedStrokes = React.memo(({ lines, playbackTime }) => (
+  <>
+    {lines.map((line, i) => {
+      const isVisible = line.startTime === undefined || line.startTime === null || line.startTime <= playbackTime;
+      if (!isVisible) return null;
+      return <StrokeShape key={i} line={line} />;
+    })}
+  </>
+));
+
+// HarmonyOS / Huawei Notes design tokens
+const HW = {
+  accent: '#0A59F7',
+  accentSoft: 'rgba(10,89,247,0.10)',
+  surface: 'rgba(255,255,255,0.86)',
+  blur: 'saturate(180%) blur(30px)',
+  hairline: 'rgba(0,0,0,0.06)',
+  text: '#181818',
+  textDim: '#6B7280',
+  shadow: '0 6px 24px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)',
+  radius: 20,
 };
 
 // Drag-to-scroll hook for touchpads and mouse
@@ -158,7 +288,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   }, []);
   
   const [showToolSettings, setShowToolSettings] = useState(false);
-  
+  // Huawei-style: tapping the already-active tool opens its options popover
+  const [showToolOptions, setShowToolOptions] = useState(false);
+
   const [laserLines, setLaserLines] = useState([]);
   const [editingTextId, setEditingTextId] = useState(null);
   const [editingTextValue, setEditingTextValue] = useState("");
@@ -176,7 +308,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const [editingStickerId, setEditingStickerId] = useState(null);
   const [editingStickerValue, setEditingStickerValue] = useState("");
   
-  const [lassoRect, setLassoRect] = useState(null);
+  // Free-form lasso path in page coordinates: flat [x,y,x,y,...].
+  const [lassoPath, setLassoPath] = useState(null);
+  const lassoPathRef = useRef(null);
+  // Mirrors selectedLassoLines so bake/delete can claim the selection synchronously.
+  const selectionRef = useRef([]);
   const [selectedLassoLines, setSelectedLassoLines] = useState([]);
   const [lassoGroupPos, setLassoGroupPos] = useState({ x: 0, y: 0 });
   
@@ -228,7 +364,23 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const [penSize, setPenSize] = useState(4);
   const [penOpacity, setPenOpacity] = useState(1);
   const [stickerStyle, setStickerStyle] = useState('classic');
-  const [eraserSettings, setEraserSettings] = useState({ eraseLines: true, eraseHighlighterOnly: false, pressureSensitive: true });
+  // Huawei Notes offers two erasers: whole-stroke and area ("pixel").
+  const [eraserSettings, setEraserSettings] = useState({ mode: 'stroke', size: 24, eraseObjects: true });
+  // Stylus handling. 'auto' draws with whatever touches the screen; 'pen' ignores
+  // finger input while drawing so a resting palm can't leave marks.
+  const [stylusMode, setStylusMode] = useState('auto');
+  const [pressureEnabled, setPressureEnabled] = useState(true);
+  // Snap roughly drawn shapes to clean ones when the pen lifts.
+  const [autoShape, setAutoShape] = useState(false);
+
+  // "Zoom-in writing": a magnified strip at the bottom of the screen. You write
+  // large in the strip and the ink lands small on the page, which is how Huawei
+  // Notes makes handwriting legible on a tablet.
+  const [zoomWriter, setZoomWriter] = useState(false);
+  const [writerFocus, setWriterFocus] = useState({ x: 30, y: 40 });
+  const writerStageRef = useRef(null);
+  const WRITER_ZOOM = 2.6;
+  const WRITER_H = 190;
   
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -258,17 +410,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
 
   useEffect(() => {
      if (tool !== 'lasso' && selectedLassoLines.length > 0) {
-        pushHistory();
-        updatePage(currentPageIndex, (page) => {
-           const translatedLines = selectedLassoLines.map(l => ({
-              ...l,
-              points: l.points.map((pt, i) => i % 2 === 0 ? pt + lassoGroupPos.x : pt + lassoGroupPos.y)
-           }));
-           page.lines = page.lines.concat(translatedLines);
-        });
-        setSelectedLassoLines([]);
-        setLassoGroupPos({x: 0, y: 0});
-        setLassoRect(null);
+        bakeLassoSelection();
      }
   }, [tool]);
   
@@ -281,6 +423,14 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const animationRef = useRef(null);
   
   const isDrawing = useRef(false);
+  // The stroke currently under the pointer. Kept out of `pages` so that only the
+  // thin live layer re-renders while drawing instead of every committed stroke.
+  const [liveStroke, setLiveStroke] = useState(null);
+  const liveStrokeRef = useRef(null);
+  // pointerId -> {type, clientX, clientY}. Drives palm rejection and pinch gestures.
+  const activePointers = useRef(new Map());
+  const drawingPointerId = useRef(null);
+  const gestureErasedRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -304,7 +454,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
        const paddingX = isMobile ? 10 : 20;
        const paddingY = isMobile ? 10 : 32; 
        const availableWidth = dimensions.width - (paddingX * 2);
-       const availableHeight = dimensions.height - (paddingY * 2) - 52; // Account for toolbar
+       // Bottom clearance for the floating tool capsule (52px bar + 20px inset + breathing room)
+       const availableHeight = dimensions.height - (paddingY * 2) - (readonly ? 0 : 92);
        
        const scaleX = availableWidth / currentPage.width;
        const scaleY = availableHeight / currentPage.height;
@@ -325,7 +476,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
        const yPos = 40; // Default top padding
        setPosition({ x: 0, y: yPos });
     }
-  }, [dimensions.width, dimensions.height, currentPageIndex, isMobile]);
+  }, [dimensions.width, dimensions.height, currentPageIndex, isMobile, readonly]);
 
   // Update a specific page's data safely
   const updatePage = (index, updater) => {
@@ -531,9 +682,21 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     };
   };
 
+  // Snapshot for undo/redo. Only the annotation arrays are copied — `src` (a base64
+  // PDF/image data URL, often megabytes) is carried over by reference, so a snapshot
+  // costs roughly the size of the strokes on the page rather than the whole document.
+  const snapshotPages = (pgs) => pgs.map((p) => ({
+    ...p,
+    lines: (p.lines || []).map((l) => ({ ...l, points: l.points.slice(), pressures: l.pressures ? l.pressures.slice() : undefined })),
+    shapes: (p.shapes || []).map((s) => ({ ...s })),
+    texts: (p.texts || []).map((t) => ({ ...t })),
+    stickers: (p.stickers || []).map((s) => ({ ...s })),
+    images: (p.images || []).map((i) => ({ ...i })),
+  }));
+
   const pushHistory = () => {
-    undoStack.current.push(JSON.parse(JSON.stringify(pagesRef.current)));
-    if (undoStack.current.length > 50) undoStack.current.shift();
+    undoStack.current.push(snapshotPages(pagesRef.current));
+    if (undoStack.current.length > 30) undoStack.current.shift();
     redoStack.current = [];
     setCanUndo(true);
     setCanRedo(false);
@@ -542,8 +705,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const undo = () => {
     if (undoStack.current.length === 0) return;
     const previousState = undoStack.current.pop();
-    redoStack.current.push(JSON.parse(JSON.stringify(pagesRef.current)));
+    redoStack.current.push(snapshotPages(pagesRef.current));
     setPages(previousState);
+    setCurrentPageIndex((i) => Math.min(i, previousState.length - 1));
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(true);
   };
@@ -551,8 +715,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const redo = () => {
     if (redoStack.current.length === 0) return;
     const nextState = redoStack.current.pop();
-    undoStack.current.push(JSON.parse(JSON.stringify(pagesRef.current)));
+    undoStack.current.push(snapshotPages(pagesRef.current));
     setPages(nextState);
+    setCurrentPageIndex((i) => Math.min(i, nextState.length - 1));
     setCanUndo(true);
     setCanRedo(redoStack.current.length > 0);
   };
@@ -680,7 +845,41 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     };
   };
 
+  // Mouse and some pens report 0 pressure; fall back to a neutral mid value so the
+  // stroke keeps a sensible width instead of collapsing.
+  const getPressure = (e) => {
+    const evt = e.evt;
+    if (!pressureEnabled) return 0.5;
+    if (!evt || evt.pointerType === 'mouse') return 0.5;
+    return evt.pressure > 0 ? evt.pressure : 0.5;
+  };
+
+  const hasPenPointer = () => {
+    for (const p of activePointers.current.values()) if (p.type === 'pen') return true;
+    return false;
+  };
+
+  // Huawei-style input arbitration: a pen always wins, fingers are for gestures.
+  const shouldDrawWith = (e) => {
+    const type = e.evt?.pointerType || 'mouse';
+    if (type === 'pen' || type === 'mouse') return true;
+    if (stylusMode === 'pen') return false;      // stylus-only: reject finger and palm
+    return !hasPenPointer();                     // auto: finger draws unless a pen is down
+  };
+
   const handlePointerDown = (e) => {
+    const evt = e.evt;
+    if (evt && evt.pointerId !== undefined) {
+      activePointers.current.set(evt.pointerId, { type: evt.pointerType, clientX: evt.clientX, clientY: evt.clientY });
+      // A second finger means the user is pinching, not drawing — abandon the stroke.
+      if (activePointers.current.size > 1) {
+        if (liveStrokeRef.current) { liveStrokeRef.current = null; setLiveStroke(null); }
+        isDrawing.current = false;
+        drawingPointerId.current = null;
+        return;
+      }
+    }
+
     // If clicking on lasso group, don't bake, just return so they can drag it
     const targetName = e.target.name();
     const parentName = e.target.getParent()?.name();
@@ -689,11 +888,14 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     }
 
     checkDeselect(e);
-  
+
     if (readonly || tool === 'pan' || isSpaceDown) return;
+    if (!shouldDrawWith(e)) return;
     const pos = getPointerPosRelativeToPage();
     if (!pos) return;
-    
+
+    drawingPointerId.current = evt?.pointerId;
+    const pressure = getPressure(e);
     const relativeTime = isRecording && recordingStartTimeRef.current ? Date.now() - recordingStartTimeRef.current : null;
     
     if (tool === 'text') {
@@ -728,22 +930,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     
     if (tool === 'lasso') {
        if (selectedLassoLines.length > 0) {
-          // Bake back the moved lines
-          pushHistory();
-          updatePage(currentPageIndex, (page) => {
-             const translatedLines = selectedLassoLines.map(l => ({
-                ...l,
-                points: l.points.map((pt, i) => i % 2 === 0 ? pt + lassoGroupPos.x : pt + lassoGroupPos.y)
-             }));
-             page.lines = page.lines.concat(translatedLines);
-          });
-          setSelectedLassoLines([]);
-          setLassoGroupPos({x: 0, y: 0});
-          setLassoRect(null);
-          return; // Allow single tap to clear selection
+          bakeLassoSelection();
+          return; // a tap outside the selection drops it back onto the page
        }
        isDrawing.current = true;
-       setLassoRect({ x: pos.x, y: pos.y, w: 0, h: 0 });
+       lassoPathRef.current = [pos.x, pos.y];
+       setLassoPath([pos.x, pos.y]);
        return;
     }
     
@@ -765,73 +957,323 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     
     if (tool === 'eraser') {
        isDrawing.current = true;
-       // Erase on click
-       const eraserRadius = 20;
-       updatePage(currentPageIndex, (page) => {
-          if (page.shapes && eraserSettings.eraseLines && !eraserSettings.eraseHighlighterOnly) {
-             page.shapes = page.shapes.filter(s => {
-                const minX = Math.min(s.x1, s.x2); const maxX = Math.max(s.x1, s.x2);
-                const minY = Math.min(s.y1, s.y2); const maxY = Math.max(s.y1, s.y2);
-                if (pos.x >= minX - eraserRadius && pos.x <= maxX + eraserRadius && pos.y >= minY - eraserRadius && pos.y <= maxY + eraserRadius) return false;
-                return true;
-             });
-          }
-          if (page.texts) {
-             page.texts = page.texts.filter(t => {
-                if (pos.x >= t.x - eraserRadius && pos.x <= t.x + 200 + eraserRadius && pos.y >= t.y - eraserRadius && pos.y <= t.y + 50 + eraserRadius) return false;
-                return true;
-             });
-          }
-          if (page.stickers) {
-             page.stickers = page.stickers.filter(st => {
-                if (pos.x >= st.x - eraserRadius && pos.x <= st.x + 150 + eraserRadius && pos.y >= st.y - eraserRadius && pos.y <= st.y + 150 + eraserRadius) return false;
-                return true;
-             });
-          }
-       });
+       gestureErasedRef.current = false;
+       if (eraserSettings.mode === 'area') {
+          // Area eraser: lay down an 'eraser' stroke that punches through the ink
+          // layer via destination-out compositing.
+          beginLiveStroke(pos, pressure, relativeTime, 'eraser');
+       } else {
+          eraseAt(pos);
+       }
        return;
     }
-    
-    pushHistory();
-    
-    isDrawing.current = true;
-    updatePage(currentPageIndex, (page) => {
-       page.lines.push({ tool, color: penColor, size: penSize, opacity: penOpacity, points: [pos.x, pos.y, pos.x, pos.y], startTime: relativeTime });
+
+    beginLiveStroke(pos, pressure, relativeTime, tool);
+  };
+
+  // distToSegmentXY keeps the stroke eraser reacting to the line *between* two
+  // sampled points, not only to the sampled points themselves.
+  const strokeHitsPoint = (line, pos, radius) => {
+    const pts = line.points;
+    const hitRadius = radius + (line.size || 4) / 2;
+    if (pts.length < 4) {
+      return Math.hypot(pos.x - pts[0], pos.y - pts[1]) <= hitRadius;
+    }
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      if (distToSegmentXY(pos.x, pos.y, pts[i], pts[i + 1], pts[i + 2], pts[i + 3]) <= hitRadius) return true;
+    }
+    return false;
+  };
+
+  // Whole-stroke eraser: removes any stroke (and optionally any object) it touches.
+  const eraseAt = (pos) => {
+    const radius = eraserSettings.size / 2;
+    const page = pagesRef.current[currentPageIndex];
+    if (!page) return;
+
+    const survivingLines = (page.lines || []).filter((l) => !strokeHitsPoint(l, pos, radius));
+    const hitLine = survivingLines.length !== (page.lines || []).length;
+
+    let hitObject = false;
+    let survivingShapes = page.shapes || [];
+    let survivingTexts = page.texts || [];
+    let survivingStickers = page.stickers || [];
+
+    if (eraserSettings.eraseObjects) {
+      survivingShapes = survivingShapes.filter((s) => {
+        const minX = Math.min(s.x1, s.x2) - radius; const maxX = Math.max(s.x1, s.x2) + radius;
+        const minY = Math.min(s.y1, s.y2) - radius; const maxY = Math.max(s.y1, s.y2) + radius;
+        return !(pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY);
+      });
+      survivingTexts = survivingTexts.filter((t) => {
+        const w = Math.max(60, (t.text?.length || 1) * (t.size || 16) * 0.6);
+        return !(pos.x >= t.x - radius && pos.x <= t.x + w + radius && pos.y >= t.y - radius && pos.y <= t.y + (t.size || 16) * 1.4 + radius);
+      });
+      survivingStickers = survivingStickers.filter((st) => {
+        const w = st.audioUrl ? 130 : 150;
+        const h = st.audioUrl ? 44 : 150;
+        return !(pos.x >= st.x - radius && pos.x <= st.x + w + radius && pos.y >= st.y - radius && pos.y <= st.y + h + radius);
+      });
+      hitObject = survivingShapes.length !== (page.shapes || []).length
+        || survivingTexts.length !== (page.texts || []).length
+        || survivingStickers.length !== (page.stickers || []).length;
+    }
+
+    if (!hitLine && !hitObject) return;
+
+    // One history entry per erase gesture, not per pointer sample.
+    if (!gestureErasedRef.current) {
+      pushHistory();
+      gestureErasedRef.current = true;
+    }
+    updatePage(currentPageIndex, (p) => {
+      p.lines = survivingLines;
+      p.shapes = survivingShapes;
+      p.texts = survivingTexts;
+      p.stickers = survivingStickers;
     });
   };
 
-  const handlePointerMove = () => {
+  const beginLiveStroke = (pos, pressure, relativeTime, strokeTool) => {
+    isDrawing.current = true;
+    const stroke = {
+      tool: strokeTool,
+      color: penColor,
+      size: strokeTool === 'eraser' ? eraserSettings.size : penSize,
+      opacity: penOpacity,
+      points: [pos.x, pos.y],
+      pressures: [pressure],
+      startTime: relativeTime,
+    };
+    liveStrokeRef.current = stroke;
+    setLiveStroke(stroke);
+  };
+
+  const extendLiveStroke = (pos, pressure) => {
+    const stroke = liveStrokeRef.current;
+    if (!stroke) return;
+    const n = stroke.points.length;
+    // Drop samples that land on the previous point; they add cost and pinch the taper.
+    if (n >= 2 && Math.hypot(pos.x - stroke.points[n - 2], pos.y - stroke.points[n - 1]) < 0.6) return;
+    stroke.points.push(pos.x, pos.y);
+    stroke.pressures.push(pressure);
+    setLiveStroke({ ...stroke, points: stroke.points, pressures: stroke.pressures });
+  };
+
+  const commitLiveStroke = () => {
+    const stroke = liveStrokeRef.current;
+    liveStrokeRef.current = null;
+    setLiveStroke(null);
+    if (!stroke) return;
+    // A tap with no movement still deserves a dot.
+    if (stroke.points.length === 2) {
+      stroke.points.push(stroke.points[0], stroke.points[1]);
+      stroke.pressures.push(stroke.pressures[0]);
+    }
+
+    // Shape recognition only applies to ink, never to the eraser or highlighter.
+    if (autoShape && ['pen', 'fountain', 'marker', 'pencil'].includes(stroke.tool)) {
+      const match = recognizeShape(stroke.points);
+      if (match) {
+        const shape = shapeFromRecognition(match, { color: stroke.color, size: stroke.size, opacity: stroke.opacity });
+        pushHistory();
+        updatePage(currentPageIndex, (page) => {
+          page.shapes = [...(page.shapes || []), shape];
+        });
+        return;
+      }
+    }
+
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      page.lines = [...(page.lines || []), stroke];
+    });
+  };
+
+  // --- Zoom-in writing strip ---
+  // The strip is a second stage showing a magnified window onto the same page, so
+  // it reuses the stroke pipeline wholesale; only the coordinate mapping differs.
+
+  const writerBoxW = dimensions.width / WRITER_ZOOM;
+  const writerBoxH = WRITER_H / WRITER_ZOOM;
+
+  const writerPointerPos = () => {
+    const st = writerStageRef.current;
+    const p = st?.getPointerPosition();
+    if (!p) return null;
+    // getPointerPosition is container-relative and ignores the stage transform.
+    return { x: writerFocus.x + p.x / WRITER_ZOOM, y: writerFocus.y + p.y / WRITER_ZOOM };
+  };
+
+  const moveWriterFocus = (dx, dy) => {
+    setWriterFocus((f) => ({
+      x: Math.max(0, Math.min(currentPage.width - writerBoxW, f.x + dx)),
+      y: Math.max(0, Math.min(currentPage.height - writerBoxH, f.y + dy)),
+    }));
+  };
+
+  // Slide the window along as the writing approaches its right edge, then drop to
+  // the next line when there is no more room.
+  const advanceWriterIfNeeded = (pos) => {
+    const edge = writerFocus.x + writerBoxW * 0.76;
+    if (pos.x < edge) return;
+    const atEnd = writerFocus.x + writerBoxW >= currentPage.width - 1;
+    if (atEnd) moveWriterFocus(-writerFocus.x, writerBoxH * 0.62);
+    else moveWriterFocus(writerBoxW * 0.45, 0);
+  };
+
+  const handleWriterDown = (e) => {
+    if (readonly) return;
+    if (!PEN_STYLES[tool] && tool !== 'eraser') return;   // strip is for ink only
+    if (!shouldDrawWith(e)) return;
+    const pos = writerPointerPos();
+    if (!pos) return;
+    drawingPointerId.current = e.evt?.pointerId;
+    const relativeTime = isRecording && recordingStartTimeRef.current ? Date.now() - recordingStartTimeRef.current : null;
+
+    if (tool === 'eraser') {
+      isDrawing.current = true;
+      gestureErasedRef.current = false;
+      if (eraserSettings.mode === 'area') beginLiveStroke(pos, 1, relativeTime, 'eraser');
+      else eraseAt(pos);
+      return;
+    }
+    beginLiveStroke(pos, getPressure(e), relativeTime, tool);
+  };
+
+  const handleWriterMove = (e) => {
+    if (!isDrawing.current) return;
+    const evt = e?.evt;
+    if (evt && drawingPointerId.current !== undefined && evt.pointerId !== drawingPointerId.current) return;
+    const pos = writerPointerPos();
+    if (!pos) return;
+    if (tool === 'eraser' && eraserSettings.mode !== 'area') { eraseAt(pos); return; }
+    extendLiveStroke(pos, getPressure(e));
+    advanceWriterIfNeeded(pos);
+  };
+
+  const handleWriterUp = () => {
+    if (liveStrokeRef.current) commitLiveStroke();
+    isDrawing.current = false;
+    drawingPointerId.current = null;
+    gestureErasedRef.current = false;
+  };
+
+  // Bounding box of the live selection, in page coordinates (before the group's
+  // drag offset is applied). Drives both the outline and the floating menu.
+  const lassoBounds = React.useMemo(() => {
+    if (selectedLassoLines.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedLassoLines.forEach((l) => {
+      for (let i = 0; i < l.points.length; i += 2) {
+        const pad = (l.size || 4) / 2;
+        minX = Math.min(minX, l.points[i] - pad);
+        maxX = Math.max(maxX, l.points[i] + pad);
+        minY = Math.min(minY, l.points[i + 1] - pad);
+        maxY = Math.max(maxY, l.points[i + 1] + pad);
+      }
+    });
+    return { minX, minY, maxX, maxY };
+  }, [selectedLassoLines]);
+
+  // --- Lasso selection actions ---
+  // While a selection is live its strokes are held in `selectedLassoLines` and
+  // drawn inside a draggable group, so they are absent from the page until baked.
+
+  const clearLassoSelection = () => {
+    selectionRef.current = [];
+    setSelectedLassoLines([]);
+    setLassoGroupPos({ x: 0, y: 0 });
+    lassoPathRef.current = null;
+    setLassoPath(null);
+  };
+
+  // Drop the selection back onto the page at wherever it was dragged to.
+  //
+  // Reads and clears selectionRef synchronously rather than trusting the
+  // `selectedLassoLines` state: baking can be triggered from a menu click, a tap
+  // outside, and the tool-change effect, and two of those firing before React
+  // re-renders would otherwise both see the old selection and bake it twice.
+  const bakeLassoSelection = () => {
+    const selection = selectionRef.current;
+    if (selection.length === 0) return;
+    selectionRef.current = [];
+    const { x: dx, y: dy } = lassoGroupPos;
+    const moved = selection.map((l) => ({
+      ...l,
+      points: l.points.map((pt, i) => (i % 2 === 0 ? pt + dx : pt + dy)),
+    }));
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      page.lines = [...(page.lines || []), ...moved];
+    });
+    clearLassoSelection();
+  };
+
+  const deleteLassoSelection = () => {
+    // The strokes were already lifted off the page, so dropping the selection
+    // without baking is the deletion.
+    clearLassoSelection();
+    toast.success('ลบส่วนที่เลือกแล้ว');
+  };
+
+  const duplicateLassoSelection = () => {
+    const offset = 24;
+    const dx = lassoGroupPos.x + offset;
+    const dy = lassoGroupPos.y + offset;
+    const copies = selectionRef.current.map((l) => ({
+      ...l,
+      points: l.points.map((pt, i) => (i % 2 === 0 ? pt + dx : pt + dy)),
+    }));
+    if (copies.length === 0) return;
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      page.lines = [...(page.lines || []), ...copies];
+    });
+    toast.success('ทำซ้ำแล้ว');
+  };
+
+  // Edits go through selectionRef as well, so a later bake writes the edited
+  // strokes rather than the originals captured when the lasso closed.
+  const recolorLassoSelection = (color) => {
+    const next = selectionRef.current.map((l) => ({ ...l, color }));
+    selectionRef.current = next;
+    setSelectedLassoLines(next);
+  };
+
+  const scaleLassoSelection = (factor) => {
+    const box = lassoBounds;
+    if (!box) return;
+    const cx = box.minX, cy = box.minY;
+    const next = selectionRef.current.map((l) => ({
+      ...l,
+      size: Math.max(1, (l.size || 4) * factor),
+      points: l.points.map((pt, i) => (i % 2 === 0 ? cx + (pt - cx) * factor : cy + (pt - cy) * factor)),
+    }));
+    selectionRef.current = next;
+    setSelectedLassoLines(next);
+  };
+
+  const handlePointerMove = (e) => {
+    const evt = e?.evt;
+    if (evt && evt.pointerId !== undefined && activePointers.current.has(evt.pointerId)) {
+      activePointers.current.set(evt.pointerId, { type: evt.pointerType, clientX: evt.clientX, clientY: evt.clientY });
+    }
+    if (activePointers.current.size >= 2) { handlePinch(); return; }
+
     if (!isDrawing.current || tool === 'pan' || isSpaceDown) return;
+    // Ignore stray pointers (a palm landing mid-stroke) — only the pointer that
+    // started the stroke may extend it.
+    if (evt && drawingPointerId.current !== undefined && evt.pointerId !== drawingPointerId.current) return;
     const pos = getPointerPosRelativeToPage();
     if (!pos) return;
-    
+
     if (tool === 'eraser') {
-       const eraserRadius = 20;
-       updatePage(currentPageIndex, (page) => {
-          if (page.shapes && eraserSettings.eraseLines && !eraserSettings.eraseHighlighterOnly) {
-             page.shapes = page.shapes.filter(s => {
-                const minX = Math.min(s.x1, s.x2); const maxX = Math.max(s.x1, s.x2);
-                const minY = Math.min(s.y1, s.y2); const maxY = Math.max(s.y1, s.y2);
-                if (pos.x >= minX - eraserRadius && pos.x <= maxX + eraserRadius && pos.y >= minY - eraserRadius && pos.y <= maxY + eraserRadius) return false;
-                return true;
-             });
-          }
-          if (page.texts) {
-             page.texts = page.texts.filter(t => {
-                if (pos.x >= t.x - eraserRadius && pos.x <= t.x + 200 + eraserRadius && pos.y >= t.y - eraserRadius && pos.y <= t.y + 50 + eraserRadius) return false;
-                return true;
-             });
-          }
-          if (page.stickers) {
-             page.stickers = page.stickers.filter(st => {
-                if (pos.x >= st.x - eraserRadius && pos.x <= st.x + 150 + eraserRadius && pos.y >= st.y - eraserRadius && pos.y <= st.y + 150 + eraserRadius) return false;
-                return true;
-             });
-          }
-       });
+       if (eraserSettings.mode === 'area') extendLiveStroke(pos, 1);
+       else eraseAt(pos);
        return;
     }
-    
+
     if (tool === 'laser') {
        setLaserLines(prev => {
           const newLines = [...prev];
@@ -845,8 +1287,13 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
        return;
     }
     if (tool === 'lasso') {
-       if (lassoRect && isDrawing.current) {
-          setLassoRect(prev => ({ ...prev, w: pos.x - prev.x, h: pos.y - prev.y }));
+       const path = lassoPathRef.current;
+       if (path && isDrawing.current) {
+          const n = path.length;
+          if (Math.hypot(pos.x - path[n - 2], pos.y - path[n - 1]) >= 2) {
+             path.push(pos.x, pos.y);
+             setLassoPath(path.slice());
+          }
        }
        return;
     }
@@ -861,48 +1308,54 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
        return;
     }
     
-    updatePage(currentPageIndex, (page) => {
-       const lastLine = { ...page.lines[page.lines.length - 1] };
-       lastLine.points = lastLine.points.concat([pos.x, pos.y]);
-       page.lines[page.lines.length - 1] = lastLine;
-    });
+    extendLiveStroke(pos, getPressure(e));
   };
 
-  const handlePointerUp = () => {
-    if (tool === 'lasso' && isDrawing.current && lassoRect) {
+  const handlePointerUp = (e) => {
+    const evt = e?.evt;
+    if (evt && evt.pointerId !== undefined) activePointers.current.delete(evt.pointerId);
+    if (activePointers.current.size < 2) { lastCenter.current = null; lastDist.current = null; }
+
+    if (liveStrokeRef.current) {
+       commitLiveStroke();
        isDrawing.current = false;
-       const rx1 = Math.min(lassoRect.x, lassoRect.x + lassoRect.w);
-       const ry1 = Math.min(lassoRect.y, lassoRect.y + lassoRect.h);
-       const rx2 = Math.max(lassoRect.x, lassoRect.x + lassoRect.w);
-       const ry2 = Math.max(lassoRect.y, lassoRect.y + lassoRect.h);
-       
-       const currentPage = pages[currentPageIndex];
-       if (currentPage && (Math.abs(lassoRect.w) > 5 || Math.abs(lassoRect.h) > 5)) {
-          let inside = [];
-          let outside = [];
-          currentPage.lines.forEach(line => {
-             let isInside = false;
-             for(let i = 0; i < line.points.length; i+=2) {
-                const px = line.points[i];
-                const py = line.points[i+1];
-                if (px >= rx1 && px <= rx2 && py >= ry1 && py <= ry2) {
-                   isInside = true; break;
-                }
-             }
-             if (isInside) inside.push(line);
-             else outside.push(line);
-          });
-          
-          if (inside.length > 0) {
-             setSelectedLassoLines(inside);
-             setLassoGroupPos({x: 0, y: 0});
-             pushHistory();
-             updatePage(currentPageIndex, (page) => { page.lines = outside; });
-          } else {
-             setLassoRect(null);
+       drawingPointerId.current = null;
+       return;
+    }
+    gestureErasedRef.current = false;
+    drawingPointerId.current = null;
+
+    if (tool === 'lasso' && isDrawing.current && lassoPathRef.current) {
+       isDrawing.current = false;
+       const path = lassoPathRef.current;
+       const page = pagesRef.current[currentPageIndex];
+
+       // Fewer than 3 vertices is a tap, not a loop.
+       if (!page || path.length < 6) {
+          lassoPathRef.current = null;
+          setLassoPath(null);
+          return;
+       }
+
+       const inside = [];
+       const outside = [];
+       (page.lines || []).forEach((line) => {
+          let hit = false;
+          for (let i = 0; i < line.points.length; i += 2) {
+             if (pointInPolygon(line.points[i], line.points[i + 1], path)) { hit = true; break; }
           }
+          (hit ? inside : outside).push(line);
+       });
+
+       if (inside.length > 0) {
+          selectionRef.current = inside;
+          setSelectedLassoLines(inside);
+          setLassoGroupPos({ x: 0, y: 0 });
+          pushHistory();
+          updatePage(currentPageIndex, (p) => { p.lines = outside; });
        } else {
-          setLassoRect(null);
+          lassoPathRef.current = null;
+          setLassoPath(null);
        }
        return;
     }
@@ -928,15 +1381,14 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     // Re-render when scale changes for textarea positioning
   }, [scale, position]);
 
-  const handleTouchMove = (e) => {
-    e.evt.preventDefault();
-    if (e.evt.touches && e.evt.touches.length === 2) {
-      // 2-finger gesture (Pan & Zoom)
-      const touch1 = e.evt.touches[0];
-      const touch2 = e.evt.touches[1];
-
-      const p1 = { x: touch1.clientX, y: touch1.clientY };
-      const p2 = { x: touch2.clientX, y: touch2.clientY };
+  // Two-pointer pinch/pan, driven off the activePointers map so it works for
+  // fingers on a tablet and for a pen resting alongside them.
+  const handlePinch = () => {
+    const pts = Array.from(activePointers.current.values()).slice(0, 2);
+    if (pts.length < 2) return;
+    {
+      const p1 = { x: pts[0].clientX, y: pts[0].clientY };
+      const p2 = { x: pts[1].clientX, y: pts[1].clientY };
 
       const newCenter = {
         x: (p1.x + p2.x) / 2,
@@ -980,19 +1432,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
 
       lastCenter.current = newCenter;
       lastDist.current = dist;
-    } else if (e.evt.touches && e.evt.touches.length === 1 && !lastCenter.current) {
-       // Only process 1-finger draw if not coming out of a 2-finger gesture
-       handlePointerMove();
-    }
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!e.evt.touches || e.evt.touches.length < 2) {
-      lastCenter.current = null;
-      lastDist.current = null;
-    }
-    if (!e.evt.touches || e.evt.touches.length === 0) {
-      handlePointerUp();
     }
   };
 
@@ -1053,17 +1492,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     e.target.value = null;
   };
 
-  const getSvgPathFromStroke = (stroke) => {
-    if (!stroke.length) return "";
-    const d = stroke.reduce((acc, [x0, y0], i, arr) => {
-        const [x1, y1] = arr[(i + 1) % arr.length];
-        acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-        return acc;
-    }, ["M", ...stroke[0], "Q"]);
-    d.push("Z");
-    return d.join(" ");
-  };
-
   const currentPage = pages[currentPageIndex] || { width: 800, height: 1130, lines: [], stickers: [], images: [], texts: [], shapes: [] };
   const pageX = Math.max(0, (dimensions.width - currentPage.width * scale) / 2 / scale);
   const pageY = 20; 
@@ -1090,6 +1518,49 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
      return () => clearInterval(interval);
   }, [isRecording]);
 
+  // Keyboard shortcuts. Registered separately from the Space-to-pan handler because
+  // these close over undo/redo/deleteSelected, which are rebuilt on every render.
+  useEffect(() => {
+    if (readonly) return;
+    const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+
+    const onKeyDown = (e) => {
+      if (isTyping(e.target) || editingTextId || editingStickerId) return;
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        e.shiftKey ? redo() : undo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNotebook(); return; }
+      if (mod) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) { e.preventDefault(); deleteSelected(); }
+        return;
+      }
+      if (e.key === 'Escape') {
+        selectShape(null);
+        setShowToolOptions(false);
+        setShowMoreMenu(false);
+        setShowPageManager(false);
+        setShowSearch(false);
+        return;
+      }
+      if (e.key === 'PageDown') { e.preventDefault(); setCurrentPageIndex(i => Math.min(pages.length - 1, i + 1)); return; }
+      if (e.key === 'PageUp') { e.preventDefault(); setCurrentPageIndex(i => Math.max(0, i - 1)); return; }
+
+      const byKey = { v: 'pan', p: 'pen', f: 'fountain', n: 'pencil', b: 'marker', h: 'highlighter', e: 'eraser', l: 'lasso', t: 'text', r: 'shape' };
+      const next = byKey[e.key.toLowerCase()];
+      if (next) { setTool(next); setShowToolOptions(false); }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [readonly, selectedId, editingTextId, editingStickerId, pages.length, undo, redo, deleteSelected]);
+
   const formatTime = (secs) => {
      const m = Math.floor(secs / 60);
      const s = secs % 60;
@@ -1115,19 +1586,39 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#F3F4F6', display: 'flex', flexDirection: 'column' }}>
       
       {/* Huawei Notes Top Navigation Bar (Fixed App Header) */}
-         <div style={{ height: 56, flexShrink: 0, width: '100%', background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', zIndex: 50, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-               <button onClick={() => window.history.back()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#111827', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+         <div style={{ height: 52, flexShrink: 0, width: '100%', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', zIndex: 50, borderBottom: `1px solid ${HW.hairline}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+               <button onClick={() => window.history.back()} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: HW.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ChevronLeft size={24} strokeWidth={1.5} />
                </button>
+               {/* Page stepper (Huawei keeps this in the header, not over the canvas) */}
+               {!isMobile && (
+                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 100, padding: '2px 4px' }}>
+                   <button
+                     onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
+                     disabled={currentPageIndex === 0}
+                     style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === 0 ? 'default' : 'pointer', opacity: currentPageIndex === 0 ? 0.25 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: HW.text }}>
+                     <ChevronLeft size={17} strokeWidth={2} />
+                   </button>
+                   <span style={{ fontSize: 12.5, fontWeight: 600, color: HW.text, minWidth: 42, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                     {currentPageIndex + 1} / {pages.length}
+                   </span>
+                   <button
+                     onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
+                     disabled={currentPageIndex === pages.length - 1}
+                     style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer', opacity: currentPageIndex === pages.length - 1 ? 0.25 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: HW.text }}>
+                     <ChevronRight size={17} strokeWidth={2} />
+                   </button>
+                 </div>
+               )}
                {isSaving && (
-                  <span style={{ fontSize: 13, color: '#10B981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                     <Cloud size={16} /> กำลังบันทึก...
+                  <span title="กำลังบันทึก" style={{ color: '#10B981', display: 'flex', alignItems: 'center' }}>
+                     <Cloud size={17} />
                   </span>
                )}
                {!isSaving && !readonly && (
-                  <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                     <CheckCircle size={16} /> บันทึกแล้ว
+                  <span title="บันทึกแล้ว" style={{ color: '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                     <CheckCircle size={17} />
                   </span>
                )}
             </div>
@@ -1135,27 +1626,23 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
                {!readonly && (
                  <>
-                   <button onClick={handleAddPage} title="เพิ่มหน้าใหม่" style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#F3F4F6', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
-                      <FilePlus size={18} strokeWidth={1.5} /> เพิ่มหน้า
-                   </button>
-                   
-                   <button onClick={() => document.getElementById('pdf-upload').click()} title="นำเข้า PDF" style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#E0E7FF', color: '#3B82F6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, transition: 'all 0.2s' }}>
-                      <FileText size={18} strokeWidth={1.5} /> PDF
-                   </button>
-                   
-                   <div style={{ width: 1, height: 24, background: '#E5E7EB', margin: '0 4px' }}></div>
-                   
-                   <button onClick={() => setShowSearch(!showSearch)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Search size={22} strokeWidth={1.5} />
-                   </button>
-
-                   <button onClick={() => setShowPageManager(!showPageManager)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showPageManager ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                      <Columns size={22} strokeWidth={1.5} />
-                   </button>
-
-                   <button onClick={() => setShowMoreMenu(!showMoreMenu)} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', background: showMoreMenu ? '#F3F4F6' : 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                      <LayoutGrid size={22} strokeWidth={1.5} />
-                   </button>
+                   {[
+                     { id: 'addpage', icon: FilePlus, title: 'เพิ่มหน้าใหม่', onClick: handleAddPage },
+                     { id: 'pdf', icon: FileText, title: 'นำเข้า PDF', onClick: () => document.getElementById('pdf-upload').click() },
+                     { id: 'zoomwrite', icon: Maximize2, title: 'ขยายเขียน', onClick: () => setZoomWriter(v => !v), active: zoomWriter },
+                     { id: 'search', icon: Search, title: 'ค้นหา', onClick: () => setShowSearch(!showSearch), active: showSearch },
+                     { id: 'pages', icon: Columns, title: 'จัดการหน้า', onClick: () => setShowPageManager(!showPageManager), active: showPageManager },
+                     { id: 'more', icon: LayoutGrid, title: 'เพิ่มเติม', onClick: () => setShowMoreMenu(!showMoreMenu), active: showMoreMenu },
+                   ].map(b => (
+                     <button
+                       key={b.id}
+                       onClick={b.onClick}
+                       title={b.title}
+                       style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: b.active ? HW.accentSoft : 'transparent', color: b.active ? HW.accent : HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.18s' }}
+                     >
+                       <b.icon size={20} strokeWidth={1.6} />
+                     </button>
+                   ))}
                  </>
                )}
                {readonly && (
@@ -1176,6 +1663,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                     </button>
                     <button onClick={toggleBookmark} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Bookmark size={20} strokeWidth={1.5} color={pages[currentPageIndex]?.isBookmarked ? "#F59E0B" : "#4B5563"} fill={pages[currentPageIndex]?.isBookmarked ? "#F59E0B" : "none"} /> {pages[currentPageIndex]?.isBookmarked ? "ลบบุ๊คมาร์ก" : "บุ๊คมาร์กหน้า"}
+                    </button>
+                    <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
+                    <button onClick={() => setStylusMode(m => (m === 'pen' ? 'auto' : 'pen'))} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <PenTool size={20} strokeWidth={1.5} color={stylusMode === 'pen' ? HW.accent : '#4B5563'} />
+                       <span style={{ flex: 1 }}>เขียนด้วยปากกาเท่านั้น</span>
+                       {stylusMode === 'pen' && <Check size={18} strokeWidth={2} color={HW.accent} />}
+                    </button>
+                    <button onClick={() => setPressureEnabled(v => !v)} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <Zap size={20} strokeWidth={1.5} color={pressureEnabled ? HW.accent : '#4B5563'} />
+                       <span style={{ flex: 1 }}>ไวต่อแรงกด</span>
+                       {pressureEnabled && <Check size={18} strokeWidth={2} color={HW.accent} />}
                     </button>
                     <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
                     <button onClick={clearPage} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
@@ -1204,15 +1702,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
          </div>
       )}
 
-      {/* NEW: Huawei Notes Main Toolbar (Sticky & Split layout) */}
+      {/* Huawei Notes floating tool capsule (bottom-centered, overlays the canvas) */}
       {!readonly && (
-         <div style={{ position: 'relative', zIndex: 40, width: '100%' }}>
-            <div style={{ height: 52, flexShrink: 0, width: '100%', background: 'white', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-               
-               {/* Left Half: Tools (Scrollable) */}
-               <div 
-                  className="hide-scroll" 
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+         <div style={{ position: 'absolute', bottom: zoomWriter ? WRITER_H + 44 + 14 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 46, maxWidth: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, transition: 'bottom 0.22s cubic-bezier(0.2,0.8,0.2,1)' }}>
+            <div style={{ height: 52, background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: HW.radius, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6, maxWidth: '100%' }}>
+
+               {/* Tools (Scrollable) */}
+               <div
+                  className="hide-scroll"
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
                   onWheel={(e) => {
                      if (e.deltaY !== 0) {
                         e.currentTarget.scrollLeft += e.deltaY;
@@ -1232,9 +1730,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                   {[
                     { id: 'pan', icon: Pointer, title: 'เลื่อนกระดาน' },
                     { id: 'pen', icon: PenTool, title: 'ปากกาลูกลื่น' },
-                    
+                    { id: 'fountain', icon: Feather, title: 'ปากกาหมึกซึม' },
                     { id: 'pencil', icon: Pencil, title: 'ดินสอ' },
-                    { id: 'marker', icon: Pen, title: 'มาร์กเกอร์' },
+                    { id: 'marker', icon: Brush, title: 'มาร์กเกอร์' },
                     { id: 'highlighter', icon: Highlighter, title: 'ไฮไลท์' },
                     { id: 'eraser', icon: Eraser, title: 'ยางลบ' },
                     { id: 'lasso', icon: Lasso, title: 'Lasso' },
@@ -1249,15 +1747,16 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                        key={t.id}
                        title={t.title}
                        onClick={() => {
-                          if (t.id === 'image') document.getElementById('image-upload').click();
-                          else if (t.id === 'mic') toggleRecording();
-                          else {
-                             setTool(t.id); 
-                          }
+                          if (t.id === 'image') { document.getElementById('image-upload').click(); return; }
+                          if (t.id === 'mic') { toggleRecording(); return; }
+                          // Huawei behaviour: tap an inactive tool to select it,
+                          // tap the active tool again to open its options.
+                          if (tool === t.id) setShowToolOptions(v => !v);
+                          else { setTool(t.id); setShowToolOptions(false); }
                        }}
-                       style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: tool === t.id && !['image','mic'].includes(t.id) ? '#E0E7FF' : 'transparent', color: tool === t.id && !['image','mic'].includes(t.id) ? '#3B82F6' : (t.id === 'mic' && isRecording ? '#EF4444' : '#4B5563'), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', position: 'relative' }}
+                       style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 12, border: 'none', background: tool === t.id && !['image','mic'].includes(t.id) ? HW.accentSoft : 'transparent', color: tool === t.id && !['image','mic'].includes(t.id) ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: tool === t.id && !['image','mic'].includes(t.id) ? 'translateY(-4px)' : 'none' }}
                      >
-                       <t.icon size={18} strokeWidth={1.5} />
+                       <t.icon size={20} strokeWidth={1.6} />
                        {t.id === 'mic' && isRecording && <div style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: '50%', background: '#EF4444' }}></div>}
                      </button>
                   ))}
@@ -1276,29 +1775,68 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                      </>
                   )}
                </div>
+            </div>
 
-               {/* Right Half: Tool Options (Fixed/Scrollable Context) */}
-               <div className="hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderLeft: '1px solid #E5E7EB', paddingLeft: 12, overflowX: 'auto', maxWidth: '45%' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }} {...rightToolbarScroll}>
-                  {['pen', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
+            {/* Tool options popover — floats above the capsule, Huawei style */}
+            {showToolOptions && ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser'].includes(tool) && (
+              <div className="hide-scroll" style={{ order: -1, display: 'flex', alignItems: 'center', gap: 12, maxWidth: '100%', overflowX: 'auto', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 16, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, padding: '10px 14px' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }} {...rightToolbarScroll}>
+                  {['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
                      <>
                         {tool === 'shape' && (
-                           <div style={{ display: 'flex', gap: 4, marginRight: 8, flexShrink: 0 }}>
-                              <Square size={24} strokeWidth={1.5} color={shapeType === 'rect' ? '#3B82F6' : '#9CA3AF'} style={{cursor:'pointer'}} onClick={() => setShapeType('rect')} />
-                              <Circle size={24} strokeWidth={1.5} color={shapeType === 'circle' ? '#3B82F6' : '#9CA3AF'} style={{cursor:'pointer'}} onClick={() => setShapeType('circle')} />
-                              <Triangle size={24} strokeWidth={1.5} color={shapeType === 'triangle' ? '#3B82F6' : '#9CA3AF'} style={{cursor:'pointer'}} onClick={() => setShapeType('triangle')} />
-                              <Minus size={24} strokeWidth={1.5} color={shapeType === 'line' ? '#3B82F6' : '#9CA3AF'} style={{cursor:'pointer'}} onClick={() => setShapeType('line')} />
-                           </div>
+                           <>
+                             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                {[{ t: 'rect', Icon: Square }, { t: 'circle', Icon: Circle }, { t: 'triangle', Icon: Triangle }, { t: 'line', Icon: Minus }].map(({ t, Icon }) => (
+                                  <button key={t} onClick={() => setShapeType(t)} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: shapeType === t ? HW.accentSoft : 'transparent', color: shapeType === t ? HW.accent : '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Icon size={20} strokeWidth={1.6} />
+                                  </button>
+                                ))}
+                             </div>
+                             <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+                           </>
                         )}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                           {['#3B82F6', '#1D4ED8', '#111827', '#10B981', '#8B5CF6', '#EF4444'].map(c => (
-                              <div key={c} onClick={() => setPenColor(c)} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: penColor === c ? '2px solid #3B82F6' : '2px solid transparent', boxShadow: '0 0 0 1px rgba(0,0,0,0.05)', outline: penColor === c ? '2px solid white' : 'none', outlineOffset: -2 }} />
+
+                        {/* Stroke sizes as graduated dots (Huawei) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                           {sizes.map(s => (
+                              <button
+                                key={s}
+                                onClick={() => setPenSize(s)}
+                                title={`${s}px`}
+                                style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: penSize === s ? HW.accentSoft : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.18s' }}
+                              >
+                                <span style={{ display: 'block', width: Math.min(18, 4 + s * 0.7), height: Math.min(18, 4 + s * 0.7), borderRadius: '50%', background: penSize === s ? HW.accent : HW.textDim }} />
+                              </button>
                            ))}
                         </div>
-                        <div style={{ width: 1, background: '#E5E7EB', height: 20, flexShrink: 0 }}></div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                           <input type="range" min="1" max="48" step="1" value={penSize} onChange={(e) => setPenSize(parseInt(e.target.value))} style={{ width: 60, accentColor: '#3B82F6', cursor: 'pointer' }} />
-                           <span style={{ fontSize: 12, fontWeight: 600, color: '#111827', width: 20 }}>{penSize}</span>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                           {colors.map(c => (
+                              <div
+                                key={c}
+                                onClick={() => setPenColor(c)}
+                                title={c}
+                                style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2, transition: 'outline 0.15s' }}
+                              />
+                           ))}
+                           <label title="เลือกสีเอง" style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
+                              <input type="color" value={penColor} onChange={(e) => setPenColor(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                           </label>
                         </div>
+
+                        {['pen', 'fountain', 'marker', 'pencil'].includes(tool) && (
+                           <>
+                              <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+                              <button
+                                onClick={() => setAutoShape(v => !v)}
+                                title="วาดรูปทรงคร่าว ๆ แล้วปล่อย ระบบจะจัดให้เป็นรูปทรงที่สมบูรณ์"
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 9, border: 'none', background: autoShape ? HW.accentSoft : 'transparent', color: autoShape ? HW.accent : HW.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                              >
+                                <Triangle size={15} strokeWidth={1.8} /> จัดรูปทรงอัตโนมัติ
+                              </button>
+                           </>
+                        )}
                      </>
                   )}
 
@@ -1322,15 +1860,44 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
 
                   {tool === 'eraser' && (
                      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4B5563', cursor: 'pointer', fontWeight: 500 }}>
-                           <input type="checkbox" checked={eraserSettings.eraseLines} onChange={() => setEraserSettings(s => ({...s, eraseLines: !s.eraseLines}))} />
-                           ลบเส้น
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                           {[{ m: 'stroke', label: 'ลบทั้งเส้น' }, { m: 'area', label: 'ลบบางส่วน' }].map(({ m, label }) => (
+                              <button
+                                key={m}
+                                onClick={() => setEraserSettings(s => ({ ...s, mode: m }))}
+                                style={{ padding: '5px 10px', borderRadius: 9, border: 'none', background: eraserSettings.mode === m ? HW.accentSoft : 'transparent', color: eraserSettings.mode === m ? HW.accent : HW.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                              >
+                                {label}
+                              </button>
+                           ))}
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                           {[12, 24, 40, 64].map(sz => (
+                              <button
+                                key={sz}
+                                onClick={() => setEraserSettings(s => ({ ...s, size: sz }))}
+                                title={`${sz}px`}
+                                style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: eraserSettings.size === sz ? HW.accentSoft : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <span style={{ display: 'block', width: 4 + sz * 0.22, height: 4 + sz * 0.22, borderRadius: '50%', border: `1.5px solid ${eraserSettings.size === sz ? HW.accent : HW.textDim}` }} />
+                              </button>
+                           ))}
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: HW.textDim, cursor: 'pointer', fontWeight: 500, flexShrink: 0 }}>
+                           <input type="checkbox" checked={eraserSettings.eraseObjects} onChange={() => setEraserSettings(s => ({ ...s, eraseObjects: !s.eraseObjects }))} />
+                           ลบวัตถุด้วย
                         </label>
-                        <button onClick={clearStrokes} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: 'white', color: '#EF4444', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}>ล้างเส้นทั้งหมด</button>
+                        <button onClick={clearStrokes} style={{ padding: '5px 10px', borderRadius: 9, border: `1px solid ${HW.hairline}`, background: 'white', color: '#EF4444', fontWeight: 600, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>ล้างเส้นทั้งหมด</button>
                      </div>
                   )}
-               </div>
-            </div>
+              </div>
+            )}
          </div>
       )}
 
@@ -1427,64 +1994,23 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       )}
 
       
-      {/* Small Page Indicator (Huawei Style) */}
-      {!isMobile && (
-        <div style={{ position: 'absolute', bottom: 24, right: 24, zIndex: 5, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: '6px 16px', borderRadius: 100, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.05)' }}>
-          <button 
-            onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
-            disabled={currentPageIndex === 0}
-            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === 0 ? 'default' : 'pointer', opacity: currentPageIndex === 0 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4B5563' }}>
-            <ChevronLeft size={20} strokeWidth={1.5} />
-          </button>
-          
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', fontFamily: 'monospace' }}>
-            {currentPageIndex + 1} / {pages.length}
-          </span>
-          
-          <button 
-            onClick={() => setCurrentPageIndex(Math.min(pages.length - 1, currentPageIndex + 1))}
-            disabled={currentPageIndex === pages.length - 1}
-            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'transparent', cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer', opacity: currentPageIndex === pages.length - 1 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4B5563' }}>
-            <ChevronRight size={20} strokeWidth={1.5} />
-          </button>
-          
-          <div style={{ width: 1, background: '#E5E7EB', height: 16 }}></div>
-          
-          <button 
-            onClick={() => {
-              const newPage = { id: `blank-${Date.now()}`, src: null, width: dimensions.width > 0 ? dimensions.width - 40 : 800, height: 1130, lines: [], stickers: [], images: [], texts: [], shapes: [], paperType: currentPage.paperType, paperColor: currentPage.paperColor };
-              pushHistory();
-              setPages((prev) => {
-                const p = [...prev];
-                p.splice(currentPageIndex + 1, 0, newPage);
-                return p;
-              });
-              setCurrentPageIndex(currentPageIndex + 1);
-            }}
-            style={{ padding: '4px 12px', borderRadius: 100, border: 'none', background: '#F3F4F6', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 12, transition: 'all 0.2s' }}>
-            <FilePlus size={14} strokeWidth={2} />
-            เพิ่มหน้า
-          </button>
-        </div>
-      )}
-
       <Stage
         ref={stageRef}
         width={dimensions.width}
         height={dimensions.height}
-        onMouseDown={handlePointerDown}
-        onTouchStart={(e) => { if (e.evt.touches && e.evt.touches.length === 1) handlePointerDown(e); }}
-        onMouseMove={handlePointerMove}
-        onTouchMove={handleTouchMove}
-        onMouseUp={handlePointerUp}
-        onTouchEnd={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
         draggable={readonly || tool === 'pan'}
         scaleX={scale}
         scaleY={scale}
         x={position.x}
         y={position.y}
-        style={{ cursor: readonly || tool === 'pan' ? 'grab' : 'crosshair' }}
+        // touchAction:none stops the browser from claiming pan/zoom gestures, which
+        // would otherwise swallow strokes and pinches on a tablet.
+        style={{ cursor: readonly || tool === 'pan' ? 'grab' : 'crosshair', touchAction: 'none' }}
       >
         {/* Background Layer (Paper + PDF + Images) */}
         <Layer>
@@ -1605,68 +2131,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
         <Layer>
           <Group x={pageX} y={pageY}>
             {/* Strokes */}
-            {currentPage.lines.map((line, i) => {
-              const isVisible = line.startTime === undefined || line.startTime === null || line.startTime <= playbackTime;
-              if (!isVisible) return null;
-              
-              const pointPairs = [];
-              for(let p = 0; p < line.points.length; p+=2) {
-                  pointPairs.push([line.points[p], line.points[p+1]]);
-              }
-              
-              const isHighlighter = line.tool === 'highlighter';
-              const isEraser = line.tool === 'eraser';
-              const isPencil = line.tool === 'pencil';
-              
-              if (isPencil) {
-                 return (
-                    <Line
-                       key={i}
-                       points={line.points}
-                       stroke={line.color || '#111827'}
-                       strokeWidth={Math.max(1, (line.size || 4) * 0.4)}
-                       tension={0.1}
-                       lineCap="square"
-                       lineJoin="miter"
-                       opacity={line.opacity ? line.opacity * 0.7 : 0.7}
-                       globalCompositeOperation="source-over"
-                       dash={[1, 1.5]}
-                       shadowColor={line.color || '#111827'}
-                       shadowBlur={1}
-                       shadowOpacity={0.5}
-                    />
-                 );
-              }
-              
-              const strokeOptions = { 
-                 size: isEraser ? 24 : isHighlighter ? (line.size || 4) * 3 : (line.size || 4), 
-                 thinning: isHighlighter ? 0 : 0.5,
-                 smoothing: 0.5, 
-                 streamline: 0.5 
-              };
-              
-              const stroke = getStroke(pointPairs, strokeOptions);
-              const pathData = getSvgPathFromStroke(stroke);
-              
-              let fillStr = line.color || '#111827';
-              if (isEraser) fillStr = 'black';
-              
-              let compositeOp = 'source-over';
-              if (isEraser) compositeOp = 'destination-out';
-              else if (isHighlighter) compositeOp = 'multiply';
-              
-              return (
-                <Path
-                  key={i}
-                  data={pathData}
-                  fill={fillStr}
-                  opacity={isHighlighter ? 0.5 : (line.opacity || 1)}
-                  globalCompositeOperation={compositeOp}
-                  lineCap="round"
-                  lineJoin="round"
-                />
-              );
-            })}
+            <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} />
+            {/* The stroke under the pointer lives here so committed ink stays untouched
+                while drawing. It has to share this layer for the area eraser's
+                destination-out compositing to bite into the ink below it. */}
+            {liveStroke && <StrokeShape line={liveStroke} />}
             {/* Laser Lines */}
             {laserLines.map((line, i) => {
               const pointPairs = [];
@@ -1682,9 +2151,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
             })}
             
 
-            {/* Lasso Selection Rect */}
-            {tool === 'lasso' && lassoRect && selectedLassoLines.length === 0 && (
-               <Rect x={lassoRect.x} y={lassoRect.y} width={lassoRect.w} height={lassoRect.h} stroke="var(--teal)" strokeWidth={1} dash={[5, 5]} fill="rgba(0, 169, 143, 0.1)" />
+            {/* Shows which slice of the page the zoom-in writing strip is showing */}
+            {zoomWriter && (
+               <Rect
+                 x={writerFocus.x}
+                 y={writerFocus.y}
+                 width={writerBoxW}
+                 height={writerBoxH}
+                 stroke={HW.accent}
+                 strokeWidth={1.5}
+                 dash={[7, 5]}
+                 fill="rgba(10,89,247,0.05)"
+                 cornerRadius={3}
+                 listening={false}
+               />
+            )}
+
+            {/* Lasso path being drawn */}
+            {tool === 'lasso' && lassoPath && selectedLassoLines.length === 0 && (
+               <Line points={lassoPath} stroke={HW.accent} strokeWidth={1.5} dash={[6, 4]} closed fill="rgba(10,89,247,0.06)" lineCap="round" lineJoin="round" />
             )}
             
             {/* Lasso Selected Group */}
@@ -1699,62 +2184,22 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                     setLassoGroupPos({ x: e.target.x(), y: e.target.y() });
                  }}
                >
-                  {lassoRect && (
-                     <Rect x={lassoRect.x} y={lassoRect.y} width={lassoRect.w} height={lassoRect.h} stroke="var(--teal)" strokeWidth={2} dash={[5, 5]} />
+                  {lassoBounds && (
+                     <Rect
+                       x={lassoBounds.minX - 6}
+                       y={lassoBounds.minY - 6}
+                       width={lassoBounds.maxX - lassoBounds.minX + 12}
+                       height={lassoBounds.maxY - lassoBounds.minY + 12}
+                       stroke={HW.accent}
+                       strokeWidth={1.5}
+                       dash={[6, 4]}
+                       fill="rgba(10,89,247,0.04)"
+                       cornerRadius={4}
+                     />
                   )}
-                  {selectedLassoLines.map((line, i) => {
-                     const pointPairs = [];
-                     for(let p = 0; p < line.points.length; p+=2) { pointPairs.push([line.points[p], line.points[p+1]]); }
-                     
-                     const isHighlighter = line.tool === 'highlighter';
-                     const isEraser = line.tool === 'eraser';
-                     const isPencil = line.tool === 'pencil';
-                     
-                     if (isPencil) {
-                        return (
-                           <Line
-                              key={`lasso-line-${i}`}
-                              points={line.points}
-                              stroke={line.color || '#111827'}
-                              strokeWidth={Math.max(1, (line.size || 4) * 0.4)}
-                              tension={0.1}
-                              lineCap="square"
-                              lineJoin="miter"
-                              opacity={line.opacity ? line.opacity * 0.7 : 0.7}
-                              globalCompositeOperation="source-over"
-                              dash={[1, 1.5]}
-                              shadowColor={line.color || '#111827'}
-                              shadowBlur={1}
-                              shadowOpacity={0.5}
-                           />
-                        );
-                     }
-                     
-                     const strokeOptions = { 
-                        size: isEraser ? 24 : isHighlighter ? (line.size || 4) * 3 : (line.size || 4), 
-                        thinning: isHighlighter ? 0 : 0.5,
-                        smoothing: 0.5, 
-                        streamline: 0.5 
-                     };
-                     
-                     const stroke = getStroke(pointPairs, strokeOptions);
-                     const pathData = getSvgPathFromStroke(stroke);
-                     
-                     let fillStr = line.color || '#111827';
-                     if (isEraser) fillStr = 'black';
-                     
-                     return (
-                       <Path
-                         key={`lasso-line-${i}`}
-                         data={pathData}
-                         fill={fillStr}
-                         opacity={isHighlighter ? 0.5 : (line.opacity || 1)}
-                         globalCompositeOperation={isHighlighter ? 'multiply' : 'source-over'}
-                         lineCap="round"
-                         lineJoin="round"
-                       />
-                     );
-                  })}
+                  {selectedLassoLines.map((line, i) => (
+                     <StrokeShape key={`lasso-line-${i}`} line={line} />
+                  ))}
                </Group>
             )}
           </Group>
@@ -2034,19 +2479,114 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
            </div>
          );
       })()}
+      {/* Zoom-in writing strip */}
+      {zoomWriter && !readonly && (
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: WRITER_H + 44, zIndex: 45, background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderTop: `1px solid ${HW.hairline}`, boxShadow: '0 -6px 24px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Strip controls */}
+          <div style={{ height: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', borderBottom: `1px solid ${HW.hairline}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button title="เลื่อนซ้าย" onClick={() => moveWriterFocus(-writerBoxW * 0.45, 0)} style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronLeft size={19} strokeWidth={1.8} />
+              </button>
+              <button title="เลื่อนขวา" onClick={() => moveWriterFocus(writerBoxW * 0.45, 0)} style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronRight size={19} strokeWidth={1.8} />
+              </button>
+              <button title="บรรทัดถัดไป" onClick={() => moveWriterFocus(-writerFocus.x, writerBoxH * 0.62)} style={{ marginLeft: 6, padding: '5px 12px', borderRadius: 9, border: 'none', background: HW.accentSoft, color: HW.accent, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                บรรทัดถัดไป
+              </button>
+              <button title="บรรทัดก่อนหน้า" onClick={() => moveWriterFocus(0, -writerBoxH * 0.62)} style={{ padding: '5px 12px', borderRadius: 9, border: 'none', background: 'transparent', color: HW.textDim, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                ขึ้นบน
+              </button>
+            </div>
+            <button onClick={() => setZoomWriter(false)} style={{ padding: '5px 12px', borderRadius: 9, border: `1px solid ${HW.hairline}`, background: 'white', color: HW.text, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              ปิด
+            </button>
+          </div>
+
+          <Stage
+            ref={writerStageRef}
+            width={dimensions.width}
+            height={WRITER_H}
+            scaleX={WRITER_ZOOM}
+            scaleY={WRITER_ZOOM}
+            x={-writerFocus.x * WRITER_ZOOM}
+            y={-writerFocus.y * WRITER_ZOOM}
+            onPointerDown={handleWriterDown}
+            onPointerMove={handleWriterMove}
+            onPointerUp={handleWriterUp}
+            onPointerCancel={handleWriterUp}
+            style={{ touchAction: 'none', cursor: 'crosshair' }}
+          >
+            <Layer>
+              <Rect
+                width={currentPage.width}
+                height={currentPage.height}
+                fill={currentPage.paperColor === 'yellow' ? '#FEF3C7' : currentPage.paperColor === 'dark' ? '#1F2937' : 'white'}
+              />
+              {!currentPage.src && currentPage.paperType !== 'blank' && (
+                <PaperPattern width={currentPage.width} height={currentPage.height} type={currentPage.paperType || 'lines'} color={currentPage.paperColor || 'white'} />
+              )}
+              {currentPage.src && (
+                <PDFPageImage src={currentPage.src} width={currentPage.width} height={currentPage.height} />
+              )}
+            </Layer>
+            <Layer>
+              <CommittedStrokes lines={currentPage.lines} playbackTime={playbackTime} />
+              {liveStroke && <StrokeShape line={liveStroke} />}
+            </Layer>
+          </Stage>
+        </div>
+      )}
+
+      {/* Floating action menu for a lasso selection (Huawei shows this above the marquee) */}
+      {lassoBounds && selectedLassoLines.length > 0 && (() => {
+         const left = (lassoBounds.minX + lassoGroupPos.x + pageX) * scale + position.x
+                    + ((lassoBounds.maxX - lassoBounds.minX) * scale) / 2;
+         const top = (lassoBounds.minY + lassoGroupPos.y + pageY) * scale + position.y - 58;
+         const btn = { width: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
+         return (
+           <div
+             onPointerDown={(e) => e.stopPropagation()}
+             style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}` }}
+           >
+              <button title="ทำซ้ำ" onClick={duplicateLassoSelection} style={btn}><FileStack size={18} strokeWidth={1.6} /></button>
+              <button title="ย่อ" onClick={() => scaleLassoSelection(0.85)} style={btn}><Minus size={18} strokeWidth={1.8} /></button>
+              <button title="ขยาย" onClick={() => scaleLassoSelection(1.18)} style={btn}><Plus size={18} strokeWidth={1.8} /></button>
+
+              <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
+
+              {['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'].map(c => (
+                 <div
+                   key={c}
+                   title="เปลี่ยนสี"
+                   onClick={() => recolorLassoSelection(c)}
+                   style={{ width: 18, height: 18, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, margin: '0 2px' }}
+                 />
+              ))}
+
+              <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
+
+              <button title="ลบ" onClick={deleteLassoSelection} style={{ ...btn, color: '#EF4444' }}><Trash2 size={18} strokeWidth={1.6} /></button>
+              <button title="เสร็จสิ้น" onClick={bakeLassoSelection} style={{ ...btn, color: HW.accent }}><Check size={18} strokeWidth={2} /></button>
+           </div>
+         );
+      })()}
+
       {/* Crop Modal Overlay */}
       {croppingImageId && (() => {
          const img = currentPage.images?.find(i => i.id === croppingImageId);
          if (!img) return null;
          return (
             <CropModal
-              imageUrl={img.url}
+              imageUrl={img.src}
               onCancel={() => setCroppingImageId(null)}
               onCropComplete={(newUrl) => {
                  pushHistory();
                  updatePage(currentPageIndex, (page) => {
                     const i = page.images.find(im => im.id === croppingImageId);
-                    if (i) i.url = newUrl;
+                    if (i) i.src = newUrl;
                  });
                  setCroppingImageId(null);
                  toast.success('ครอบตัดรูปภาพเรียบร้อย');
