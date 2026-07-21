@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2 } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler } from 'lucide-react';
 import CropModal from './CropModal';
 import { recognizeShape, shapeFromRecognition, pointInPolygon, distToSegmentXY } from '../utils/shapeRecognition.js';
 import useImage from 'use-image';
@@ -170,6 +170,8 @@ const CommittedStrokes = React.memo(({ lines, playbackTime }) => (
   </>
 ));
 
+const ZERO_OFFSET = { x: 0, y: 0 };
+
 // HarmonyOS / Huawei Notes design tokens
 const HW = {
   accent: '#0A59F7',
@@ -313,6 +315,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const lassoPathRef = useRef(null);
   // Mirrors selectedLassoLines so bake/delete can claim the selection synchronously.
   const selectionRef = useRef([]);
+  // Objects caught by the lasso, as {kind, id}. Unlike strokes these stay in the
+  // page and are drawn with a live offset, which avoids having to duplicate every
+  // object renderer inside the selection group.
+  const [selectedObjects, setSelectedObjects] = useState([]);
+  const selectedObjectsRef = useRef([]);
   const [selectedLassoLines, setSelectedLassoLines] = useState([]);
   const [lassoGroupPos, setLassoGroupPos] = useState({ x: 0, y: 0 });
   
@@ -381,6 +388,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const writerStageRef = useRef(null);
   const WRITER_ZOOM = 2.6;
   const WRITER_H = 190;
+
+  // Ruler: a straight-edge lying on the page. Ink started near its edge is
+  // projected onto that edge, so the stroke comes out perfectly straight.
+  const [rulerOn, setRulerOn] = useState(false);
+  const [ruler, setRuler] = useState({ x: 120, y: 320, angle: 0, length: 420 });
+  const RULER_SNAP = 46;   // page units within which a stroke grabs the edge
   
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -409,7 +422,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   }, [pages, readonly]);
 
   useEffect(() => {
-     if (tool !== 'lasso' && selectedLassoLines.length > 0) {
+     if (tool !== 'lasso' && (selectionRef.current.length > 0 || selectedObjectsRef.current.length > 0)) {
         bakeLassoSelection();
      }
   }, [tool]);
@@ -431,6 +444,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const activePointers = useRef(new Map());
   const drawingPointerId = useRef(null);
   const gestureErasedRef = useRef(false);
+  // Whether the stroke in progress is riding the ruler.
+  const ruledStrokeRef = useRef(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -886,6 +901,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     if (tool === 'lasso' && (targetName === 'lasso-group' || parentName === 'lasso-group')) {
        return;
     }
+    // Grabbing the ruler moves it; it must not also lay down ink.
+    if (targetName === 'ruler' || parentName === 'ruler' || targetName === 'ruler-handle') {
+       return;
+    }
 
     checkDeselect(e);
 
@@ -929,7 +948,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     }
     
     if (tool === 'lasso') {
-       if (selectedLassoLines.length > 0) {
+       if (selectionRef.current.length > 0 || selectedObjectsRef.current.length > 0) {
           bakeLassoSelection();
           return; // a tap outside the selection drops it back onto the page
        }
@@ -1034,28 +1053,51 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     });
   };
 
+  // Foot of the perpendicular from pos onto the ruler's edge, plus how far away
+  // pos was — the distance decides whether the stroke grabs the edge at all.
+  const projectOntoRuler = (pos) => {
+    const rad = (ruler.angle * Math.PI) / 180;
+    const dx = Math.cos(rad), dy = Math.sin(rad);
+    const t = (pos.x - ruler.x) * dx + (pos.y - ruler.y) * dy;
+    const px = ruler.x + dx * t;
+    const py = ruler.y + dy * t;
+    return { x: px, y: py, dist: Math.hypot(pos.x - px, pos.y - py) };
+  };
+
   const beginLiveStroke = (pos, pressure, relativeTime, strokeTool) => {
     isDrawing.current = true;
+
+    // Decide once, at the start: a stroke either runs along the ruler or it does
+    // not. Re-testing every sample would let the line peel off mid-stroke.
+    let start = pos;
+    let ruled = false;
+    if (rulerOn && strokeTool !== 'eraser') {
+      const p = projectOntoRuler(pos);
+      if (p.dist <= RULER_SNAP) { start = { x: p.x, y: p.y }; ruled = true; }
+    }
+
     const stroke = {
       tool: strokeTool,
       color: penColor,
       size: strokeTool === 'eraser' ? eraserSettings.size : penSize,
       opacity: penOpacity,
-      points: [pos.x, pos.y],
+      points: [start.x, start.y],
       pressures: [pressure],
       startTime: relativeTime,
     };
     liveStrokeRef.current = stroke;
+    ruledStrokeRef.current = ruled;
     setLiveStroke(stroke);
   };
 
   const extendLiveStroke = (pos, pressure) => {
     const stroke = liveStrokeRef.current;
     if (!stroke) return;
+    const p = ruledStrokeRef.current ? projectOntoRuler(pos) : pos;
     const n = stroke.points.length;
     // Drop samples that land on the previous point; they add cost and pinch the taper.
-    if (n >= 2 && Math.hypot(pos.x - stroke.points[n - 2], pos.y - stroke.points[n - 1]) < 0.6) return;
-    stroke.points.push(pos.x, pos.y);
+    if (n >= 2 && Math.hypot(p.x - stroke.points[n - 2], p.y - stroke.points[n - 1]) < 0.6) return;
+    stroke.points.push(p.x, p.y);
     stroke.pressures.push(pressure);
     setLiveStroke({ ...stroke, points: stroke.points, pressures: stroke.pressures });
   };
@@ -1162,27 +1204,62 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   // Bounding box of the live selection, in page coordinates (before the group's
   // drag offset is applied). Drives both the outline and the floating menu.
   const lassoBounds = React.useMemo(() => {
-    if (selectedLassoLines.length === 0) return null;
+    if (selectedLassoLines.length === 0 && selectedObjects.length === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const grow = (x, y, pad = 0) => {
+      minX = Math.min(minX, x - pad); maxX = Math.max(maxX, x + pad);
+      minY = Math.min(minY, y - pad); maxY = Math.max(maxY, y + pad);
+    };
+
     selectedLassoLines.forEach((l) => {
-      for (let i = 0; i < l.points.length; i += 2) {
-        const pad = (l.size || 4) / 2;
-        minX = Math.min(minX, l.points[i] - pad);
-        maxX = Math.max(maxX, l.points[i] + pad);
-        minY = Math.min(minY, l.points[i + 1] - pad);
-        maxY = Math.max(maxY, l.points[i + 1] + pad);
-      }
+      const pad = (l.size || 4) / 2;
+      for (let i = 0; i < l.points.length; i += 2) grow(l.points[i], l.points[i + 1], pad);
     });
+
+    const page = pages[currentPageIndex];
+    selectedObjects.forEach(({ kind, id }) => {
+      const o = (page?.[kind] || []).find((it) => it.id === id);
+      if (!o) return;
+      if (kind === 'shapes') { grow(o.x1, o.y1); grow(o.x2, o.y2); }
+      else if (kind === 'images') { grow(o.x, o.y); grow(o.x + (o.width || 0), o.y + (o.height || 0)); }
+      else if (kind === 'stickers') { grow(o.x, o.y); grow(o.x + (o.audioUrl ? 130 : 150), o.y + (o.audioUrl ? 44 : 150)); }
+      else { grow(o.x, o.y); grow(o.x + Math.max(60, (o.text?.length || 1) * (o.size || 16) * 0.6), o.y + (o.size || 16) * 1.4); }
+    });
+
+    if (minX === Infinity) return null;
     return { minX, minY, maxX, maxY };
-  }, [selectedLassoLines]);
+  }, [selectedLassoLines, selectedObjects, pages, currentPageIndex]);
 
   // --- Lasso selection actions ---
   // While a selection is live its strokes are held in `selectedLassoLines` and
   // drawn inside a draggable group, so they are absent from the page until baked.
 
+  const hasSelection = selectedLassoLines.length > 0 || selectedObjects.length > 0;
+
+  const isObjectSelected = (kind, id) => selectedObjects.some((o) => o.kind === kind && o.id === id);
+
+  // Live drag offset for a selected object. Strokes get this for free by sitting
+  // inside the dragged group; objects stay in the page, so they take it here.
+  const objectOffset = (kind, id) => (isObjectSelected(kind, id) ? lassoGroupPos : ZERO_OFFSET);
+
+  // Walk the page applying `fn` to every object in the current selection.
+  const mapSelectedObjects = (page, fn) => {
+    selectedObjectsRef.current.forEach(({ kind, id }) => {
+      const item = (page[kind] || []).find((o) => o.id === id);
+      if (item) fn(item, kind);
+    });
+  };
+
+  const shiftObject = (item, kind, dx, dy) => {
+    if (kind === 'shapes') { item.x1 += dx; item.x2 += dx; item.y1 += dy; item.y2 += dy; }
+    else { item.x += dx; item.y += dy; }
+  };
+
   const clearLassoSelection = () => {
     selectionRef.current = [];
+    selectedObjectsRef.current = [];
     setSelectedLassoLines([]);
+    setSelectedObjects([]);
     setLassoGroupPos({ x: 0, y: 0 });
     lassoPathRef.current = null;
     setLassoPath(null);
@@ -1196,7 +1273,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   // re-renders would otherwise both see the old selection and bake it twice.
   const bakeLassoSelection = () => {
     const selection = selectionRef.current;
-    if (selection.length === 0) return;
+    const objects = selectedObjectsRef.current;
+    if (selection.length === 0 && objects.length === 0) return;
     selectionRef.current = [];
     const { x: dx, y: dy } = lassoGroupPos;
     const moved = selection.map((l) => ({
@@ -1205,14 +1283,33 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     }));
     pushHistory();
     updatePage(currentPageIndex, (page) => {
-      page.lines = [...(page.lines || []), ...moved];
+      if (moved.length > 0) page.lines = [...(page.lines || []), ...moved];
+      if (dx !== 0 || dy !== 0) {
+        // Objects were only drawn shifted; commit the shift for real.
+        ['shapes', 'texts', 'stickers', 'images'].forEach((kind) => {
+          if (!page[kind]) return;
+          page[kind] = page[kind].map((o) =>
+            objects.some((s) => s.kind === kind && s.id === o.id) ? { ...o } : o);
+        });
+        mapSelectedObjects(page, (item, kind) => shiftObject(item, kind, dx, dy));
+      }
     });
     clearLassoSelection();
   };
 
   const deleteLassoSelection = () => {
+    const objects = selectedObjectsRef.current;
     // The strokes were already lifted off the page, so dropping the selection
-    // without baking is the deletion.
+    // without baking deletes them. Objects are still on the page and must go.
+    if (objects.length > 0) {
+      pushHistory();
+      updatePage(currentPageIndex, (page) => {
+        ['shapes', 'texts', 'stickers', 'images'].forEach((kind) => {
+          if (!page[kind]) return;
+          page[kind] = page[kind].filter((o) => !objects.some((s) => s.kind === kind && s.id === o.id));
+        });
+      });
+    }
     clearLassoSelection();
     toast.success('ลบส่วนที่เลือกแล้ว');
   };
@@ -1225,10 +1322,18 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       ...l,
       points: l.points.map((pt, i) => (i % 2 === 0 ? pt + dx : pt + dy)),
     }));
-    if (copies.length === 0) return;
+    const objects = selectedObjectsRef.current;
+    if (copies.length === 0 && objects.length === 0) return;
     pushHistory();
     updatePage(currentPageIndex, (page) => {
-      page.lines = [...(page.lines || []), ...copies];
+      if (copies.length > 0) page.lines = [...(page.lines || []), ...copies];
+      objects.forEach(({ kind, id }) => {
+        const src = (page[kind] || []).find((o) => o.id === id);
+        if (!src) return;
+        const clone = { ...src, id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
+        shiftObject(clone, kind, dx, dy);
+        page[kind] = [...page[kind], clone];
+      });
     });
     toast.success('ทำซ้ำแล้ว');
   };
@@ -1239,6 +1344,16 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     const next = selectionRef.current.map((l) => ({ ...l, color }));
     selectionRef.current = next;
     setSelectedLassoLines(next);
+
+    // Shapes and text carry a colour too; sticky notes and images do not.
+    const tintable = selectedObjectsRef.current.filter((o) => o.kind === 'shapes' || o.kind === 'texts');
+    if (tintable.length === 0) return;
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      tintable.forEach(({ kind, id }) => {
+        page[kind] = (page[kind] || []).map((o) => (o.id === id ? { ...o, color } : o));
+      });
+    });
   };
 
   const scaleLassoSelection = (factor) => {
@@ -1347,12 +1462,31 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
           (hit ? inside : outside).push(line);
        });
 
-       if (inside.length > 0) {
+       // Objects are caught by their anchor point falling inside the loop.
+       const objects = [];
+       (page.shapes || []).forEach((s) => {
+          if (pointInPolygon((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, path)) objects.push({ kind: 'shapes', id: s.id });
+       });
+       (page.texts || []).forEach((t) => {
+          if (pointInPolygon(t.x, t.y, path)) objects.push({ kind: 'texts', id: t.id });
+       });
+       (page.stickers || []).forEach((st) => {
+          if (pointInPolygon(st.x, st.y, path)) objects.push({ kind: 'stickers', id: st.id });
+       });
+       (page.images || []).forEach((im) => {
+          if (pointInPolygon(im.x + (im.width || 0) / 2, im.y + (im.height || 0) / 2, path)) objects.push({ kind: 'images', id: im.id });
+       });
+
+       if (inside.length > 0 || objects.length > 0) {
           selectionRef.current = inside;
+          selectedObjectsRef.current = objects;
           setSelectedLassoLines(inside);
+          setSelectedObjects(objects);
           setLassoGroupPos({ x: 0, y: 0 });
-          pushHistory();
-          updatePage(currentPageIndex, (p) => { p.lines = outside; });
+          if (inside.length > 0) {
+             pushHistory();
+             updatePage(currentPageIndex, (p) => { p.lines = outside; });
+          }
        } else {
           lassoPathRef.current = null;
           setLassoPath(null);
@@ -1736,6 +1870,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                     { id: 'highlighter', icon: Highlighter, title: 'ไฮไลท์' },
                     { id: 'eraser', icon: Eraser, title: 'ยางลบ' },
                     { id: 'lasso', icon: Lasso, title: 'Lasso' },
+                    { id: 'ruler', icon: Ruler, title: 'ไม้บรรทัด' },
                     { id: 'text', icon: Type, title: 'ข้อความ' },
                     { id: 'shape', icon: Square, title: 'รูปร่าง' },
                     { id: 'image', icon: ImageIcon, title: 'แทรกรูปภาพ' },
@@ -1749,12 +1884,14 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                        onClick={() => {
                           if (t.id === 'image') { document.getElementById('image-upload').click(); return; }
                           if (t.id === 'mic') { toggleRecording(); return; }
+                          // The ruler is a modifier, not a tool — it stays on while you draw.
+                          if (t.id === 'ruler') { setRulerOn(v => !v); return; }
                           // Huawei behaviour: tap an inactive tool to select it,
                           // tap the active tool again to open its options.
                           if (tool === t.id) setShowToolOptions(v => !v);
                           else { setTool(t.id); setShowToolOptions(false); }
                        }}
-                       style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 12, border: 'none', background: tool === t.id && !['image','mic'].includes(t.id) ? HW.accentSoft : 'transparent', color: tool === t.id && !['image','mic'].includes(t.id) ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: tool === t.id && !['image','mic'].includes(t.id) ? 'translateY(-4px)' : 'none' }}
+                       style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 12, border: 'none', background: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? HW.accentSoft : 'transparent', color: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: (t.id === 'ruler' ? rulerOn : tool === t.id && !['image','mic'].includes(t.id)) ? 'translateY(-4px)' : 'none' }}
                      >
                        <t.icon size={20} strokeWidth={1.6} />
                        {t.id === 'mic' && isRecording && <div style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: '50%', background: '#EF4444' }}></div>}
@@ -2042,8 +2179,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                 key={img.id}
                 id={img.id}
                 name="object"
-                x={img.x}
-                y={img.y}
+                x={img.x + objectOffset('images', img.id).x}
+                y={img.y + objectOffset('images', img.id).y}
                 scaleX={img.scaleX || 1}
                 scaleY={img.scaleY || 1}
                 rotation={img.rotation || 0}
@@ -2081,7 +2218,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
               const height = s.y2 - s.y1;
               const shapeProps = {
                  key: s.id, id: s.id, name: "object",
-                 x: s.x1, y: s.y1, stroke: s.color, strokeWidth: s.size, opacity: s.opacity,
+                 x: s.x1 + objectOffset('shapes', s.id).x, y: s.y1 + objectOffset('shapes', s.id).y, stroke: s.color, strokeWidth: s.size, opacity: s.opacity,
                  scaleX: s.scaleX || 1, scaleY: s.scaleY || 1, rotation: s.rotation || 0,
                  draggable: tool === 'pan',
                  onClick: () => { if (tool === 'pan' || tool === 'lasso') selectShape(s.id); },
@@ -2151,6 +2288,57 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
             })}
             
 
+            {/* Ruler: draggable body plus a handle at the far end for rotation */}
+            {rulerOn && !readonly && (() => {
+               const rad = (ruler.angle * Math.PI) / 180;
+               const hx = ruler.x + Math.cos(rad) * ruler.length;
+               const hy = ruler.y + Math.sin(rad) * ruler.length;
+               const ticks = [];
+               for (let d = 0; d <= ruler.length; d += 20) {
+                  const long = d % 100 === 0;
+                  ticks.push(<Path key={`tk-${d}`} data={`M ${d} 0 L ${d} ${long ? 16 : 9}`} stroke="rgba(10,89,247,0.55)" strokeWidth={1} />);
+               }
+               return (
+                 <>
+                   <Group
+                     name="ruler"
+                     x={ruler.x}
+                     y={ruler.y}
+                     rotation={ruler.angle}
+                     draggable
+                     onDragEnd={(e) => setRuler(r => ({ ...r, x: e.target.x(), y: e.target.y() }))}
+                   >
+                     <Rect width={ruler.length} height={58} fill="rgba(10,89,247,0.10)" stroke="rgba(10,89,247,0.45)" strokeWidth={1} cornerRadius={4} />
+                     {ticks}
+                     <Text text={`${Math.round(((ruler.angle % 360) + 360) % 360)}°`} x={10} y={34} fontSize={14} fill={HW.accent} fontFamily="Kanit, sans-serif" />
+                   </Group>
+                   <Circle
+                     name="ruler-handle"
+                     x={hx}
+                     y={hy}
+                     radius={13}
+                     fill="white"
+                     stroke={HW.accent}
+                     strokeWidth={2}
+                     draggable
+                     onDragMove={(e) => {
+                        const nx = e.target.x(), ny = e.target.y();
+                        let deg = (Math.atan2(ny - ruler.y, nx - ruler.x) * 180) / Math.PI;
+                        // Ease onto the common angles without preventing free rotation.
+                        const near = Math.round(deg / 15) * 15;
+                        if (Math.abs(deg - near) < 3) deg = near;
+                        setRuler(r => ({ ...r, angle: deg }));
+                     }}
+                     onDragEnd={(e) => {
+                        // Snap the handle back onto the ruler's end point.
+                        const rad2 = (ruler.angle * Math.PI) / 180;
+                        e.target.position({ x: ruler.x + Math.cos(rad2) * ruler.length, y: ruler.y + Math.sin(rad2) * ruler.length });
+                     }}
+                   />
+                 </>
+               );
+            })()}
+
             {/* Shows which slice of the page the zoom-in writing strip is showing */}
             {zoomWriter && (
                <Rect
@@ -2168,22 +2356,34 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
             )}
 
             {/* Lasso path being drawn */}
-            {tool === 'lasso' && lassoPath && selectedLassoLines.length === 0 && (
+            {tool === 'lasso' && lassoPath && !hasSelection && (
                <Line points={lassoPath} stroke={HW.accent} strokeWidth={1.5} dash={[6, 4]} closed fill="rgba(10,89,247,0.06)" lineCap="round" lineJoin="round" />
             )}
             
             {/* Lasso Selected Group */}
             {/* Lasso Selection Box */}
-            {selectedLassoLines.length > 0 && (
-               <Group 
+            {hasSelection && (
+               <Group
                  name="lasso-group"
                  draggable
                  x={lassoGroupPos.x}
                  y={lassoGroupPos.y}
-                 onDragEnd={(e) => {
-                    setLassoGroupPos({ x: e.target.x(), y: e.target.y() });
-                 }}
+                 // Tracked during the drag, not just at the end, so selected
+                 // objects (which stay on the page) travel with the strokes.
+                 onDragMove={(e) => setLassoGroupPos({ x: e.target.x(), y: e.target.y() })}
+                 onDragEnd={(e) => setLassoGroupPos({ x: e.target.x(), y: e.target.y() })}
                >
+                  {/* Invisible grab surface: without it a selection made up only of
+                      objects would have nothing to drag. */}
+                  {lassoBounds && (
+                     <Rect
+                       x={lassoBounds.minX - 6}
+                       y={lassoBounds.minY - 6}
+                       width={lassoBounds.maxX - lassoBounds.minX + 12}
+                       height={lassoBounds.maxY - lassoBounds.minY + 12}
+                       fill="rgba(0,0,0,0.001)"
+                     />
+                  )}
                   {lassoBounds && (
                      <Rect
                        x={lassoBounds.minX - 6}
@@ -2213,8 +2413,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                 key={t.id}
                 id={t.id}
                 name="object"
-                x={t.x}
-                y={t.y}
+                x={t.x + objectOffset('texts', t.id).x}
+                y={t.y + objectOffset('texts', t.id).y}
                 draggable={tool === 'pan' || tool === 'text'}
                 onDragEnd={(e) => {
                    const { x, y } = e.target.position();
@@ -2257,8 +2457,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                     key={st.id}
                     id={st.id}
                     name="object"
-                    x={st.x}
-                    y={st.y}
+                    x={st.x + objectOffset('stickers', st.id).x}
+                    y={st.y + objectOffset('stickers', st.id).y}
                     scaleX={st.scaleX || 1}
                     scaleY={st.scaleY || 1}
                     rotation={st.rotation || 0}
@@ -2299,11 +2499,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
               // Sticky Note
               return (
                 <Group 
-                  key={st.id} 
-                  id={st.id} 
+                  key={st.id}
+                  id={st.id}
                   name="object"
-                  x={st.x} 
-                  y={st.y} 
+                  x={st.x + objectOffset('stickers', st.id).x}
+                  y={st.y + objectOffset('stickers', st.id).y}
                   scaleX={st.scaleX || 1}
                   scaleY={st.scaleY || 1}
                   rotation={st.rotation || 0}
@@ -2540,7 +2740,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       )}
 
       {/* Floating action menu for a lasso selection (Huawei shows this above the marquee) */}
-      {lassoBounds && selectedLassoLines.length > 0 && (() => {
+      {lassoBounds && hasSelection && (() => {
          const left = (lassoBounds.minX + lassoGroupPos.x + pageX) * scale + position.x
                     + ((lassoBounds.maxX - lassoBounds.minX) * scale) / 2;
          const top = (lassoBounds.minY + lassoGroupPos.y + pageY) * scale + position.y - 58;
