@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import { createPortal } from "react-dom"
+import Draggable from "react-draggable"
 import toast from "react-hot-toast"
 import { BOOKS, DEFAULT_TAXONOMY } from "../data/index.js"
 import { useContentCollection, useTaxonomySettings, useUserDoc } from "../lib/contentStore.js"
@@ -126,6 +127,7 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
   const [showNotebook, setShowNotebook] = useState(false) // Toggle Notebook on Desktop
   const [notebookFull, setNotebookFull] = useState(false) // Notebook takes the whole width, PDF hidden
   const [hudCollapsed, setHudCollapsed] = useState(false) // Shrink the reading-room header to a floating pill
+  const hudPillRef = useRef(null) // react-draggable nodeRef for the floating pill
 
   // External Upload States
   const [addMode, setAddMode] = useState("library")
@@ -810,24 +812,31 @@ export default function ReadingApp({ authState, go, ctx, theme }) {
         animation: "pageFadeIn 0.25s ease-out forwards"
       }}>
         {/* Compact floating HUD — replaces the full header when collapsed, so the
-            book and notebook get nearly the whole screen on a tablet */}
+            book and notebook get nearly the whole screen on a tablet. It starts
+            BELOW the notebook's own toolbar (so it never covers the tools) and can
+            be dragged anywhere via the grip on its left edge. */}
         {hudCollapsed && (
-          <div style={{ position: "absolute", top: 10, right: 14, zIndex: 2100, display: "flex", alignItems: "center", gap: 6, background: "var(--bg2)", border: "1.5px solid var(--br2)", borderRadius: 24, padding: "5px 8px 5px 14px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)" }}>
-            <i className={`ti ${isRunning ? "ti-clock spin" : "ti-player-pause"}`} style={{ color: seconds >= MIN_VERIFIED_SECONDS ? "var(--teal)" : "var(--t3)", fontSize: 13 }}></i>
-            <strong style={{ fontFamily: "monospace", fontSize: 14, color: seconds >= MIN_VERIFIED_SECONDS ? "var(--teal)" : "var(--text)" }}>{displayTimer}</strong>
-            <button onClick={toggleTimer} title={isRunning ? "หยุดจับเวลา" : "เริ่มจับเวลา"} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "var(--text)", cursor: "pointer" }}>
-              <i className={`ti ${isRunning ? "ti-player-pause" : "ti-player-play"}`}></i>
-            </button>
-            <button onClick={() => setShowNotebook(!showNotebook)} title={showNotebook ? "ปิดสมุดโน้ต" : "เปิดสมุดโน้ต"} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: showNotebook ? "var(--teal-bg)" : "transparent", color: showNotebook ? "var(--teal)" : "var(--text)", cursor: "pointer" }}>
-              <i className="ti ti-pencil"></i>
-            </button>
-            <button onClick={exitReadingRoom} title="ออก" style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "#e05555", cursor: "pointer" }}>
-              <i className="ti ti-logout"></i>
-            </button>
-            <button onClick={() => setHudCollapsed(false)} title="แสดงแถบเต็ม" style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "var(--t3)", cursor: "pointer" }}>
-              <i className="ti ti-chevron-down"></i>
-            </button>
-          </div>
+          <Draggable nodeRef={hudPillRef} handle=".hud-drag-handle" bounds="parent">
+            <div ref={hudPillRef} style={{ position: "absolute", top: 64, right: 14, zIndex: 2100, display: "flex", alignItems: "center", gap: 6, background: "var(--bg2)", border: "1.5px solid var(--br2)", borderRadius: 24, padding: "5px 8px 5px 6px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)", touchAction: "none" }}>
+              <span className="hud-drag-handle" title="ลากเพื่อย้ายตำแหน่ง" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 26, height: 30, cursor: "grab", color: "var(--t3)" }}>
+                <i className="ti ti-grip-vertical"></i>
+              </span>
+              <i className={`ti ${isRunning ? "ti-clock spin" : "ti-player-pause"}`} style={{ color: seconds >= MIN_VERIFIED_SECONDS ? "var(--teal)" : "var(--t3)", fontSize: 13 }}></i>
+              <strong style={{ fontFamily: "monospace", fontSize: 14, color: seconds >= MIN_VERIFIED_SECONDS ? "var(--teal)" : "var(--text)" }}>{displayTimer}</strong>
+              <button onClick={toggleTimer} title={isRunning ? "หยุดจับเวลา" : "เริ่มจับเวลา"} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "var(--text)", cursor: "pointer" }}>
+                <i className={`ti ${isRunning ? "ti-player-pause" : "ti-player-play"}`}></i>
+              </button>
+              <button onClick={() => setShowNotebook(!showNotebook)} title={showNotebook ? "ปิดสมุดโน้ต" : "เปิดสมุดโน้ต"} style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: showNotebook ? "var(--teal-bg)" : "transparent", color: showNotebook ? "var(--teal)" : "var(--text)", cursor: "pointer" }}>
+                <i className="ti ti-pencil"></i>
+              </button>
+              <button onClick={exitReadingRoom} title="ออก" style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "#e05555", cursor: "pointer" }}>
+                <i className="ti ti-logout"></i>
+              </button>
+              <button onClick={() => setHudCollapsed(false)} title="แสดงแถบเต็ม" style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: "transparent", color: "var(--t3)", cursor: "pointer" }}>
+                <i className="ti ti-chevron-down"></i>
+              </button>
+            </div>
+          </Draggable>
         )}
 
         {/* Header HUD */}

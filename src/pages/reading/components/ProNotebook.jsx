@@ -1954,11 +1954,21 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, position: 'relative' }}>
                {!readonly && (
                  <>
+                   {/* Full-view: give the whole browser width to the notebook and
+                       hide the PDF panel — for people who attach the PDF inside the
+                       notebook and only want to write. A labelled button, not a bare
+                       icon: nobody could guess what the panel glyph meant. */}
+                   {onToggleFullView && (
+                     <button
+                       onClick={onToggleFullView}
+                       title={fullView ? 'กลับมุมมองคู่กับ PDF' : 'ขยายสมุดโน้ตเต็มจอ ซ่อน PDF ด้านข้าง'}
+                       style={{ height: 34, padding: '0 12px', borderRadius: 10, border: 'none', background: fullView ? HW.accentSoft : 'rgba(0,0,0,0.05)', color: fullView ? HW.accent : HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'Kanit, sans-serif', transition: 'all 0.18s' }}
+                     >
+                       {fullView ? <PanelLeftOpen size={17} strokeWidth={1.8} /> : <PanelLeftClose size={17} strokeWidth={1.8} />}
+                       {fullView ? 'แสดง PDF' : 'โน้ตเต็มจอ'}
+                     </button>
+                   )}
                    {[
-                     // Full-view: give the whole browser width to the notebook and
-                     // hide the PDF panel — for people who attach the PDF inside the
-                     // notebook and only want to write.
-                     ...(onToggleFullView ? [{ id: 'fullview', icon: fullView ? PanelLeftOpen : PanelLeftClose, title: fullView ? 'แสดง PDF ข้างๆ' : 'โน้ตเต็มจอ (ซ่อน PDF)', onClick: onToggleFullView, active: fullView }] : []),
                      { id: 'addpage', icon: FilePlus, title: 'เพิ่มหน้าใหม่', onClick: handleAddPage },
                      { id: 'pdf', icon: FileText, title: 'นำเข้า PDF', onClick: () => document.getElementById('pdf-upload').click() },
                      { id: 'zoomwrite', icon: Maximize2, title: 'ขยายเขียน', onClick: () => setZoomWriter(v => !v), active: zoomWriter },
