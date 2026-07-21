@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown, ListMusic } from 'lucide-react';
 import CropModal from './CropModal';
 import ColorPickerPanel from './ColorPickerPanel';
 import BookSnipModal from './BookSnipModal';
 import EmojiStickerPicker from './EmojiStickerPicker';
+import { RecordingsPanel, PlaybackBar } from './AudioRecordings';
 import { recognizeShape, shapeFromRecognition, pointInPolygon, distToSegmentXY } from '../utils/shapeRecognition.js';
 import useImage from 'use-image';
 import getStroke from 'perfect-freehand';
@@ -499,6 +500,76 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [contextMenu, setContextMenu] = useState(null);
   const longPressRef = useRef(null); // { timer, startX, startY, id }
 
+  // --- Audio recordings (Huawei Notes style) ---
+  // A single <audio> element drives the whole notebook; recordings live inside the
+  // pages (as stickers with an audioUrl) so they save and sync with everything else,
+  // but they are surfaced through a list panel + transport bar instead of chips.
+  const [showRecordings, setShowRecordings] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState(null);   // { id, pageIndex, name }
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioProgress, setAudioProgress] = useState({ current: 0, duration: 0 });
+  const [audioSpeed, setAudioSpeed] = useState(1);
+  const audioElRef = useRef(null);
+
+  const getAudioEl = () => {
+    if (!audioElRef.current) {
+      const a = new Audio();
+      a.addEventListener('play', () => setAudioPlaying(true));
+      a.addEventListener('pause', () => setAudioPlaying(false));
+      a.addEventListener('timeupdate', () => setAudioProgress({ current: a.currentTime, duration: a.duration || 0 }));
+      a.addEventListener('loadedmetadata', () => setAudioProgress({ current: a.currentTime, duration: a.duration || 0 }));
+      a.addEventListener('ended', () => { setAudioPlaying(false); setAudioProgress((p) => ({ ...p, current: 0 })); });
+      audioElRef.current = a;
+    }
+    return audioElRef.current;
+  };
+
+  // Every audio note across every page, in page order, for the list panel.
+  const recordings = React.useMemo(() => {
+    const out = [];
+    pages.forEach((pg, pi) => (pg.stickers || []).forEach((s) => {
+      if (s.audioUrl) out.push({ pageIndex: pi, id: s.id, name: s.name, createdAt: s.createdAt, audioUrl: s.audioUrl, isUploading: s.isUploading });
+    }));
+    return out;
+  }, [pages]);
+
+  const playRecording = (rec) => {
+    if (rec.isUploading) return;
+    const a = getAudioEl();
+    if (nowPlaying?.id === rec.id) {
+      if (a.paused) a.play(); else a.pause();
+      return;
+    }
+    a.src = rec.audioUrl;
+    a.currentTime = 0;
+    a.playbackRate = audioSpeed;
+    a.play();
+    const idx = recordings.findIndex((r) => r.id === rec.id);
+    setNowPlaying({ id: rec.id, pageIndex: rec.pageIndex, name: rec.name || `บันทึก (${idx + 1})` });
+  };
+
+  const toggleAudioPlay = () => { const a = getAudioEl(); if (a.paused) a.play(); else a.pause(); };
+  const skipAudio = (delta) => { const a = getAudioEl(); a.currentTime = Math.max(0, Math.min(a.duration || 0, a.currentTime + delta)); };
+  const seekAudio = (t) => { const a = getAudioEl(); a.currentTime = t; setAudioProgress((p) => ({ ...p, current: t })); };
+  const cycleSpeed = () => {
+    const speeds = [1, 1.5, 2, 0.75];
+    const next = speeds[(speeds.indexOf(audioSpeed) + 1) % speeds.length];
+    setAudioSpeed(next);
+    if (audioElRef.current) audioElRef.current.playbackRate = next;
+  };
+  const closePlayback = () => { const a = audioElRef.current; if (a) { a.pause(); a.currentTime = 0; } setNowPlaying(null); };
+
+  const deleteRecording = (rec) => {
+    if (nowPlaying?.id === rec.id) closePlayback();
+    pushHistory();
+    updatePage(rec.pageIndex, (page) => { page.stickers = (page.stickers || []).filter((s) => s.id !== rec.id); });
+    toast.success('ลบบันทึกเสียงแล้ว');
+  };
+  const renameRecording = (rec, name) => {
+    updatePage(rec.pageIndex, (page) => { page.stickers = (page.stickers || []).map((s) => (s.id === rec.id ? { ...s, name } : s)); });
+    if (nowPlaying?.id === rec.id) setNowPlaying((np) => ({ ...np, name }));
+  };
+
   // "Zoom-in writing": a magnified strip at the bottom of the screen. You write
   // large in the strip and the ink lands small on the page, which is how Huawei
   // Notes makes handwriting legible on a tablet.
@@ -748,23 +819,26 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           const localUrl = URL.createObjectURL(audioBlob);
           
           const stickerId = `audio-${Date.now()}`;
+          const totalAudio = pagesRef.current.reduce((n, pg) => n + (pg.stickers || []).filter((s) => s.audioUrl).length, 0);
 
           updatePage(targetPageIndex, (page) => {
              if (!page.stickers) page.stickers = [];
-             // Dock audio notes in the top-left margin and stack them downward,
-             // instead of dropping every recording in the middle of the page where
-             // it covered whatever was being annotated.
-             const audioCount = page.stickers.filter((s) => s.audioUrl).length;
+             // Audio notes are no longer drawn on the page — they live in the
+             // recordings panel — but they still ride inside the page data so they
+             // save and sync with everything else.
              page.stickers.push({
                id: stickerId,
                x: 16,
-               y: 16 + audioCount * 54,
+               y: 16,
                audioUrl: localUrl,
+               name: `บันทึก (${totalAudio + 1})`,
+               createdAt: Date.now(),
                isPlaying: false,
                isUploading: true
              });
           });
-          
+          setShowRecordings(true);
+
           toast.loading('กำลังอัปโหลดเสียงลงคลาวด์...', { id: `upload-${stickerId}` });
           
           try {
@@ -800,32 +874,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         toast.error('ไม่สามารถเข้าถึงไมโครโฟนได้');
       }
     }
-  };
-
-  const playAudioSticker = (pageIndex, id, url) => {
-    const audio = new Audio(url);
-    audio.play();
-    
-    setPlaybackTime(0);
-    
-    updatePage(pageIndex, (page) => {
-      page.stickers = page.stickers.map(s => s.id === id ? { ...s, isPlaying: true } : s);
-    });
-    
-    const startTime = performance.now();
-    const animate = (time) => {
-       setPlaybackTime(time - startTime);
-       animationRef.current = requestAnimationFrame(animate);
-    };
-    animationRef.current = requestAnimationFrame(animate);
-    
-    audio.onended = () => {
-      cancelAnimationFrame(animationRef.current);
-      setPlaybackTime(Number.MAX_SAFE_INTEGER);
-      updatePage(pageIndex, (page) => {
-        page.stickers = page.stickers.map(s => s.id === id ? { ...s, isPlaying: false } : s);
-      });
-    };
   };
 
   // Snapshot for undo/redo. Only the annotation arrays are copied — `src` (a base64
@@ -2180,6 +2228,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                      // Snip a region of the companion book straight into the note.
                      ...(activeBook?.book?.fileUrl ? [{ id: 'snip', icon: Camera, title: 'แคปจากหนังสือ', onClick: () => setShowBookSnip(true), active: showBookSnip }] : []),
                      { id: 'zoomwrite', icon: Maximize2, title: 'ขยายเขียน', onClick: () => setZoomWriter(v => !v), active: zoomWriter },
+                     { id: 'recordings', icon: ListMusic, title: 'บันทึกเสียง', onClick: () => setShowRecordings(v => !v), active: showRecordings, badge: recordings.length },
                      { id: 'search', icon: Search, title: 'ค้นหา', onClick: () => setShowSearch(!showSearch), active: showSearch },
                      { id: 'pages', icon: Columns, title: 'จัดการหน้า', onClick: () => setShowPageManager(!showPageManager), active: showPageManager },
                      { id: 'more', icon: LayoutGrid, title: 'เพิ่มเติม', onClick: () => setShowMoreMenu(!showMoreMenu), active: showMoreMenu },
@@ -2188,9 +2237,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                        key={b.id}
                        onClick={b.onClick}
                        title={b.title}
-                       style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: b.active ? HW.accentSoft : 'transparent', color: b.active ? HW.accent : HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.18s' }}
+                       style={{ position: 'relative', width: 36, height: 36, borderRadius: 10, border: 'none', background: b.active ? HW.accentSoft : 'transparent', color: b.active ? HW.accent : HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.18s' }}
                      >
                        <b.icon size={20} strokeWidth={1.6} />
+                       {b.badge > 0 && (
+                         <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: '#EF4444', color: 'white', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{b.badge}</span>
+                       )}
                      </button>
                    ))}
                  </>
@@ -2203,6 +2255,19 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
             </div>
          </div>
+
+         {/* Recordings list panel — rendered outside the scrollable header. */}
+         {showRecordings && (
+           <RecordingsPanel
+             recordings={recordings}
+             nowPlayingId={nowPlaying?.id}
+             audioPlaying={audioPlaying}
+             onPlayToggle={playRecording}
+             onDelete={deleteRecording}
+             onRename={renameRecording}
+             onClose={() => setShowRecordings(false)}
+           />
+         )}
 
          {/* More menu dropdown. It must live OUTSIDE the header: the header scrolls
              horizontally (overflow-x auto), which silently clips any popup rendered
@@ -2252,6 +2317,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             <button onClick={toggleRecording} style={{ marginLeft: 8, padding: '4px 12px', borderRadius: 16, border: 'none', background: '#FEE2E2', color: '#EF4444', fontWeight: 600, cursor: 'pointer' }}>
                หยุด
             </button>
+         </div>
+      )}
+
+      {/* Audio playback transport bar — floats above the tool capsule while a
+          recording is playing, Huawei style. */}
+      {nowPlaying && (
+         <div style={{ position: 'absolute', bottom: (zoomWriter ? WRITER_H + 44 + 14 : 20) + TOOL_BTN + 26, left: '50%', transform: 'translateX(-50%)', zIndex: 47, maxWidth: 'calc(100% - 24px)' }}>
+           <PlaybackBar
+             name={nowPlaying.name}
+             playing={audioPlaying}
+             current={audioProgress.current}
+             duration={audioProgress.duration}
+             speed={audioSpeed}
+             onToggle={toggleAudioPlay}
+             onSkip={skipAudio}
+             onSeek={seekAudio}
+             onSpeed={cycleSpeed}
+             onClose={closePlayback}
+           />
          </div>
       )}
 
@@ -3088,52 +3172,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             
             {/* Stickers */}
             {currentPage.stickers && currentPage.stickers.map(st => {
-              if (st.audioUrl) {
-                // Audio Sticker
-                return (
-                  <Group 
-                    key={st.id}
-                    id={st.id}
-                    name="object"
-                    x={st.x + objectOffset('stickers', st.id).x}
-                    y={st.y + objectOffset('stickers', st.id).y}
-                    scaleX={st.scaleX || 1}
-                    scaleY={st.scaleY || 1}
-                    rotation={st.rotation || 0}
-                    draggable={tool === 'pan'}
-                    onDragEnd={(e) => {
-                      updatePage(currentPageIndex, (page) => {
-                        const s = page.stickers.find(sticker => sticker.id === st.id);
-                        if (s) { s.x = e.target.x(); s.y = e.target.y(); }
-                      });
-                    }}
-                    onTransformEnd={(e) => {
-                      const node = e.target;
-                      updatePage(currentPageIndex, (page) => {
-                        const s = page.stickers.find(sticker => sticker.id === st.id);
-                        if (s) {
-                           s.x = node.x(); s.y = node.y();
-                           s.scaleX = node.scaleX(); s.scaleY = node.scaleY(); s.rotation = node.rotation();
-                        }
-                      });
-                    }}
-                    onClick={() => {
-                       if (tool === 'pan' || tool === 'lasso') selectShape(st.id);
-                       else playAudioSticker(currentPageIndex, st.id, st.audioUrl);
-                    }}
-                    onTap={() => {
-                       if (tool === 'pan' || tool === 'lasso') selectShape(st.id);
-                       else playAudioSticker(currentPageIndex, st.id, st.audioUrl);
-                    }}
-                  >
-                    <Rect width={130} height={44} fill={st.isPlaying ? '#10B981' : 'white'} cornerRadius={22} shadowColor="rgba(0,0,0,0.1)" shadowBlur={8} shadowOffsetY={3} stroke="#F3F4F6" strokeWidth={1} />
-                    <Circle radius={16} x={22} y={22} fill={st.isPlaying ? 'rgba(255,255,255,0.2)' : '#E0F2FE'} />
-                    <Text text="🎤" fontSize={16} x={14} y={14} fill={st.isPlaying ? 'white' : '#0284C7'} />
-                    <Text text={st.isPlaying ? "กำลังเล่น..." : "เล่นเสียง"} fontSize={14} x={48} y={15} fill={st.isPlaying ? 'white' : '#4B5563'} fontFamily="Kanit, sans-serif" fontWeight={500} />
-                  </Group>
-                );
-              }
-              
+              // Audio notes are surfaced in the recordings panel, not on the canvas.
+              if (st.audioUrl) return null;
+
               // Sticky Note
               return (
                 <Group 
