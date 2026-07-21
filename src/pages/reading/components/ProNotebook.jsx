@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop } from 'lucide-react';
 import CropModal from './CropModal';
 import useImage from 'use-image';
 import getStroke from 'perfect-freehand';
@@ -169,7 +169,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
      if (editingTextId && textareaRef.current) {
         setTimeout(() => {
            textareaRef.current?.focus();
-        }, 50);
+        }, 150);
      }
   }, [editingTextId]);
 
@@ -364,6 +364,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       
       toast.loading(`กำลังแยกหน้า PDF (0/${numPages})...`, { id: 'pdf-load' });
       
+      let extractedPages = [];
       for (let i = 1; i <= numPages; i++) {
         toast.loading(`กำลังแยกหน้า PDF (${i}/${numPages})...`, { id: 'pdf-load' });
         const page = await pdf.getPage(i);
@@ -637,7 +638,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       return p;
     });
     setCurrentPageIndex(currentPageIndex + 1);
-    setShowAddMenu(false);
   };
   
   const toggleBookmark = () => {
@@ -645,7 +645,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     updatePage(currentPageIndex, (page) => {
        page.isBookmarked = !page.isBookmarked;
     });
-    setShowMoreMenu(false);
     toast.success(pages[currentPageIndex]?.isBookmarked ? "ลบบุ๊คมาร์กแล้ว" : "เพิ่มบุ๊คมาร์กแล้ว");
   };
 
@@ -1235,7 +1234,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                     { id: 'pen', icon: PenTool, title: 'ปากกาลูกลื่น' },
                     
                     { id: 'pencil', icon: Pencil, title: 'ดินสอ' },
-                    { id: 'marker', icon: Highlighter, title: 'มาร์กเกอร์' },
+                    { id: 'marker', icon: Pen, title: 'มาร์กเกอร์' },
                     { id: 'highlighter', icon: Highlighter, title: 'ไฮไลท์' },
                     { id: 'eraser', icon: Eraser, title: 'ยางลบ' },
                     { id: 'lasso', icon: Lasso, title: 'Lasso' },
@@ -1935,7 +1934,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
            <textarea
              key={`textarea-${editingTextId}`}
              ref={textareaRef}
-             autoFocus
              placeholder="พิมพ์ข้อความที่นี่..."
              value={editingTextValue}
              onChange={(e) => {

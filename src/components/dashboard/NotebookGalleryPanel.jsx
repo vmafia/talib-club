@@ -15,11 +15,16 @@ export default function NotebookGalleryPanel({ authState, setView }) {
       try {
         const q = query(
           collection(db, "content_notebooks"),
-          where("uid", "==", authState.user.uid),
-          orderBy("updatedAt", "desc")
+          where("uid", "==", authState.user.uid)
         );
         const snapshot = await getDocs(q);
         const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Client-side sort to avoid missing Firebase composite index error
+        fetched.sort((a, b) => {
+           const timeA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
+           const timeB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
+           return timeB - timeA;
+        });
         setNotebooks(fetched);
       } catch (err) {
         console.error("Failed to fetch notebooks", err);
