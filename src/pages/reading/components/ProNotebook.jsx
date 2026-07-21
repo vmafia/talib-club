@@ -53,7 +53,33 @@ const PaperPattern = ({ width, height, type, color }) => {
   return <Group>{lines}</Group>;
 };
 
+// Drag-to-scroll hook for touchpads and mouse
+const useDragScroll = () => {
+  const ref = useRef(null);
+  
+  const onMouseDown = (e) => {
+    if (!ref.current) return;
+    const ele = ref.current;
+    ele.dataset.isDown = "true";
+    ele.dataset.startX = e.pageX - ele.offsetLeft;
+    ele.dataset.scrollLeft = ele.scrollLeft;
+  };
+  const onMouseLeave = () => { if (ref.current) ref.current.dataset.isDown = "false"; };
+  const onMouseUp = () => { if (ref.current) ref.current.dataset.isDown = "false"; };
+  const onMouseMove = (e) => {
+    if (!ref.current || ref.current.dataset.isDown !== "true") return;
+    e.preventDefault();
+    const ele = ref.current;
+    const x = e.pageX - ele.offsetLeft;
+    const walk = (x - parseFloat(ele.dataset.startX)) * 1.5;
+    ele.scrollLeft = parseFloat(ele.dataset.scrollLeft) - walk;
+  };
+  return { ref, onMouseDown, onMouseLeave, onMouseUp, onMouseMove };
+};
+
 export default function ProNotebook({ bookId, uid, activeBook, readonly = false }) {
+  const leftToolbarScroll = useDragScroll();
+  const rightToolbarScroll = useDragScroll();
   const containerRef = useRef(null);
   const stageRef = useRef(null);
   
@@ -275,20 +301,27 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   useEffect(() => {
     if (dimensions.width > 0 && dimensions.height > 0) {
        const currentPage = pages[currentPageIndex] || { width: 800, height: 1130 };
-       const padding = isMobile ? 10 : 20;
-       const availableWidth = dimensions.width - (padding * 2);
+       const paddingX = isMobile ? 10 : 20;
+       const paddingY = isMobile ? 10 : 32; 
+       const availableWidth = dimensions.width - (paddingX * 2);
+       const availableHeight = dimensions.height - (paddingY * 2) - 52; // Account for toolbar
        
-       let newScale = availableWidth / currentPage.width;
+       const scaleX = availableWidth / currentPage.width;
+       const scaleY = availableHeight / currentPage.height;
+       
+       // Use the smaller scale so the entire page fits in view
+       let newScale = Math.min(scaleX, scaleY);
+       
        if (newScale > 1.5) newScale = 1.5;
        if (newScale < 0.1) newScale = 0.1;
        
        setScale(newScale);
        
        const scaledHeight = currentPage.height * newScale;
-       const yPos = scaledHeight < dimensions.height ? (dimensions.height - scaledHeight) / 2 : 40;
+       const yPos = scaledHeight < (dimensions.height - 52) ? (dimensions.height - 52 - scaledHeight) / 2 : 40;
        setPosition({ x: 0, y: yPos });
     }
-  }, [dimensions.width, currentPageIndex, isMobile]);
+  }, [dimensions.width, dimensions.height, currentPageIndex, isMobile]);
 
   // Update a specific page's data safely
   const updatePage = (index, updater) => {
@@ -1204,6 +1237,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                         e.currentTarget.scrollLeft += e.deltaY;
                      }
                   }}
+                  {...leftToolbarScroll}
                >
                   <button onClick={undo} disabled={!canUndo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Undo2 size={20} strokeWidth={1.5} />
@@ -1263,7 +1297,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                </div>
 
                {/* Right Half: Tool Options (Fixed/Scrollable Context) */}
-               <div className="hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderLeft: '1px solid #E5E7EB', paddingLeft: 12, overflowX: 'auto', maxWidth: '45%' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }}>
+               <div className="hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderLeft: '1px solid #E5E7EB', paddingLeft: 12, overflowX: 'auto', maxWidth: '45%' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }} {...rightToolbarScroll}>
                   {['pen', 'fountain-pen', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
                      <>
                         {tool === 'shape' && (
