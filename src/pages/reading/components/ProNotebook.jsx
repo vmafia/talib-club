@@ -765,17 +765,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
        // Erase on click
        const eraserRadius = 20;
        updatePage(currentPageIndex, (page) => {
-          if (page.lines && eraserSettings.eraseLines) {
-             page.lines = page.lines.filter(line => {
-                if (eraserSettings.eraseHighlighterOnly && line.tool !== 'highlighter') return true;
-                for (let i=0; i<line.points.length; i+=2) {
-                   const dx = line.points[i] - pos.x;
-                   const dy = line.points[i+1] - pos.y;
-                   if (dx*dx + dy*dy < eraserRadius*eraserRadius) return false;
-                }
-                return true;
-             });
-          }
           if (page.shapes && eraserSettings.eraseLines && !eraserSettings.eraseHighlighterOnly) {
              page.shapes = page.shapes.filter(s => {
                 const minX = Math.min(s.x1, s.x2); const maxX = Math.max(s.x1, s.x2);
@@ -816,17 +805,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
     if (tool === 'eraser') {
        const eraserRadius = 20;
        updatePage(currentPageIndex, (page) => {
-          if (page.lines && eraserSettings.eraseLines) {
-             page.lines = page.lines.filter(line => {
-                if (eraserSettings.eraseHighlighterOnly && line.tool !== 'highlighter') return true;
-                for (let i=0; i<line.points.length; i+=2) {
-                   const dx = line.points[i] - pos.x;
-                   const dy = line.points[i+1] - pos.y;
-                   if (dx*dx + dy*dy < eraserRadius*eraserRadius) return false;
-                }
-                return true;
-             });
-          }
           if (page.shapes && eraserSettings.eraseLines && !eraserSettings.eraseHighlighterOnly) {
              page.shapes = page.shapes.filter(s => {
                 const minX = Math.min(s.x1, s.x2); const maxX = Math.max(s.x1, s.x2);
@@ -1251,7 +1229,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                   {[
                     { id: 'pan', icon: Pointer, title: 'เลื่อนกระดาน' },
                     { id: 'pen', icon: PenTool, title: 'ปากกาลูกลื่น' },
-                    { id: 'fountain-pen', icon: PenTool, title: 'ปากกาหมึกซึม' },
+                    
                     { id: 'pencil', icon: Pencil, title: 'ดินสอ' },
                     { id: 'marker', icon: Highlighter, title: 'มาร์กเกอร์' },
                     { id: 'highlighter', icon: Highlighter, title: 'ไฮไลท์' },
@@ -1298,7 +1276,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
 
                {/* Right Half: Tool Options (Fixed/Scrollable Context) */}
                <div className="hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderLeft: '1px solid #E5E7EB', paddingLeft: 12, overflowX: 'auto', maxWidth: '45%' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }} {...rightToolbarScroll}>
-                  {['pen', 'fountain-pen', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
+                  {['pen', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
                      <>
                         {tool === 'shape' && (
                            <div style={{ display: 'flex', gap: 4, marginRight: 8, flexShrink: 0 }}>
@@ -1898,8 +1876,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                        }
                     });
                   }}
-                  onDblClick={(e) => { e.cancelBubble = true; setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); }}
-                  onTap={(e) => { e.cancelBubble = true; setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); }}
+                  onClick={(e) => { e.cancelBubble = true; if (tool === 'pan' || tool === 'sticker') { setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); } }}
+                  onTap={(e) => { e.cancelBubble = true; if (tool === 'pan' || tool === 'sticker') { setEditingStickerId(st.id); setEditingStickerValue(st.text || ''); } }}
                 >
                   <Rect width={150} height={150} fill={st.color} shadowColor="rgba(0,0,0,0.15)" shadowBlur={10} shadowOffsetY={4} cornerRadius={st.style === 'round' ? 16 : 2} />
                   
@@ -1957,12 +1935,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
              placeholder="พิมพ์ข้อความที่นี่..."
              value={editingTextValue}
              onChange={(e) => {
-                const val = e.target.value;
-                setEditingTextValue(val);
-                updatePage(currentPageIndex, (page) => {
-                   const txt = page.texts?.find(tx => tx.id === editingTextId);
-                   if (txt) txt.text = val;
-                });
+                setEditingTextValue(e.target.value);
              }}
              onBlur={() => {
                 if (!isEditingText.current) return;
@@ -1971,6 +1944,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                 if (editingTextValue.trim() === '') {
                    updatePage(currentPageIndex, (page) => {
                       page.texts = page.texts.filter(tx => tx.id !== editingTextId);
+                   });
+                } else {
+                   updatePage(currentPageIndex, (page) => {
+                      const txt = page.texts?.find(tx => tx.id === editingTextId);
+                      if (txt) txt.text = editingTextValue;
                    });
                 }
                 setEditingTextId(null);
@@ -2002,6 +1980,58 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
          );
       })()}
       
+      {/* Floating Textarea for Sticky Notes */}
+      {(() => {
+         if (!editingStickerId) return null;
+         const st = currentPage.stickers?.find(s => s.id === editingStickerId);
+         if (!st || st.audioUrl) return null;
+         
+         const absoluteX = (st.x + pageX) * scale + position.x;
+         const absoluteY = (st.y + pageY) * scale + position.y;
+         
+         return (
+           <div style={{ position: 'absolute', top: absoluteY, left: absoluteX, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8 }}>
+             <textarea
+               autoFocus
+               placeholder="พิมพ์ข้อความที่นี่..."
+               value={editingStickerValue}
+               onChange={(e) => setEditingStickerValue(e.target.value)}
+               onBlur={() => {
+                  updatePage(currentPageIndex, (page) => {
+                     const sticker = page.stickers?.find(s => s.id === editingStickerId);
+                     if (sticker) sticker.text = editingStickerValue;
+                  });
+                  setEditingStickerId(null);
+               }}
+               onPointerDown={(e) => e.stopPropagation()}
+               onMouseDown={(e) => e.stopPropagation()}
+               style={{
+                  margin: 0,
+                  padding: 16,
+                  border: '2px solid var(--teal)',
+                  background: 'transparent',
+                  color: '#111827',
+                  fontSize: `${16 * scale}px`,
+                  fontFamily: 'Kanit, sans-serif',
+                  outline: 'none',
+                  resize: 'none',
+                  width: 150 * scale,
+                  height: 150 * scale,
+                  overflow: 'hidden',
+                  borderRadius: st.style === 'round' ? 16 * scale : 2 * scale,
+               }}
+             />
+             <button onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={() => {
+                 updatePage(currentPageIndex, (page) => {
+                    page.stickers = page.stickers.filter(s => s.id !== editingStickerId);
+                 });
+                 setEditingStickerId(null);
+             }} style={{ background: '#EF4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', alignSelf: 'flex-start', fontSize: 13, boxShadow: '0 2px 8px rgba(239,68,68,0.2)' }}>
+                ลบสติกเกอร์
+             </button>
+           </div>
+         );
+      })()}
       {/* Crop Modal Overlay */}
       {croppingImageId && (() => {
          const img = currentPage.images?.find(i => i.id === croppingImageId);
