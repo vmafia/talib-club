@@ -416,6 +416,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
   const pagesRef = useRef(pages);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
+    
+  // Toolbar Scroll Hint State
+  const toolsScrollRef = useRef(null);
+  const [showRightScrollHint, setShowRightScrollHint] = useState(true);
+  const [showLeftScrollHint, setShowLeftScrollHint] = useState(false);
+
+  const handleToolsScroll = () => {
+     if (toolsScrollRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = toolsScrollRef.current;
+        setShowLeftScrollHint(scrollLeft > 5);
+        setShowRightScrollHint(scrollLeft < scrollWidth - clientWidth - 5);
+     }
+  };
+    
+  useEffect(() => {
+     setTimeout(handleToolsScroll, 100);
+     window.addEventListener('resize', handleToolsScroll);
+     return () => window.removeEventListener('resize', handleToolsScroll);
+  }, []);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   
@@ -1797,6 +1816,13 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+      .pulse-scroll-hint {
+        animation: pulseHint 2s infinite ease-in-out;
+      }
+      @keyframes pulseHint {
+        0%, 100% { opacity: 0.5; transform: translateX(0); }
+        50% { opacity: 1; transform: translateX(-2px); }
+      }
       @keyframes pulse {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
@@ -1940,26 +1966,35 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
       {!readonly && (
          <div style={{ position: 'absolute', bottom: zoomWriter ? WRITER_H + 44 + 14 : 20, left: '50%', transform: 'translateX(-50%)', zIndex: 46, maxWidth: 'calc(100% - 24px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, transition: 'bottom 0.22s cubic-bezier(0.2,0.8,0.2,1)' }}>
             <div style={{ height: 52, background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: HW.radius, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6, maxWidth: '100%' }}>
-
-               {/* Tools (Scrollable) */}
-               <div
-                  className="hide-scroll"
-                  style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
-                  onWheel={(e) => {
-                     if (e.deltaY !== 0) {
-                        e.currentTarget.scrollLeft += e.deltaY;
-                     }
-                  }}
-                  {...leftToolbarScroll}
-               >
-                  <button onClick={undo} disabled={!canUndo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Undo2 size={20} strokeWidth={1.5} />
-                  </button>
-                  <button onClick={redo} disabled={!canRedo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canRedo ? '#4B5563' : '#D1D5DB', cursor: canRedo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Redo2 size={20} strokeWidth={1.5} />
-                  </button>
-                  
-                  <div style={{ width: 1, background: '#E5E7EB', height: 24, flexShrink: 0, margin: '0 8px' }}></div>
+                 {/* FIXED Undo / Redo */}
+                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                    <button onClick={undo} disabled={!canUndo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canUndo ? '#4B5563' : '#D1D5DB', cursor: canUndo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Undo2 size={20} strokeWidth={1.5} />
+                    </button>
+                    <button onClick={redo} disabled={!canRedo} className="cancel-drag" style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 8, border: 'none', background: 'transparent', color: canRedo ? '#4B5563' : '#D1D5DB', cursor: canRedo ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Redo2 size={20} strokeWidth={1.5} />
+                    </button>
+                 </div>
+                 
+                 <div style={{ width: 1, background: '#E5E7EB', height: 24, flexShrink: 0, margin: '0 4px' }}></div>
+                 
+                 {/* Tools (Scrollable with visual hint) */}
+                 <div style={{ position: 'relative', display: 'flex', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                   {showLeftScrollHint && (
+                     <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 16, background: 'linear-gradient(to right, white, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+                   )}
+                   <div
+                      ref={toolsScrollRef}
+                      onScroll={handleToolsScroll}
+                      className="hide-scroll"
+                      style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth', flex: 1 }}
+                      onWheel={(e) => {
+                         if (e.deltaY !== 0) {
+                            e.currentTarget.scrollLeft += e.deltaY;
+                         }
+                      }}
+                      {...leftToolbarScroll}
+                   >
                   
                   {[
                     { id: 'pan', icon: Pointer, title: 'เลื่อนกระดาน' },
@@ -2012,6 +2047,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false 
                      </>
                   )}
                </div>
+               {showRightScrollHint && (
+                 <div className="pulse-scroll-hint" style={{ position: 'absolute', right: -4, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to left, rgba(255,255,255,1) 40%, rgba(255,255,255,0))', zIndex: 2, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                   <ChevronRight size={14} color="#9CA3AF" />
+                 </div>
+               )}
+             </div>
             </div>
 
             {/* Tool options popover — floats above the capsule, Huawei style */}
