@@ -487,10 +487,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         if (!res.ok) throw new Error(`search failed ${res.status}`);
         const data = await res.json();
         setImgResults(data.results || []);
-        if (!(data.results || []).length) toast('เนเธกเนเธเธเธฃเธนเธเธ เธฒเธเธ—เธตเนเธเนเธเธซเธฒ');
+        if (!(data.results || []).length) toast('ไม่พบรูปภาพที่ค้นหา');
      } catch (e) {
         console.error('Image search failed', e);
-        toast.error('เธเนเธเธซเธฒเธฃเธนเธเนเธกเนเธชเธณเน€เธฃเนเธ (เธ•เธฃเธงเธเธชเธญเธเธญเธดเธเน€เธ—เธญเธฃเนเน€เธเนเธ•)');
+        toast.error('ค้นหารูปไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต)');
      } finally {
         setImgLoading(false);
      }
@@ -499,7 +499,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const insertWebImage = async (item) => {
      const url = item.thumbnail || item.url;
      if (!url) return;
-     toast.loading('เธเธณเธฅเธฑเธเนเธ—เธฃเธเธฃเธนเธ...', { id: 'web-img' });
+     toast.loading('กำลังแทรกรูป...', { id: 'web-img' });
      try {
         let src = url;
         try {
@@ -520,11 +520,11 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
            if (!page.images) page.images = [];
            page.images.push({ id: `img-${Date.now()}`, src, x: 120, y: 120, width: w, height: h });
         });
-        toast.success('เนเธ—เธฃเธเธฃเธนเธเนเธฅเนเธง', { id: 'web-img' });
+        toast.success('แทรกรูปแล้ว', { id: 'web-img' });
         setShowImgSearch(false);
      } catch (e) {
         console.error('Insert web image failed', e);
-        toast.error('เนเธ—เธฃเธเธฃเธนเธเนเธกเนเธชเธณเน€เธฃเนเธ', { id: 'web-img' });
+        toast.error('แทรกรูปไม่สำเร็จ', { id: 'web-img' });
      }
   };
   
@@ -1831,7 +1831,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const removePolygonVertex = (id, k) => {
     const shp = pagesRef.current[currentPageIndex]?.shapes?.find(x => x.id === id);
     if (!shp || shp.type !== 'polygon') return;
-    if (shp.points.length / 2 <= 3) { toast('เธฃเธนเธเธซเธฅเธฒเธขเน€เธซเธฅเธตเนเธขเธกเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 3 เธเธธเธ”'); return; }
+    if (shp.points.length / 2 <= 3) { toast('รูปหลายเหลี่ยมต้องมีอย่างน้อย 3 จุด'); return; }
     pushHistory();
     updatePage(currentPageIndex, (page) => {
       const sh = page.shapes.find(x => x.id === id);
@@ -1856,12 +1856,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           return { kind, obj: clone };
        }).filter(Boolean);
        clipboardRef.current = { lines, objects };
-       toast.success('เธเธฑเธ”เธฅเธญเธเนเธฅเนเธง');
+       toast.success('คัดลอกแล้ว');
        return;
     }
     if (selectedInfo) {
        clipboardRef.current = { lines: [], objects: [{ kind: selectedInfo.kind, obj: JSON.parse(JSON.stringify(selectedInfo.obj)) }] };
-       toast.success('เธเธฑเธ”เธฅเธญเธเนเธฅเนเธง');
+       toast.success('คัดลอกแล้ว');
     }
   };
 
@@ -1882,7 +1882,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           page[kind] = [...(page[kind] || []), clone];
        });
     });
-    toast.success('เธงเธฒเธเนเธฅเนเธง');
+    toast.success('วางแล้ว');
   };
 
   const duplicateSelectedObject = () => {
@@ -2498,7 +2498,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       if (e.key === 'PageDown') { e.preventDefault(); setCurrentPageIndex(i => Math.min(pages.length - 1, i + 1)); return; }
       if (e.key === 'PageUp') { e.preventDefault(); setCurrentPageIndex(i => Math.max(0, i - 1)); return; }
 
-      // Number keys 1โ€“9 pick the first nine palette colours for the pen.
+      // Number keys 1–9 pick the first nine palette colours for the pen.
       if (/^[1-9]$/.test(e.key)) {
         const c = colors[Number(e.key) - 1];
         if (c) { setPenColor(c); return; }
@@ -2706,9 +2706,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     <button onClick={() => { exportNotebookPDF(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Download size={20} strokeWidth={1.5} color="#4B5563" /> ดาวน์โหลดทั้งเล่ม (PDF)
                     </button>
-                    <button onClick={() => { exportNotebookPDF(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
-                       <Download size={20} strokeWidth={1.5} color="#4B5563" /> ดาวน์โหลดทั้งเล่ม (PDF)
-                    </button>
                     <button onClick={() => { exportPage(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <ImageIcon size={20} strokeWidth={1.5} color="#4B5563" /> บันทึกรูปหน้านี้ (PNG)
                     </button>
@@ -2910,7 +2907,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
                         <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
 
-                        {/* Fine size + opacity sliders (Huawei style). stopPropagation
+{/* Fine size + opacity sliders (Huawei style). stopPropagation
                             keeps the toolbar's drag-to-scroll from hijacking the slider. */}
                         <div
                           onPointerDown={(e) => e.stopPropagation()}
@@ -2918,33 +2915,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                           style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 130 }}
                         >
                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธเธเธฒเธ”</span>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>ขนาด</span>
                               <input type="range" min={1} max={60} value={penSize} onChange={(e) => setPenSize(Number(e.target.value))} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
                               <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{penSize}</span>
                            </div>
                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธ—เธถเธ</span>
-                              <input type="range" min={10} max={100} value={Math.round(penOpacity * 100)} onChange={(e) => setPenOpacity(Number(e.target.value) / 100)} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
-                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(penOpacity * 100)}%</span>
-                           </div>
-                        </div>
-
-                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
-
-                        {/* Fine size + opacity sliders (Huawei style). stopPropagation
-                            keeps the toolbar's drag-to-scroll from hijacking the slider. */}
-                        <div
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 130 }}
-                        >
-                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธเธเธฒเธ”</span>
-                              <input type="range" min={1} max={60} value={penSize} onChange={(e) => setPenSize(Number(e.target.value))} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
-                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{penSize}</span>
-                           </div>
-                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธ—เธถเธ</span>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>ทึบ</span>
                               <input type="range" min={10} max={100} value={Math.round(penOpacity * 100)} onChange={(e) => setPenOpacity(Number(e.target.value) / 100)} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
                               <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(penOpacity * 100)}%</span>
                            </div>
@@ -3211,7 +3187,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(243,244,246,0.95)', backdropFilter: 'blur(10px)', overflowY: 'auto', padding: 24 }}>
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, background: 'white', padding: '12px 24px', borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
              <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-               <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>จัดการหน้ากระดาษ</h3>
+               <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>แม่แบบกระดาษ</h3>
                <div style={{ display: 'flex', gap: 8, background: '#F3F4F6', padding: 4, borderRadius: 10 }}>
                  <button onClick={() => setPageManagerTab('all')} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: pageManagerTab === 'all' ? 'white' : 'transparent', color: pageManagerTab === 'all' ? '#111827' : '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: pageManagerTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>ทั้งหมด ({pages.length})</button>
                  <button onClick={() => setPageManagerTab('bookmarks')} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: pageManagerTab === 'bookmarks' ? 'white' : 'transparent', color: pageManagerTab === 'bookmarks' ? '#111827' : '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: pageManagerTab === 'bookmarks' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3283,32 +3259,32 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          </div>
        )}
 
-      {/* Web image / sticker search panel (Openverse โ€” openly-licensed media) */}
+      {/* Web image / sticker search panel (Openverse — openly-licensed media) */}
       {showImgSearch && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 55, background: 'rgba(243,244,246,0.96)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text)', whiteSpace: 'nowrap' }}>เธเนเธเธซเธฒเธฃเธนเธ/เธชเธ•เธดเธเน€เธเธญเธฃเน</h3>
+            <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text)', whiteSpace: 'nowrap' }}>ค้นหารูป/สติกเกอร์</h3>
             <form onSubmit={(e) => { e.preventDefault(); searchWebImages(imgQuery); }} style={{ flex: 1, display: 'flex', gap: 8 }}>
               <input
                 autoFocus
                 type="text"
-                placeholder="เน€เธเนเธ cat sticker, flower, star ... (เธเธดเธกเธเนเธ เธฒเธฉเธฒเธญเธฑเธเธเธคเธฉเนเธ”เนเธเธฅเธ”เธตเธชเธธเธ”)"
+                placeholder="เช่น cat sticker, flower, star ... (พิมพ์ภาษาอังกฤษได้ผลดีสุด)"
                 value={imgQuery}
                 onChange={(e) => setImgQuery(e.target.value)}
                 style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--br2)', fontSize: 14, outline: 'none' }}
               />
               <button type="submit" disabled={imgLoading} style={{ padding: '0 18px', borderRadius: 10, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Search size={17} /> {imgLoading ? 'เธเธณเธฅเธฑเธเธเนเธเธซเธฒ...' : 'เธเนเธเธซเธฒ'}
+                <Search size={17} /> {imgLoading ? 'กำลังค้นหา...' : 'ค้นหา'}
               </button>
             </form>
-            <button onClick={() => setShowImgSearch(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>เธเธดเธ”</button>
+            <button onClick={() => setShowImgSearch(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>ปิด</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {imgResults.length === 0 ? (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', gap: 10 }}>
                 <ImageIcon size={44} strokeWidth={1.3} opacity={0.4} />
-                <p style={{ fontSize: 14 }}>{imgLoading ? 'เธเธณเธฅเธฑเธเธเนเธเธซเธฒ...' : 'เธเธดเธกเธเนเธเธณเธเนเธเธซเธฒเนเธฅเนเธงเธเธ”เธเนเธเธซเธฒ เน€เธเธทเนเธญเธ”เธถเธเธฃเธนเธ/เธชเธ•เธดเธเน€เธเธญเธฃเนเธฅเธดเธเธชเธดเธ—เธเธดเนเน€เธเธดเธ”เธกเธฒเนเธ—เธฃเธ'}</p>
+                <p style={{ fontSize: 14 }}>{imgLoading ? 'กำลังค้นหา...' : 'พิมพ์คำค้นหาแล้วกดค้นหา เพื่อดึงรูป/สติกเกอร์ลิขสิทธิ์เปิดมาแทรก'}</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
@@ -3316,7 +3292,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                   <button
                     key={item.id}
                     onClick={() => insertWebImage(item)}
-                    title={`${item.title || ''}${item.creator ? ' โ€” ' + item.creator : ''} (${item.license || 'CC'})`}
+                    title={`${item.title || ''}${item.creator ? ' — ' + item.creator : ''} (${item.license || 'CC'})`}
                     style={{ border: '1px solid var(--br2)', borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0, aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <img src={item.thumbnail || item.url} alt={item.title || 'result'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -3325,7 +3301,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
               </div>
             )}
           </div>
-          <p style={{ flexShrink: 0, marginTop: 8, fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>เธฃเธนเธเธ เธฒเธเธเธฒเธ Openverse (เธชเธทเนเธญเธฅเธดเธเธชเธดเธ—เธเธดเนเน€เธเธดเธ” CC) โ€” เนเธเธฃเธ”เนเธซเนเน€เธเธฃเธ”เธดเธ•เธเธนเนเธชเธฃเนเธฒเธเน€เธกเธทเนเธญเน€เธเธขเนเธเธฃเน</p>
+          <p style={{ flexShrink: 0, marginTop: 8, fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>รูปภาพจาก Openverse (สื่อลิขสิทธิ์เปิด CC) — โปรดให้เครดิตผู้สร้างเมื่อเผยแพร่</p>
         </div>
       )}
 
@@ -3333,17 +3309,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       {showPageSettings && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 55, background: 'rgba(243,244,246,0.96)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', padding: 24, overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>เนเธกเนเนเธเธเธเธฃเธฐเธ”เธฒเธฉ</h3>
-            <button onClick={() => setShowPageSettings(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>เธเธดเธ”</button>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>แม่แบบกระดาษ</h3>
+            <button onClick={() => setShowPageSettings(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>ปิด</button>
           </div>
 
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>เธฅเธฒเธขเธเธฃเธฐเธ”เธฒเธฉ</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>ลายกระดาษ</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 14, marginBottom: 24 }}>
             {[
-              { t: 'blank', label: 'เน€เธเธฅเนเธฒ', bg: 'white' },
-              { t: 'lines', label: 'เน€เธชเนเธเธเธฃเธฃเธ—เธฑเธ”', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
-              { t: 'grid', label: 'เธ•เธฒเธฃเธฒเธ', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px), repeating-linear-gradient(90deg, white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
-              { t: 'dots', label: 'เธเธธเธ”เนเธเนเธเธฅเธฒ', bg: 'radial-gradient(#94a3b8 1.5px, white 1.5px)', size: '16px 16px' },
+              { t: 'blank', label: 'เปล่า', bg: 'white' },
+              { t: 'lines', label: 'เส้นบรรทัด', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
+              { t: 'grid', label: 'ตาราง', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px), repeating-linear-gradient(90deg, white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
+              { t: 'dots', label: 'จุดไข่ปลา', bg: 'radial-gradient(#94a3b8 1.5px, white 1.5px)', size: '16px 16px' },
             ].map(({ t, label, bg, size }) => (
               <button
                 key={t}
@@ -3356,12 +3332,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             ))}
           </div>
 
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>เธชเธตเธเธฃเธฐเธ”เธฒเธฉ</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>สีกระดาษ</span>
           <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
             {[
-              { c: 'white', label: 'เธเธฒเธง', bg: 'white' },
-              { c: 'yellow', label: 'เธเธฃเธตเธก', bg: '#FEF3C7' },
-              { c: 'dark', label: 'เธกเธทเธ”', bg: '#1F2937' },
+              { c: 'white', label: 'ขาว', bg: 'white' },
+              { c: 'yellow', label: 'ครีม', bg: '#FEF3C7' },
+              { c: 'dark', label: 'มืด', bg: '#1F2937' },
             ].map(({ c, label, bg }) => (
               <button
                 key={c}
@@ -3379,13 +3355,13 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
               pushHistory();
               const pt = currentPage.paperType, pc = currentPage.paperColor;
               setPages((prev) => prev.map((p) => ({ ...p, paperType: pt, paperColor: pc })));
-              toast.success('เนเธเนเนเธกเนเนเธเธเธเธตเนเธเธฑเธเธ—เธธเธเธซเธเนเธฒเนเธฅเนเธง');
+              toast.success('ใช้แม่แบบนี้กับทุกหน้าแล้ว');
             }}
             style={{ alignSelf: 'flex-start', padding: '10px 18px', borderRadius: 10, border: `1px solid ${HW.hairline}`, background: 'white', color: HW.accent, fontWeight: 600, cursor: 'pointer' }}
           >
-            เนเธเนเนเธกเนเนเธเธเธเธตเนเธเธฑเธเธ—เธธเธเธซเธเนเธฒ
+            ใช้แม่แบบนี้กับทุกหน้า
           </button>
-          {currentPage.src && <p style={{ marginTop: 12, fontSize: 12, color: 'var(--t3)' }}>* เธซเธเนเธฒเธเธตเนเน€เธเนเธเธซเธเนเธฒ PDF เธฅเธฒเธขเธเธฃเธฐเธ”เธฒเธฉเธเธฐเนเธกเนเนเธชเธ”เธเธ—เธฑเธเน€เธเธทเนเธญเธซเธฒ PDF</p>}
+          {currentPage.src && <p style={{ marginTop: 12, fontSize: 12, color: 'var(--t3)' }}>* หน้านี้เป็นหน้า PDF ลายกระดาษจะไม่แสดงทับเนื้อหา PDF</p>}
         </div>
       )}
 
@@ -3829,7 +3805,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                );
             })()}
 
-            {/* Protractor: half-circle guide with 0โ€“180ยฐ markings, draggable + rotatable */}
+            {/* Protractor: half-circle guide with 0–180° markings, draggable + rotatable */}
             {protractorOn && !readonly && (() => {
                const r = protractor.radius;
                const rad = (protractor.angle * Math.PI) / 180;
@@ -3861,7 +3837,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                      {ticks}
                      {labels}
                      <Circle x={0} y={0} radius={4} fill={HW.accent} />
-                     <Text text={`${Math.round(((protractor.angle % 360) + 360) % 360)}ยฐ`} x={-14} y={12} fontSize={13} fill={HW.accent} fontFamily="Kanit, sans-serif" />
+                     <Text text={`${Math.round(((protractor.angle % 360) + 360) % 360)}°`} x={-14} y={12} fontSize={13} fill={HW.accent} fontFamily="Kanit, sans-serif" />
                    </Group>
                    <Circle
                      name="protractor-handle"
@@ -4470,7 +4446,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                  />
               ))}
               {/* Full palette for the lasso selection */}
-              <label title="เน€เธฅเธทเธญเธเธชเธตเน€เธญเธ (เธเธฒเธเธชเธต)" style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', margin: '0 2px', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
+              <label title="เลือกสีเอง (จานสี)" style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', margin: '0 2px', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
                  <input type="color" defaultValue="#111827" onChange={(e) => recolorLassoSelection(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
               </label>
 
@@ -4558,7 +4534,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => { const cp = pages[currentPageIndex]; if (!cp?.src) applyPaper({ paperType: cp?.paperType, paperColor: cp?.paperColor }, true); toast.success('ใช้กับทุกหน้าแล้ว'); }} disabled={!!cur.src} style={{ flex: 1, height: 42, borderRadius: 11, border: '1px solid #D1D5DB', background: 'white', color: cur.src ? '#D1D5DB' : '#4B5563', fontWeight: 600, cursor: cur.src ? 'default' : 'pointer', fontFamily: 'Kanit, sans-serif', fontSize: 13.5 }}>ใช้กับทุกหน้า</button>
-                <button onClick={() => setShowPageSettings(false)} style={{ flex: 1, height: 42, borderRadius: 11, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: 'pointer', fontFamily: 'Kanit, sans-serif', fontSize: 13.5 }}>เสร็จสิ้น</button>
+                <button onClick={() => setShowPageSettings(false)} style={{ flex: 1, height: 42, borderRadius: 11, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: 'pointer', fontFamily: 'Kanit, sans-serif', fontSize: 13.5 }}>ปิด</button>
               </div>
             </div>
           </div>
