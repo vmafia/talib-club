@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stage, Layer, Image as KonvaImage, Path, Group, Circle, Text, Rect, Transformer, RegularPolygon, Line, Star as KonvaStar, Arrow as KonvaArrow } from 'react-konva';
 import Draggable from 'react-draggable';
-import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown, ListMusic, X, ArrowRight, Star } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Pen, MousePointer2, Type, Square, Hand, Search, Save, Download, Undo2, Redo2, Image as ImageIcon, Mic, SquareSquare, ChevronLeft, ChevronRight, Settings, FilePlus, Circle as CircleIcon, Minus, Lasso, MonitorPlay, Zap, GripHorizontal, GripVertical, Pencil, Pointer, LayoutGrid, Plus, Columns, StickyNote, FileText, Bookmark, FileStack, LayoutList, Check, Lock, MousePointerClick, Move3d, Triangle, Cloud, CheckCircle, Trash2, Scissors, Crop, Brush, Feather, Maximize2, Ruler, PanelLeftClose, PanelLeftOpen, Wand2, Camera, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Underline, Strikethrough, Smile, Upload, ChevronsUp, ChevronsDown, ListMusic, X, ArrowRight, Star, Hexagon, Compass } from 'lucide-react';
 import CropModal from './CropModal';
 import ColorPickerPanel from './ColorPickerPanel';
 import BookSnipModal from './BookSnipModal';
@@ -175,6 +175,37 @@ const CommittedStrokes = React.memo(({ lines, playbackTime, nowPlayingId }) => (
     })}
   </>
 ));
+
+// --- Editable-polygon geometry ---
+// Points are stored flat [x0,y0,x1,y1,...] in page coordinates.
+const polygonBounds = (pts) => {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < pts.length; i += 2) {
+    minX = Math.min(minX, pts[i]); maxX = Math.max(maxX, pts[i]);
+    minY = Math.min(minY, pts[i + 1]); maxY = Math.max(maxY, pts[i + 1]);
+  }
+  return { minX, minY, maxX, maxY };
+};
+
+const polygonCentroid = (pts) => {
+  let cx = 0, cy = 0; const n = pts.length / 2;
+  for (let i = 0; i < pts.length; i += 2) { cx += pts[i]; cy += pts[i + 1]; }
+  return { x: cx / n, y: cy / n };
+};
+
+// Interior angle (degrees) at vertex i, between its two adjacent edges.
+const polygonInteriorAngle = (pts, i) => {
+  const n = pts.length / 2;
+  if (n < 3) return 0;
+  const prev = ((i - 1) + n) % n, next = (i + 1) % n;
+  const bx = pts[i * 2], by = pts[i * 2 + 1];
+  const v1x = pts[prev * 2] - bx, v1y = pts[prev * 2 + 1] - by;
+  const v2x = pts[next * 2] - bx, v2y = pts[next * 2 + 1] - by;
+  const m1 = Math.hypot(v1x, v1y), m2 = Math.hypot(v2x, v2y);
+  if (m1 === 0 || m2 === 0) return 0;
+  const cos = Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / (m1 * m2)));
+  return Math.round((Math.acos(cos) * 180) / Math.PI);
+};
 
 const ZERO_OFFSET = { x: 0, y: 0 };
 
@@ -354,6 +385,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      }
   }, [editingTextId]);
 
+  // Size the edit box to its content whenever it opens or the zoom changes, so an
+  // existing multi-line note (bullets/numbered lists) is fully visible right away.
+  useEffect(() => {
+     const el = textareaRef.current;
+     if (!el || !editingTextId) return;
+     el.style.height = 'auto';
+     el.style.height = `${el.scrollHeight}px`;
+     el.style.width = 'auto';
+     el.style.width = `${el.scrollWidth + 4}px`;
+  }, [editingTextId, editingTextValue, scale]);
+
   const [editingStickerId, setEditingStickerId] = useState(null);
   const [editingStickerValue, setEditingStickerValue] = useState("");
   const stickerTextareaRef = useRef(null);
@@ -381,6 +423,107 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const pdfExportingRef = useRef(false);
+  const exportNotebookPDF = async () => {
+     const stage = stageRef.current;
+     if (!stage || pdfExportingRef.current) return;
+     pdfExportingRef.current = true;
+     const originalIndex = currentPageIndex;
+     selectShape(null);
+     clearLassoSelection();
+     toast.loading(`กำลังสร้าง PDF... (0/${pages.length})`, { id: 'pdf-export' });
+     try {
+        const { jsPDF } = await import('jspdf');
+        let pdf = null;
+        for (let i = 0; i < pages.length; i++) {
+           toast.loading(`กำลังสร้าง PDF... (${i + 1}/${pages.length})`, { id: 'pdf-export' });
+           setCurrentPageIndex(i);
+           await new Promise((r) => setTimeout(r, 450));
+           const pg = pagesRef.current[i];
+           const s = stage.scaleX();
+           const pw = pg.width, ph = pg.height;
+           const rectX = stage.x() + Math.max(0, (dimensions.width - pw * s) / 2);
+           const rectY = stage.y() + 20 * s;
+           const dataURL = stage.toDataURL({
+              x: rectX, y: rectY, width: pw * s, height: ph * s,
+              pixelRatio: Math.min(3, 2 / s), mimeType: 'image/jpeg', quality: 0.9,
+           });
+           if (!pdf) pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pw, ph] });
+           else pdf.addPage([pw, ph], 'portrait');
+           pdf.addImage(dataURL, 'JPEG', 0, 0, pw, ph);
+        }
+        const title = (activeBook?.book?.title || 'notebook').replace(/[^\w\u0E00-\u0E7F-]+/g, '_').slice(0, 40) || 'notebook';
+        pdf.save(`${title}.pdf`);
+        toast.success('ดาวน์โหลด PDF สำเร็จ!', { id: 'pdf-export', icon: '📄' });
+     } catch (e) {
+        console.error('PDF export failed', e);
+        toast.error('สร้าง PDF ไม่สำเร็จ', { id: 'pdf-export' });
+     } finally {
+        setCurrentPageIndex(originalIndex);
+        pdfExportingRef.current = false;
+     }
+  };
+
+
+
+
+  // Web image / sticker search, powered by Openverse (openly-licensed media, no
+  // API key required). Its thumbnail endpoint is CORS-enabled, so pictures can be
+  // fetched straight into a data URL and stored like any uploaded image.
+  const [showImgSearch, setShowImgSearch] = useState(false);
+  const [imgQuery, setImgQuery] = useState("");
+  const [imgResults, setImgResults] = useState([]);
+  const [imgLoading, setImgLoading] = useState(false);
+
+  const searchWebImages = async (q) => {
+     if (!q.trim()) return;
+     setImgLoading(true);
+     try {
+        const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page_size=30&mature=false`);
+        if (!res.ok) throw new Error(`search failed ${res.status}`);
+        const data = await res.json();
+        setImgResults(data.results || []);
+        if (!(data.results || []).length) toast('เนเธกเนเธเธเธฃเธนเธเธ เธฒเธเธ—เธตเนเธเนเธเธซเธฒ');
+     } catch (e) {
+        console.error('Image search failed', e);
+        toast.error('เธเนเธเธซเธฒเธฃเธนเธเนเธกเนเธชเธณเน€เธฃเนเธ (เธ•เธฃเธงเธเธชเธญเธเธญเธดเธเน€เธ—เธญเธฃเนเน€เธเนเธ•)');
+     } finally {
+        setImgLoading(false);
+     }
+  };
+
+  const insertWebImage = async (item) => {
+     const url = item.thumbnail || item.url;
+     if (!url) return;
+     toast.loading('เธเธณเธฅเธฑเธเนเธ—เธฃเธเธฃเธนเธ...', { id: 'web-img' });
+     try {
+        let src = url;
+        try {
+           const r = await fetch(url);
+           const blob = await r.blob();
+           src = await new Promise((resolve, reject) => {
+              const fr = new FileReader();
+              fr.onload = () => resolve(fr.result);
+              fr.onerror = reject;
+              fr.readAsDataURL(blob);
+           });
+        } catch (_) { /* CORS-blocked: fall back to referencing the remote URL */ }
+        const ratio = item.width && item.height ? item.height / item.width : 1;
+        const w = 260;
+        const h = Math.round(w * (ratio || 1));
+        pushHistory();
+        updatePage(currentPageIndex, (page) => {
+           if (!page.images) page.images = [];
+           page.images.push({ id: `img-${Date.now()}`, src, x: 120, y: 120, width: w, height: h });
+        });
+        toast.success('เนเธ—เธฃเธเธฃเธนเธเนเธฅเนเธง', { id: 'web-img' });
+        setShowImgSearch(false);
+     } catch (e) {
+        console.error('Insert web image failed', e);
+        toast.error('เนเธ—เธฃเธเธฃเธนเธเนเธกเนเธชเธณเน€เธฃเนเธ', { id: 'web-img' });
+     }
+  };
   
   const searchResults = React.useMemo(() => {
      if (!searchQuery.trim()) return [];
@@ -399,7 +542,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const transformerRef = useRef();
 
   useEffect(() => {
-    if (selectedId && transformerRef.current) {
+    // Polygons are edited by their own vertex handles, so they must not also get
+    // the scale/rotate transformer box.
+    const selPoly = pagesRef.current[currentPageIndex]?.shapes?.some((s) => s.id === selectedId && s.type === 'polygon');
+    if (selectedId && !selPoly && transformerRef.current) {
        const node = stageRef.current.findOne(`#${selectedId}`);
        if (node) {
           transformerRef.current.nodes([node]);
@@ -408,7 +554,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     } else if (transformerRef.current) {
        transformerRef.current.nodes([]);
     }
-  }, [selectedId]);
+  }, [selectedId, currentPageIndex]);
 
   const checkDeselect = (e) => {
     const clickedOnEmpty = e.target === e.target.getStage() || e.target.name() === 'background';
@@ -586,6 +732,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [rulerOn, setRulerOn] = useState(false);
   const [ruler, setRuler] = useState({ x: 120, y: 320, angle: 0, length: 420 });
   const RULER_SNAP = 46;   // page units within which a stroke grabs the edge
+
+  // Protractor: a draggable, rotatable half-circle guide for measuring angles.
+  const [protractorOn, setProtractorOn] = useState(false);
+  const [protractor, setProtractor] = useState({ x: 320, y: 340, angle: 0, radius: 150 });
   
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -679,6 +829,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const ruledStrokeRef = useRef(false);
   // Last pointer position while panning, in client coordinates.
   const panningRef = useRef(null);
+  // Tracks a multi-finger tap so a quick two-finger tap can undo and three-finger
+  // tap can redo (standard tablet note gestures). Movement/pinch cancels it.
+  const multiTapRef = useRef(null);
+  // Copy/paste buffer: strokes + objects, baked to absolute coordinates on copy so
+  // they can be pasted onto any page.
+  const clipboardRef = useRef(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -906,7 +1062,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const snapshotPages = (pgs) => pgs.map((p) => ({
     ...p,
     lines: (p.lines || []).map((l) => ({ ...l, points: l.points.slice(), pressures: l.pressures ? l.pressures.slice() : undefined })),
-    shapes: (p.shapes || []).map((s) => ({ ...s })),
+    shapes: (p.shapes || []).map((s) => ({ ...s, points: s.points ? s.points.slice() : undefined })),
     texts: (p.texts || []).map((t) => ({ ...t })),
     stickers: (p.stickers || []).map((s) => ({ ...s })),
     images: (p.images || []).map((i) => ({ ...i })),
@@ -1160,21 +1316,28 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     if (evt && evt.pointerId !== undefined) {
       activePointers.current.set(evt.pointerId, { type: evt.pointerType, clientX: evt.clientX, clientY: evt.clientY });
       if (evt.pointerType === 'pen') {
-        // The pen always wins: it may land while a palm is already resting on the
-        // glass, so extra pointers must not read as a pinch. Any pan or stroke the
-        // palm started is cancelled and the pen takes over cleanly.
         panningRef.current = null;
         if (liveStrokeRef.current && drawingPointerId.current !== evt.pointerId) {
           liveStrokeRef.current = null; setLiveStroke(null);
           isDrawing.current = false;
           drawingPointerId.current = null;
         }
-      } else if (activePointers.current.size > 1) {
-        // A second finger means the user is pinching, not drawing — abandon the stroke.
-        if (liveStrokeRef.current) { liveStrokeRef.current = null; setLiveStroke(null); }
-        isDrawing.current = false;
-        drawingPointerId.current = null;
-        return;
+      } else {
+        if (evt.pointerType === 'touch' && !hasPenPointer()) {
+          const touches = [...activePointers.current.values()].filter(p => p.type === 'touch');
+          if (touches.length >= 2) {
+            const cx = touches.reduce((a, p) => a + p.clientX, 0) / touches.length;
+            const cy = touches.reduce((a, p) => a + p.clientY, 0) / touches.length;
+            if (!multiTapRef.current) multiTapRef.current = { start: Date.now(), maxCount: touches.length, moved: false, cx, cy };
+            else multiTapRef.current.maxCount = Math.max(multiTapRef.current.maxCount, touches.length);
+          }
+        }
+        if (activePointers.current.size > 1) {
+          if (liveStrokeRef.current) { liveStrokeRef.current = null; setLiveStroke(null); }
+          isDrawing.current = false;
+          drawingPointerId.current = null;
+          return;
+        }
       }
     }
 
@@ -1218,6 +1381,14 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     if (targetName === 'ruler' || parentName === 'ruler' || targetName === 'ruler-handle') {
        return;
     }
+    // A polygon vertex handle drags itself; the stage must not pan or deselect.
+    if (targetName === 'poly-handle') {
+       return;
+    }
+    // The protractor guide moves/rotates itself and must not lay down ink.
+    if (targetName === 'protractor' || parentName === 'protractor' || targetName === 'protractor-handle') {
+       return;
+    }
 
     checkDeselect(e);
 
@@ -1227,7 +1398,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     //
     // Middle-drag and space-drag pan with any tool selected, so you don't have to
     // keep switching to the hand just to bring something back on screen.
-    const wantsPan = readonly || tool === 'pan' || isSpaceDown || evt?.button === 1;
+    const wantsPan = viewOnly || tool === 'pan' || isSpaceDown || evt?.button === 1;
     if (wantsPan) {
        if (evt) panningRef.current = { x: evt.clientX, y: evt.clientY };
        return;
@@ -1315,6 +1486,22 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
        return;
     }
     
+    if (tool === 'shape' && shapeType === 'polygon') {
+       if (hitExistingObject) return;
+       const id = `shape-${Date.now()}`;
+       pushHistory();
+       updatePage(currentPageIndex, (page) => {
+          if (!page.shapes) page.shapes = [];
+          page.shapes.push({
+             id, type: 'polygon',
+             points: [pos.x, pos.y - 70, pos.x - 70, pos.y + 50, pos.x + 70, pos.y + 50],
+             color: penColor, size: penSize, opacity: penOpacity,
+          });
+       });
+       selectShape(id);
+       return;
+    }
+
     if (tool === 'shape') {
        isDrawing.current = true;
        pushHistory();
@@ -1371,9 +1558,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
     if (eraserSettings.eraseObjects) {
       survivingShapes = survivingShapes.filter((s) => {
-        const minX = Math.min(s.x1, s.x2) - radius; const maxX = Math.max(s.x1, s.x2) + radius;
-        const minY = Math.min(s.y1, s.y2) - radius; const maxY = Math.max(s.y1, s.y2) + radius;
-        return !(pos.x >= minX && pos.x <= maxX && pos.y >= minY && pos.y <= maxY);
+        const b = s.type === 'polygon' ? polygonBounds(s.points) : { minX: Math.min(s.x1, s.x2), maxX: Math.max(s.x1, s.x2), minY: Math.min(s.y1, s.y2), maxY: Math.max(s.y1, s.y2) };
+        return !(pos.x >= b.minX - radius && pos.x <= b.maxX + radius && pos.y >= b.minY - radius && pos.y <= b.maxY + radius);
       });
       survivingTexts = survivingTexts.filter((t) => {
         const w = Math.max(60, (t.text?.length || 1) * (t.size || 16) * 0.6);
@@ -1572,7 +1758,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     selectedObjects.forEach(({ kind, id }) => {
       const o = (page?.[kind] || []).find((it) => it.id === id);
       if (!o) return;
-      if (kind === 'shapes') { grow(o.x1, o.y1); grow(o.x2, o.y2); }
+      if (kind === 'shapes' && o.type === 'polygon') { for (let i = 0; i < o.points.length; i += 2) grow(o.points[i], o.points[i + 1]); }
+      else if (kind === 'shapes') { grow(o.x1, o.y1); grow(o.x2, o.y2); }
       else if (kind === 'images') { grow(o.x, o.y); grow(o.x + (o.width || 0), o.y + (o.height || 0)); }
       else if (kind === 'stickers') { grow(o.x, o.y); grow(o.x + (o.audioUrl ? 130 : 150), o.y + (o.audioUrl ? 44 : 150)); }
       else { grow(o.x, o.y); grow(o.x + Math.max(60, (o.text?.length || 1) * (o.size || 16) * 0.6), o.y + (o.size || 16) * 1.4); }
@@ -1595,7 +1782,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       if (!obj) continue;
 
       let box;
-      if (kind === 'shapes') {
+      if (kind === 'shapes' && obj.type === 'polygon') {
+        box = polygonBounds(obj.points);
+      } else if (kind === 'shapes') {
         box = { minX: Math.min(obj.x1, obj.x2), minY: Math.min(obj.y1, obj.y2), maxX: Math.max(obj.x1, obj.x2), maxY: Math.max(obj.y1, obj.y2) };
       } else if (kind === 'images') {
         box = { minX: obj.x, minY: obj.y, maxX: obj.x + (obj.width || 0) * (obj.scaleX || 1), maxY: obj.y + (obj.height || 0) * (obj.scaleY || 1) };
@@ -1610,6 +1799,88 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     }
     return null;
   }, [selectedId, pages, currentPageIndex]);
+
+  // Double-click a polygon edge to drop a new vertex on the nearest edge; the
+  // polygon stops being a fixed triangle and becomes any shape you need.
+  const insertPolygonVertex = (id) => {
+    const pos = getPointerPosRelativeToPage();
+    if (!pos) return;
+    const shp = pagesRef.current[currentPageIndex]?.shapes?.find(x => x.id === id);
+    if (!shp || shp.type !== 'polygon') return;
+    const pts = shp.points, n = pts.length / 2;
+    let best = 0, bestD = Infinity;
+    for (let k = 0; k < n; k++) {
+      const a = k, b = (k + 1) % n;
+      const d = distToSegmentXY(pos.x, pos.y, pts[a * 2], pts[a * 2 + 1], pts[b * 2], pts[b * 2 + 1]);
+      if (d < bestD) { bestD = d; best = k; }
+    }
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      const sh = page.shapes.find(x => x.id === id);
+      const np = sh.points.slice();
+      np.splice((best + 1) * 2, 0, pos.x, pos.y);
+      sh.points = np;
+    });
+    selectShape(id);
+  };
+
+  // Double-click a vertex handle to remove it (a polygon needs at least 3).
+  const removePolygonVertex = (id, k) => {
+    const shp = pagesRef.current[currentPageIndex]?.shapes?.find(x => x.id === id);
+    if (!shp || shp.type !== 'polygon') return;
+    if (shp.points.length / 2 <= 3) { toast('เธฃเธนเธเธซเธฅเธฒเธขเน€เธซเธฅเธตเนเธขเธกเธ•เนเธญเธเธกเธตเธญเธขเนเธฒเธเธเนเธญเธข 3 เธเธธเธ”'); return; }
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+      const sh = page.shapes.find(x => x.id === id);
+      const np = sh.points.slice();
+      np.splice(k * 2, 2);
+      sh.points = np;
+    });
+  };
+
+  // Copy the current selection (single object or a whole lasso group) to the
+  // clipboard, with the live drag offset baked in so paste lands where expected.
+  const copySelection = () => {
+    if (selectionRef.current.length > 0 || selectedObjectsRef.current.length > 0) {
+       const dx = lassoGroupPos.x, dy = lassoGroupPos.y;
+       const lines = selectionRef.current.map((l) => ({ ...l, points: l.points.map((pt, i) => (i % 2 === 0 ? pt + dx : pt + dy)) }));
+       const page = pagesRef.current[currentPageIndex];
+       const objects = selectedObjectsRef.current.map(({ kind, id }) => {
+          const o = (page[kind] || []).find((x) => x.id === id);
+          if (!o) return null;
+          const clone = JSON.parse(JSON.stringify(o));
+          shiftObject(clone, kind, dx, dy);
+          return { kind, obj: clone };
+       }).filter(Boolean);
+       clipboardRef.current = { lines, objects };
+       toast.success('เธเธฑเธ”เธฅเธญเธเนเธฅเนเธง');
+       return;
+    }
+    if (selectedInfo) {
+       clipboardRef.current = { lines: [], objects: [{ kind: selectedInfo.kind, obj: JSON.parse(JSON.stringify(selectedInfo.obj)) }] };
+       toast.success('เธเธฑเธ”เธฅเธญเธเนเธฅเนเธง');
+    }
+  };
+
+  const pasteClipboard = () => {
+    const clip = clipboardRef.current;
+    if (!clip || (clip.lines.length === 0 && clip.objects.length === 0)) return;
+    const off = 28;
+    pushHistory();
+    updatePage(currentPageIndex, (page) => {
+       if (clip.lines.length) {
+          const newLines = clip.lines.map((l) => ({ ...l, points: l.points.map((pt) => pt + off) }));
+          page.lines = [...(page.lines || []), ...newLines];
+       }
+       clip.objects.forEach(({ kind, obj }) => {
+          const clone = JSON.parse(JSON.stringify(obj));
+          clone.id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          shiftObject(clone, kind, off, off);
+          page[kind] = [...(page[kind] || []), clone];
+       });
+    });
+    toast.success('เธงเธฒเธเนเธฅเนเธง');
+  };
 
   const duplicateSelectedObject = () => {
     if (!selectedInfo) return;
@@ -1674,7 +1945,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   };
 
   const shiftObject = (item, kind, dx, dy) => {
-    if (kind === 'shapes') { item.x1 += dx; item.x2 += dx; item.y1 += dy; item.y2 += dy; }
+    if (kind === 'shapes' && item.type === 'polygon') { item.points = item.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy)); }
+    else if (kind === 'shapes') { item.x1 += dx; item.x2 += dx; item.y1 += dy; item.y2 += dy; }
     else { item.x += dx; item.y += dy; }
   };
 
@@ -1812,7 +2084,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     // drawing; the palm's movements are filtered out by the drawingPointerId check.
     let touchCount = 0;
     for (const p of activePointers.current.values()) if (p.type === 'touch') touchCount++;
-    if (touchCount >= 2 && evt?.pointerType !== 'pen') { handlePinch(); return; }
+    if (touchCount >= 2 && evt?.pointerType !== 'pen') {
+      if (multiTapRef.current) {
+        const touches = [...activePointers.current.values()].filter(p => p.type === 'touch');
+        if (touches.length) {
+          const cx = touches.reduce((a, p) => a + p.clientX, 0) / touches.length;
+          const cy = touches.reduce((a, p) => a + p.clientY, 0) / touches.length;
+          if (Math.hypot(cx - multiTapRef.current.cx, cy - multiTapRef.current.cy) > 14) multiTapRef.current.moved = true;
+        }
+      }
+      handlePinch(); return;
+    }
 
     if (panningRef.current && evt) {
       const dx = evt.clientX - panningRef.current.x;
@@ -1897,6 +2179,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     }
     panningRef.current = null;
 
+    if (remainingTouches === 0 && multiTapRef.current) {
+      const g = multiTapRef.current;
+      multiTapRef.current = null;
+      if (!g.moved && Date.now() - g.start < 280) {
+        if (g.maxCount === 2) { undo(); return; }
+        if (g.maxCount >= 3) { redo(); return; }
+      }
+    }
+
     if (liveStrokeRef.current) {
        commitLiveStroke();
        isDrawing.current = false;
@@ -1931,7 +2222,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
        // Objects are caught by their anchor point falling inside the loop.
        const objects = [];
        (page.shapes || []).forEach((s) => {
-          if (pointInPolygon((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2, path)) objects.push({ kind: 'shapes', id: s.id });
+          const c = s.type === 'polygon' ? polygonCentroid(s.points) : { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
+          if (pointInPolygon(c.x, c.y, path)) objects.push({ kind: 'shapes', id: s.id });
        });
        (page.texts || []).forEach((t) => {
           if (pointInPolygon(t.x, t.y, path)) objects.push({ kind: 'texts', id: t.id });
@@ -2184,6 +2476,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveNotebook(); return; }
+      if (mod && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelection(); return; }
+      if (mod && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
       if (mod) return;
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -2201,6 +2495,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       if (e.key === 'PageDown') { e.preventDefault(); setCurrentPageIndex(i => Math.min(pages.length - 1, i + 1)); return; }
       if (e.key === 'PageUp') { e.preventDefault(); setCurrentPageIndex(i => Math.max(0, i - 1)); return; }
 
+      // Number keys 1โ€“9 pick the first nine palette colours for the pen.
+      if (/^[1-9]$/.test(e.key)) {
+        const c = colors[Number(e.key) - 1];
+        if (c) { setPenColor(c); return; }
+      }
+
       const byKey = { v: 'pan', p: 'pen', f: 'fountain', n: 'pencil', b: 'marker', h: 'highlighter', e: 'eraser', l: 'lasso', t: 'text', r: 'shape' };
       const next = byKey[e.key.toLowerCase()];
       if (next) { setTool(next); setShowToolOptions(false); }
@@ -2208,7 +2508,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [readonly, selectedId, editingTextId, editingStickerId, pages.length, undo, redo, deleteSelected]);
+  }, [readonly, selectedId, editingTextId, editingStickerId, pages.length, currentPageIndex, lassoGroupPos, undo, redo, deleteSelected]);
 
   const formatTime = (secs) => {
      const m = Math.floor(secs / 60);
@@ -2366,7 +2666,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          {showMoreMenu && !readonly && (
                  <div style={{ position: 'absolute', top: 58, right: 12, zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', padding: 8, borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.05)', width: 280, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100% - 70px)', overflowY: 'auto' }}>
                     <button onClick={() => { document.getElementById('image-upload').click(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
-                       <ImageIcon size={20} strokeWidth={1.5} color="#4B5563" /> นำเข้ารูปภาพ
+                       <ImageIcon size={20} strokeWidth={1.5} color="#4B5563" /> นำเข้ารูปภาพจากเครื่อง
+                    </button>
+                    <button onClick={() => { setShowImgSearch(true); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <Search size={20} strokeWidth={1.5} color="#4B5563" /> ค้นหารูป/สติกเกอร์จากเน็ต
                     </button>
                     <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
                     <button onClick={() => setShowPageSettings(true)} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
@@ -2395,6 +2698,16 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     </button>
                     <button onClick={deletePage} disabled={pages.length <= 1} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: pages.length <= 1 ? '#D1D5DB' : '#EF4444', cursor: pages.length <= 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Minus size={20} strokeWidth={1.5} color={pages.length <= 1 ? '#D1D5DB' : '#EF4444'} /> ลบหน้า
+                    </button>
+                    <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
+                    <button onClick={() => { exportNotebookPDF(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <Download size={20} strokeWidth={1.5} color="#4B5563" /> ดาวน์โหลดทั้งเล่ม (PDF)
+                    </button>
+                    <button onClick={() => { exportNotebookPDF(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <Download size={20} strokeWidth={1.5} color="#4B5563" /> ดาวน์โหลดทั้งเล่ม (PDF)
+                    </button>
+                    <button onClick={() => { exportPage(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                       <ImageIcon size={20} strokeWidth={1.5} color="#4B5563" /> บันทึกรูปหน้านี้ (PNG)
                     </button>
                     <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
                     <button style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
@@ -2477,6 +2790,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     { id: 'eraser', icon: Eraser, title: 'ยางลบ' },
                     { id: 'lasso', icon: Lasso, title: 'Lasso' },
                     { id: 'ruler', icon: Ruler, title: 'ไม้บรรทัด' },
+                    { id: 'protractor', icon: Compass, title: 'ไม้โปรแทรกเตอร์ (วัดมุม)' },
                     { id: 'text', icon: Type, title: 'ข้อความ' },
                     { id: 'shape', icon: Square, title: 'รูปร่าง' },
                     { id: 'image', icon: ImageIcon, title: 'แทรกรูปภาพ' },
@@ -2491,10 +2805,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                        onClick={() => {
                           if (t.id === 'image') { document.getElementById('image-upload').click(); return; }
                           if (t.id === 'mic') { toggleRecording(); return; }
-                          // Emoji picker is an action popover, not a drawing tool.
                           if (t.id === 'emoji') { setShowEmojiPicker(v => !v); setShowToolOptions(false); setShowColorPicker(false); return; }
-                          // The ruler is a modifier, not a tool — it stays on while you draw.
                           if (t.id === 'ruler') { setRulerOn(v => !v); return; }
+                          if (t.id === 'protractor') { setProtractorOn(v => !v); return; }
                           // One tap does it all: selecting a tool also opens its
                           // options right away (nobody discovers a second tap), and
                           // the popover tucks itself away as soon as drawing starts.
@@ -2504,7 +2817,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                           else { setTool(t.id); setShowToolOptions(hasOptions); setShowColorPicker(false); }
                        }}
                        style={(() => {
-                          const active = t.id === 'ruler' ? rulerOn : t.id === 'emoji' ? showEmojiPicker : (tool === t.id && !['image','mic'].includes(t.id));
+                          const active = t.id === 'ruler' ? rulerOn : t.id === 'protractor' ? protractorOn : t.id === 'emoji' ? showEmojiPicker : (tool === t.id && !['image','mic'].includes(t.id));
                           return { flexShrink: 0, width: TOOL_BTN, height: TOOL_BTN, borderRadius: 12, border: 'none', background: active ? HW.accentSoft : 'transparent', color: active ? HW.accent : (t.id === 'mic' && isRecording ? '#EF4444' : HW.textDim), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.18s, color 0.18s', position: 'relative', transform: active ? 'translateY(-4px)' : 'none' };
                        })()}
                      >
@@ -2568,7 +2881,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                         {tool === 'shape' && (
                            <>
                              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                                {[{ t: 'rect', Icon: Square }, { t: 'circle', Icon: CircleIcon }, { t: 'triangle', Icon: Triangle }, { t: 'line', Icon: Minus }, { t: 'arrow', Icon: ArrowRight }, { t: 'star', Icon: Star }].map(({ t, Icon }) => (
+                                {[{ t: 'rect', Icon: Square }, { t: 'circle', Icon: CircleIcon }, { t: 'triangle', Icon: Triangle }, { t: 'line', Icon: Minus }, { t: 'arrow', Icon: ArrowRight }, { t: 'star', Icon: Star }, { t: 'polygon', Icon: Hexagon }].map(({ t, Icon }) => (
                                   <button key={t} onClick={() => setShapeType(t)} style={{ width: 32, height: 32, borderRadius: 10, border: 'none', background: shapeType === t ? HW.accentSoft : 'transparent', color: shapeType === t ? HW.accent : '#9CA3AF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Icon size={20} strokeWidth={1.6} />
                                   </button>
@@ -2590,6 +2903,48 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                                 <span style={{ display: 'block', width: Math.min(18, 4 + s * 0.7), height: Math.min(18, 4 + s * 0.7), borderRadius: '50%', background: penSize === s ? HW.accent : HW.textDim }} />
                               </button>
                            ))}
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+
+                        {/* Fine size + opacity sliders (Huawei style). stopPropagation
+                            keeps the toolbar's drag-to-scroll from hijacking the slider. */}
+                        <div
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 130 }}
+                        >
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธเธเธฒเธ”</span>
+                              <input type="range" min={1} max={60} value={penSize} onChange={(e) => setPenSize(Number(e.target.value))} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
+                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{penSize}</span>
+                           </div>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธ—เธถเธ</span>
+                              <input type="range" min={10} max={100} value={Math.round(penOpacity * 100)} onChange={(e) => setPenOpacity(Number(e.target.value) / 100)} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
+                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(penOpacity * 100)}%</span>
+                           </div>
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+
+                        {/* Fine size + opacity sliders (Huawei style). stopPropagation
+                            keeps the toolbar's drag-to-scroll from hijacking the slider. */}
+                        <div
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0, minWidth: 130 }}
+                        >
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธเธเธฒเธ”</span>
+                              <input type="range" min={1} max={60} value={penSize} onChange={(e) => setPenSize(Number(e.target.value))} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
+                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{penSize}</span>
+                           </div>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 10, color: HW.textDim, width: 26 }}>เธ—เธถเธ</span>
+                              <input type="range" min={10} max={100} value={Math.round(penOpacity * 100)} onChange={(e) => setPenOpacity(Number(e.target.value) / 100)} style={{ flex: 1, accentColor: HW.accent, cursor: 'pointer' }} />
+                              <span style={{ fontSize: 10, color: HW.text, width: 24, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{Math.round(penOpacity * 100)}%</span>
+                           </div>
                         </div>
 
                         <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
@@ -2925,6 +3280,112 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          </div>
        )}
 
+      {/* Web image / sticker search panel (Openverse โ€” openly-licensed media) */}
+      {showImgSearch && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 55, background: 'rgba(243,244,246,0.96)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexShrink: 0 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, color: 'var(--text)', whiteSpace: 'nowrap' }}>เธเนเธเธซเธฒเธฃเธนเธ/เธชเธ•เธดเธเน€เธเธญเธฃเน</h3>
+            <form onSubmit={(e) => { e.preventDefault(); searchWebImages(imgQuery); }} style={{ flex: 1, display: 'flex', gap: 8 }}>
+              <input
+                autoFocus
+                type="text"
+                placeholder="เน€เธเนเธ cat sticker, flower, star ... (เธเธดเธกเธเนเธ เธฒเธฉเธฒเธญเธฑเธเธเธคเธฉเนเธ”เนเธเธฅเธ”เธตเธชเธธเธ”)"
+                value={imgQuery}
+                onChange={(e) => setImgQuery(e.target.value)}
+                style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--br2)', fontSize: 14, outline: 'none' }}
+              />
+              <button type="submit" disabled={imgLoading} style={{ padding: '0 18px', borderRadius: 10, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Search size={17} /> {imgLoading ? 'เธเธณเธฅเธฑเธเธเนเธเธซเธฒ...' : 'เธเนเธเธซเธฒ'}
+              </button>
+            </form>
+            <button onClick={() => setShowImgSearch(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>เธเธดเธ”</button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {imgResults.length === 0 ? (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', gap: 10 }}>
+                <ImageIcon size={44} strokeWidth={1.3} opacity={0.4} />
+                <p style={{ fontSize: 14 }}>{imgLoading ? 'เธเธณเธฅเธฑเธเธเนเธเธซเธฒ...' : 'เธเธดเธกเธเนเธเธณเธเนเธเธซเธฒเนเธฅเนเธงเธเธ”เธเนเธเธซเธฒ เน€เธเธทเนเธญเธ”เธถเธเธฃเธนเธ/เธชเธ•เธดเธเน€เธเธญเธฃเนเธฅเธดเธเธชเธดเธ—เธเธดเนเน€เธเธดเธ”เธกเธฒเนเธ—เธฃเธ'}</p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+                {imgResults.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => insertWebImage(item)}
+                    title={`${item.title || ''}${item.creator ? ' โ€” ' + item.creator : ''} (${item.license || 'CC'})`}
+                    style={{ border: '1px solid var(--br2)', borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0, aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <img src={item.thumbnail || item.url} alt={item.title || 'result'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <p style={{ flexShrink: 0, marginTop: 8, fontSize: 11, color: 'var(--t3)', textAlign: 'center' }}>เธฃเธนเธเธ เธฒเธเธเธฒเธ Openverse (เธชเธทเนเธญเธฅเธดเธเธชเธดเธ—เธเธดเนเน€เธเธดเธ” CC) โ€” เนเธเธฃเธ”เนเธซเนเน€เธเธฃเธ”เธดเธ•เธเธนเนเธชเธฃเนเธฒเธเน€เธกเธทเนเธญเน€เธเธขเนเธเธฃเน</p>
+        </div>
+      )}
+
+      {/* Paper template / colour picker (was a dead menu item before) */}
+      {showPageSettings && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 55, background: 'rgba(243,244,246,0.96)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', padding: 24, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text)' }}>เนเธกเนเนเธเธเธเธฃเธฐเธ”เธฒเธฉ</h3>
+            <button onClick={() => setShowPageSettings(false)} style={{ border: 'none', background: 'var(--gray-light)', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>เธเธดเธ”</button>
+          </div>
+
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>เธฅเธฒเธขเธเธฃเธฐเธ”เธฒเธฉ</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 14, marginBottom: 24 }}>
+            {[
+              { t: 'blank', label: 'เน€เธเธฅเนเธฒ', bg: 'white' },
+              { t: 'lines', label: 'เน€เธชเนเธเธเธฃเธฃเธ—เธฑเธ”', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
+              { t: 'grid', label: 'เธ•เธฒเธฃเธฒเธ', bg: 'repeating-linear-gradient(white, white 15px, #cbd5e1 15px, #cbd5e1 16px), repeating-linear-gradient(90deg, white, white 15px, #cbd5e1 15px, #cbd5e1 16px)' },
+              { t: 'dots', label: 'เธเธธเธ”เนเธเนเธเธฅเธฒ', bg: 'radial-gradient(#94a3b8 1.5px, white 1.5px)', size: '16px 16px' },
+            ].map(({ t, label, bg, size }) => (
+              <button
+                key={t}
+                onClick={() => { pushHistory(); updatePage(currentPageIndex, (p) => { p.paperType = t; }); }}
+                style={{ border: (currentPage.paperType || 'lines') === t ? `2px solid ${HW.accent}` : '1px solid var(--br2)', borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0, display: 'flex', flexDirection: 'column' }}
+              >
+                <div style={{ height: 80, background: bg, backgroundSize: size || 'auto', borderBottom: '1px solid var(--br2)' }} />
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', padding: '8px 0' }}>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 10 }}>เธชเธตเธเธฃเธฐเธ”เธฒเธฉ</span>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
+            {[
+              { c: 'white', label: 'เธเธฒเธง', bg: 'white' },
+              { c: 'yellow', label: 'เธเธฃเธตเธก', bg: '#FEF3C7' },
+              { c: 'dark', label: 'เธกเธทเธ”', bg: '#1F2937' },
+            ].map(({ c, label, bg }) => (
+              <button
+                key={c}
+                onClick={() => { pushHistory(); updatePage(currentPageIndex, (p) => { p.paperColor = c; }); }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: 'pointer' }}
+              >
+                <div style={{ width: 56, height: 56, borderRadius: 12, background: bg, boxShadow: `inset 0 0 0 1px var(--br2)`, outline: (currentPage.paperColor || 'white') === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }} />
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              pushHistory();
+              const pt = currentPage.paperType, pc = currentPage.paperColor;
+              setPages((prev) => prev.map((p) => ({ ...p, paperType: pt, paperColor: pc })));
+              toast.success('เนเธเนเนเธกเนเนเธเธเธเธตเนเธเธฑเธเธ—เธธเธเธซเธเนเธฒเนเธฅเนเธง');
+            }}
+            style={{ alignSelf: 'flex-start', padding: '10px 18px', borderRadius: 10, border: `1px solid ${HW.hairline}`, background: 'white', color: HW.accent, fontWeight: 600, cursor: 'pointer' }}
+          >
+            เนเธเนเนเธกเนเนเธเธเธเธตเนเธเธฑเธเธ—เธธเธเธซเธเนเธฒ
+          </button>
+          {currentPage.src && <p style={{ marginTop: 12, fontSize: 12, color: 'var(--t3)' }}>* เธซเธเนเธฒเธเธตเนเน€เธเนเธเธซเธเนเธฒ PDF เธฅเธฒเธขเธเธฃเธฐเธ”เธฒเธฉเธเธฐเนเธกเนเนเธชเธ”เธเธ—เธฑเธเน€เธเธทเนเธญเธซเธฒ PDF</p>}
+        </div>
+      )}
+
       <input type="file" id="pdf-upload" accept="application/pdf" style={{ display: 'none' }} onChange={handleFileUpload} />
       <input type="file" id="image-upload" accept="image/*" style={{ display: 'none' }} onChange={handleImageUpload} />
 
@@ -3044,6 +3505,40 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             
             {/* Shapes */}
             {currentPage.shapes && currentPage.shapes.map((s, i) => {
+              // Editable polygon: absolute points, moved as a whole in pan mode and
+              // reshaped by the vertex handles rendered separately when selected.
+              if (s.type === 'polygon') {
+                 const off = objectOffset('shapes', s.id);
+                 const pts = off.x || off.y ? s.points.map((v, k) => (k % 2 === 0 ? v + off.x : v + off.y)) : s.points;
+                 return (
+                   <Line
+                     key={s.id}
+                     id={s.id}
+                     name="object"
+                     points={pts}
+                     closed
+                     stroke={s.color}
+                     strokeWidth={s.size}
+                     opacity={s.opacity}
+                     lineJoin="round"
+                     lineCap="round"
+                     hitStrokeWidth={Math.max(12, s.size + 8)}
+                     draggable={tool === 'pan'}
+                     onClick={() => { if (tool === 'pan' || tool === 'lasso' || tool === 'shape') selectShape(s.id); }}
+                     onTap={() => { if (tool === 'pan' || tool === 'lasso' || tool === 'shape') selectShape(s.id); }}
+                     onDblClick={() => insertPolygonVertex(s.id)}
+                     onDblTap={() => insertPolygonVertex(s.id)}
+                     onDragEnd={(e) => {
+                        const dx = e.target.x(), dy = e.target.y();
+                        e.target.position({ x: 0, y: 0 });
+                        updatePage(currentPageIndex, (page) => {
+                           const shp = page.shapes.find(sh => sh.id === s.id);
+                           if (shp) shp.points = shp.points.map((v, k) => (k % 2 === 0 ? v + dx : v + dy));
+                        });
+                     }}
+                   />
+                 );
+              }
               const width = s.x2 - s.x1;
               const height = s.y2 - s.y1;
               const shapeProps = {
@@ -3331,7 +3826,124 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                );
             })()}
 
+            {/* Protractor: half-circle guide with 0โ€“180ยฐ markings, draggable + rotatable */}
+            {protractorOn && !readonly && (() => {
+               const r = protractor.radius;
+               const rad = (protractor.angle * Math.PI) / 180;
+               const hx = protractor.x + Math.cos(rad) * r;
+               const hy = protractor.y + Math.sin(rad) * r;
+               const rim = [];
+               for (let d = 0; d <= 180; d += 3) { const a = (d * Math.PI) / 180; rim.push(r * Math.cos(a), -r * Math.sin(a)); }
+               const ticks = [];
+               const labels = [];
+               for (let d = 0; d <= 180; d += 10) {
+                  const a = (d * Math.PI) / 180;
+                  const long = d % 30 === 0;
+                  const tl = long ? 15 : 8;
+                  ticks.push(<Line key={`pt-${d}`} points={[r * Math.cos(a), -r * Math.sin(a), (r - tl) * Math.cos(a), -(r - tl) * Math.sin(a)]} stroke="rgba(10,89,247,0.6)" strokeWidth={1} />);
+                  if (long) labels.push(<Text key={`pl-${d}`} text={`${d}`} x={(r - 30) * Math.cos(a) - 8} y={-(r - 30) * Math.sin(a) - 6} fontSize={12} fill={HW.accent} fontFamily="Kanit, sans-serif" />);
+               }
+               return (
+                 <>
+                   <Group
+                     name="protractor"
+                     x={protractor.x}
+                     y={protractor.y}
+                     rotation={protractor.angle}
+                     draggable
+                     onDragEnd={(e) => setProtractor(p => ({ ...p, x: e.target.x(), y: e.target.y() }))}
+                   >
+                     <Line points={rim} closed fill="rgba(10,89,247,0.06)" stroke="rgba(10,89,247,0.5)" strokeWidth={1} />
+                     <Line points={[-r, 0, r, 0]} stroke="rgba(10,89,247,0.55)" strokeWidth={1.5} />
+                     {ticks}
+                     {labels}
+                     <Circle x={0} y={0} radius={4} fill={HW.accent} />
+                     <Text text={`${Math.round(((protractor.angle % 360) + 360) % 360)}ยฐ`} x={-14} y={12} fontSize={13} fill={HW.accent} fontFamily="Kanit, sans-serif" />
+                   </Group>
+                   <Circle
+                     name="protractor-handle"
+                     x={hx}
+                     y={hy}
+                     radius={12}
+                     fill="white"
+                     stroke={HW.accent}
+                     strokeWidth={2}
+                     draggable
+                     onDragMove={(e) => {
+                        const nx = e.target.x(), ny = e.target.y();
+                        let deg = (Math.atan2(ny - protractor.y, nx - protractor.x) * 180) / Math.PI;
+                        const near = Math.round(deg / 15) * 15;
+                        if (Math.abs(deg - near) < 3) deg = near;
+                        setProtractor(p => ({ ...p, angle: deg }));
+                     }}
+                     onDragEnd={(e) => {
+                        const r2 = (protractor.angle * Math.PI) / 180;
+                        e.target.position({ x: protractor.x + Math.cos(r2) * protractor.radius, y: protractor.y + Math.sin(r2) * protractor.radius });
+                     }}
+                   />
+                 </>
+               );
+            })()}
+
             {/* Shows which slice of the page the zoom-in writing strip is showing */}
+            {protractorOn && !readonly && (() => {
+               const r = protractor.radius;
+               const rad = (protractor.angle * Math.PI) / 180;
+               const hx = protractor.x + Math.cos(rad) * r;
+               const hy = protractor.y + Math.sin(rad) * r;
+               const rim = [];
+               for (let d = 0; d <= 180; d += 3) { const a = (d * Math.PI) / 180; rim.push(r * Math.cos(a), -r * Math.sin(a)); }
+               const ticks = [];
+               const labels = [];
+               for (let d = 0; d <= 180; d += 10) {
+                  const a = (d * Math.PI) / 180;
+                  const long = d % 30 === 0;
+                  const tl = long ? 15 : 8;
+                  ticks.push(<Line key={`pt-${d}`} points={[r * Math.cos(a), -r * Math.sin(a), (r - tl) * Math.cos(a), -(r - tl) * Math.sin(a)]} stroke="rgba(10,89,247,0.6)" strokeWidth={1} />);
+                  if (long) labels.push(<Text key={`pl-${d}`} text={`${d}`} x={(r - 30) * Math.cos(a) - 8} y={-(r - 30) * Math.sin(a) - 6} fontSize={12} fill={HW.accent} fontFamily="Kanit, sans-serif" />);
+               }
+               return (
+                 <>
+                   <Group
+                     name="protractor"
+                     x={protractor.x}
+                     y={protractor.y}
+                     rotation={protractor.angle}
+                     draggable
+                     onDragEnd={(e) => setProtractor(p => ({ ...p, x: e.target.x(), y: e.target.y() }))}
+                   >
+                     <Line points={rim} closed fill="rgba(10,89,247,0.06)" stroke="rgba(10,89,247,0.5)" strokeWidth={1} />
+                     <Line points={[-r, 0, r, 0]} stroke="rgba(10,89,247,0.55)" strokeWidth={1.5} />
+                     {ticks}
+                     {labels}
+                     <Circle x={0} y={0} radius={4} fill={HW.accent} />
+                     <Text text={`${Math.round(((protractor.angle % 360) + 360) % 360)}°`} x={-14} y={12} fontSize={13} fill={HW.accent} fontFamily="Kanit, sans-serif" />
+                   </Group>
+                   <Circle
+                     name="protractor-handle"
+                     x={hx}
+                     y={hy}
+                     radius={12}
+                     fill="white"
+                     stroke={HW.accent}
+                     strokeWidth={2}
+                     draggable
+                     onDragMove={(e) => {
+                        const nx = e.target.x(), ny = e.target.y();
+                        let deg = (Math.atan2(ny - protractor.y, nx - protractor.x) * 180) / Math.PI;
+                        const near = Math.round(deg / 15) * 15;
+                        if (Math.abs(deg - near) < 3) deg = near;
+                        setProtractor(p => ({ ...p, angle: deg }));
+                     }}
+                     onDragEnd={(e) => {
+                        const r2 = (protractor.angle * Math.PI) / 180;
+                        e.target.position({ x: protractor.x + Math.cos(r2) * protractor.radius, y: protractor.y + Math.sin(r2) * protractor.radius });
+                     }}
+                   />
+                 </>
+               );
+            })()}
+
             {zoomWriter && (
                <Rect
                  x={writerFocus.x}
@@ -3423,6 +4035,50 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 }}
               />
            )}
+
+           {!readonly && (() => {
+              const poly = currentPage.shapes?.find(sh => sh.id === selectedId && sh.type === 'polygon');
+              if (!poly) return null;
+              const off = objectOffset('shapes', poly.id);
+              const pts = poly.points;
+              const n = pts.length / 2;
+              const c = polygonCentroid(pts);
+              const hr = 8 / scale;
+              const fs = 15 / scale;
+              const lo = 26 / scale;
+              return (
+                <Group x={pageX} y={pageY}>
+                   {Array.from({ length: n }).map((_, k) => {
+                      const vx = pts[k * 2] + off.x, vy = pts[k * 2 + 1] + off.y;
+                      const ang = polygonInteriorAngle(pts, k);
+                      let dx = pts[k * 2] - c.x, dy = pts[k * 2 + 1] - c.y;
+                      const m = Math.hypot(dx, dy) || 1;
+                      const lx = vx + (dx / m) * lo, ly = vy + (dy / m) * lo;
+                      return (
+                        <React.Fragment key={`vtx-${poly.id}-${k}`}>
+                           <Text text={`${ang}°`} x={lx - fs * 1.4} y={ly - fs / 2} fontSize={fs} fill={HW.accent} fontStyle="bold" fontFamily="Kanit, sans-serif" listening={false} />
+                           <Circle
+                             name="poly-handle" x={vx} y={vy} radius={hr} fill="white" stroke={HW.accent} strokeWidth={2 / scale}
+                             onDragStart={() => pushHistory()}
+                             onDragMove={(e) => {
+                                const nx = e.target.x() - off.x, ny = e.target.y() - off.y;
+                                updatePage(currentPageIndex, (page) => {
+                                   const shp = page.shapes.find(sh => sh.id === poly.id);
+                                   if (shp) {
+                                      const np = shp.points.slice();
+                                      np[k * 2] = nx; np[k * 2 + 1] = ny;
+                                      shp.points = np;
+                                   }
+                                });
+                             }}
+                             draggable
+                           />
+                        </React.Fragment>
+                      );
+                   })}
+                </Group>
+              );
+           })()}
         </Layer>
       </Stage>
 
@@ -3810,6 +4466,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                    style={{ width: 18, height: 18, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, margin: '0 2px' }}
                  />
               ))}
+              {/* Full palette for the lasso selection */}
+              <label title="เน€เธฅเธทเธญเธเธชเธตเน€เธญเธ (เธเธฒเธเธชเธต)" style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', margin: '0 2px', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
+                 <input type="color" defaultValue="#111827" onChange={(e) => recolorLassoSelection(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+              </label>
 
               <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
 
