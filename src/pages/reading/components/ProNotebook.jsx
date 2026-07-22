@@ -4228,7 +4228,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       </Stage>
 
       {/* Right-click / long-press context menu */}
-      {contextMenu && (() => {
+      {/* The selected-object floating toolbar (below) already covers a single
+          selection, so only fall back to this context menu when that toolbar
+          isn't showing — otherwise both stacked up with duplicate actions. */}
+      {contextMenu && !selectedInfo && !croppingImageId && (() => {
         const info = (() => {
           const page = pages[currentPageIndex];
           if (!page) return null;
@@ -4576,7 +4579,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       )}
 
       {/* Context menu for a single selected object, pinned just above it. */}
-      {selectedInfo && !readonly && !hasSelection && (() => {
+      {selectedInfo && !readonly && !hasSelection && !croppingImageId && (() => {
          const { kind, obj, box } = selectedInfo;
          const left = (box.minX + pageX) * scale + position.x + ((box.maxX - box.minX) * scale) / 2;
          const top = (box.minY + pageY) * scale + position.y - 54;
@@ -4588,7 +4591,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
            <div
              onPointerDown={(e) => e.stopPropagation()}
              onMouseDown={(e) => e.preventDefault()}
-             style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}` }}
+             style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, maxWidth: 'calc(100vw - 20px)', overflowX: 'auto' }}
            >
               {kind === 'images' && (
                 <>
@@ -4633,6 +4636,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                 </>
               )}
 
+              <button style={btn} onClick={() => reorderSelectedObject(true)} title="นำไปด้านหน้า"><ChevronsUp size={16} strokeWidth={1.7} /></button>
+              <button style={btn} onClick={() => reorderSelectedObject(false)} title="ส่งไปด้านหลัง"><ChevronsDown size={16} strokeWidth={1.7} /></button>
+              {divider}
               <button style={btn} onClick={duplicateSelectedObject} title="ทำซ้ำ"><FileStack size={16} strokeWidth={1.7} /></button>
               <button style={{ ...btn, color: '#EF4444' }} onClick={deleteSelected} title="ลบ"><Trash2 size={16} strokeWidth={1.7} /></button>
               <button style={{ ...btn, color: HW.accent }} onClick={() => selectShape(null)} title="เสร็จสิ้น"><Check size={17} strokeWidth={2} /></button>
