@@ -20,6 +20,9 @@ import { PDFPageImage, PaperPattern, getSvgPathFromStroke, PEN_STYLES, StrokeSha
 import { polygonBounds, polygonCentroid, polygonInteriorAngle, applyListPrefix, textDecorationOf } from './notebook/geometry.js';
 import { HW, ZERO_OFFSET, TEXT_BOX_WIDTH, STICKY_COLORS, STICKY_STYLES, FONT_OPTIONS } from './notebook/theme.js';
 import { useDragScroll } from './notebook/useDragScroll.js';
+import ImageSearchPanel from './notebook/ImageSearchPanel.jsx';
+import ObjectContextMenu from './notebook/ObjectContextMenu.jsx';
+import SelectionToolbar from './notebook/SelectionToolbar.jsx';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -3359,66 +3362,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          </div>
        )}
 
-      {/* Web image / sticker search panel (Openverse — openly-licensed media) */}
+      {/* Web image search panel (Google + Wikipedia + Commons + Openverse) */}
       {showImgSearch && (
-        <Draggable handle=".img-drag-handle" bounds="parent">
-        <div style={{ position: 'absolute', top: 60, right: 20, width: 360, maxWidth: 'calc(100vw - 40px)', height: 520, maxHeight: 'calc(100vh - 90px)', zIndex: 60, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderRadius: 16, boxShadow: '0 12px 48px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', padding: 16 }}>
-          <div className="img-drag-handle" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexShrink: 0, cursor: 'move' }}>
-            <ImageIcon size={18} color={HW.accent} />
-            <h3 style={{ fontSize: 15.5, fontWeight: 700, margin: 0, color: 'var(--text)', whiteSpace: 'nowrap', flex: 1 }}>ค้นหารูปภาพจากเว็บ</h3>
-            <button onClick={() => setShowImgSearch(false)} title="ปิด" style={{ border: 'none', background: 'var(--gray-light)', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)' }}><X size={17} /></button>
-          </div>
-
-          <form onSubmit={(e) => { e.preventDefault(); searchWebImages(imgQuery); }} style={{ display: 'flex', gap: 8, flexShrink: 0, marginBottom: 10 }}>
-            <input
-              autoFocus
-              type="text"
-              placeholder="พิมพ์สิ่งที่อยากได้ เช่น ซัยยิด กุฏุบ, มัสยิด, ดอกไม้..."
-              value={imgQuery}
-              onChange={(e) => setImgQuery(e.target.value)}
-              style={{ flex: 1, minWidth: 0, padding: '10px 14px', borderRadius: 10, border: '1px solid var(--br2)', fontSize: 14, outline: 'none' }}
-            />
-            <button type="submit" disabled={imgLoading} style={{ padding: '0 16px', borderRadius: 10, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: imgLoading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <Search size={17} /> {imgLoading ? '...' : 'ค้นหา'}
-            </button>
-          </form>
-
-          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-            {imgLoading && imgResults.length === 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 10 }}>
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <div key={i} style={{ aspectRatio: '1', borderRadius: 10, background: 'linear-gradient(90deg,#F1F5F9,#E2E8F0,#F1F5F9)', backgroundSize: '200% 100%', animation: 'pulse 1.2s ease-in-out infinite' }} />
-                ))}
-              </div>
-            ) : imgResults.length === 0 ? (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', gap: 12, textAlign: 'center', padding: '0 12px' }}>
-                <ImageIcon size={44} strokeWidth={1.3} opacity={0.4} />
-                <p style={{ fontSize: 14, margin: 0 }}>พิมพ์คำค้นหาได้ทั้งภาษาไทยและอังกฤษ<br/>แล้วแตะรูปเพื่อแทรกลงสมุดได้ทันที</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                  {['ซัยยิด กุฏุบ', 'มัสยิด', 'อัลกุรอาน', 'ดอกไม้', 'star sticker'].map(ex => (
-                    <button key={ex} onClick={() => { setImgQuery(ex); searchWebImages(ex); }} style={{ border: '1px solid var(--br2)', background: 'white', color: HW.accent, fontSize: 12.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999, cursor: 'pointer' }}>{ex}</button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 10 }}>
-                {imgResults.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => insertWebImage(item)}
-                    title={`${item.title || ''}${item.creator ? ' — ' + item.creator : ''} (${item.source} · ${item.license || 'CC'})`}
-                    style={{ position: 'relative', border: '1px solid var(--br2)', borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0, aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <img src={item.thumbnail || item.url} alt={item.title || 'result'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <span style={{ position: 'absolute', bottom: 4, left: 4, fontSize: 9, fontWeight: 700, color: 'white', background: 'rgba(0,0,0,0.55)', padding: '2px 6px', borderRadius: 999, pointerEvents: 'none' }}>{item.source}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <p style={{ flexShrink: 0, marginTop: 8, fontSize: 10.5, color: 'var(--t3)', textAlign: 'center' }}>รูปจาก Google · Wikipedia · Commons · Openverse — โปรดตรวจลิขสิทธิ์/ให้เครดิตก่อนเผยแพร่</p>
-        </div>
-        </Draggable>
+        <ImageSearchPanel
+          query={imgQuery}
+          setQuery={setImgQuery}
+          results={imgResults}
+          loading={imgLoading}
+          onSearch={searchWebImages}
+          onInsert={insertWebImage}
+          onClose={() => setShowImgSearch(false)}
+        />
       )}
 
       {/* Paper template / colour picker (was a dead menu item before) */}
@@ -4232,47 +4186,24 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           selection, so only fall back to this context menu when that toolbar
           isn't showing — otherwise both stacked up with duplicate actions. */}
       {contextMenu && !selectedInfo && !croppingImageId && (() => {
-        const info = (() => {
-          const page = pages[currentPageIndex];
-          if (!page) return null;
-          for (const kind of ['images', 'shapes', 'texts', 'stickers']) {
-            const obj = (page[kind] || []).find((o) => o.id === contextMenu.id);
-            if (obj) return { kind, obj };
-          }
-          return null;
-        })();
-        if (!info) return null;
-        const canRecolor = info.kind === 'shapes' || info.kind === 'texts' || info.kind === 'stickers';
-        const menuW = 180;
-        const left = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
-        const top = Math.min(contextMenu.y, window.innerHeight - 300);
-        const Item = ({ icon, label, onClick, danger }) => (
-          <button
-            onClick={() => { onClick(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', border: 'none', background: 'transparent', color: danger ? '#EF4444' : '#111827', cursor: 'pointer', fontSize: 14, textAlign: 'left', fontFamily: 'Kanit, sans-serif' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-          >{icon} {label}</button>
-        );
+        const page = pages[currentPageIndex];
+        let kind = null;
+        for (const k of ['images', 'shapes', 'texts', 'stickers']) {
+          if ((page?.[k] || []).some((o) => o.id === contextMenu.id)) { kind = k; break; }
+        }
+        if (!kind) return null;
         return (
-          <>
-            <div onPointerDown={() => setContextMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
-            <div style={{ position: 'fixed', left, top, zIndex: 201, width: menuW, background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)', borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)', border: '1px solid rgba(0,0,0,0.06)', padding: 6, overflow: 'hidden' }}>
-              <Item icon={<FileStack size={17} color="#4B5563" />} label="ทำซ้ำ" onClick={duplicateSelectedObject} />
-              <Item icon={<ChevronsUp size={17} color="#4B5563" />} label="นำไปด้านหน้า" onClick={() => reorderSelectedObject(true)} />
-              <Item icon={<ChevronsDown size={17} color="#4B5563" />} label="ส่งไปด้านหลัง" onClick={() => reorderSelectedObject(false)} />
-              {canRecolor && (
-                <div style={{ padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: 6, borderTop: '1px solid #F3F4F6', marginTop: 4 }}>
-                  {['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#FEF08A'].map((c) => (
-                    <div key={c} onClick={() => { recolorSelectedObject(c); setContextMenu(null); }} style={{ width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)' }} />
-                  ))}
-                </div>
-              )}
-              <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 4 }}>
-                <Item icon={<Trash2 size={17} color="#EF4444" />} label="ลบ" onClick={deleteSelected} danger />
-              </div>
-            </div>
-          </>
+          <ObjectContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            canRecolor={kind === 'shapes' || kind === 'texts' || kind === 'stickers'}
+            onClose={() => setContextMenu(null)}
+            onDuplicate={duplicateSelectedObject}
+            onFront={() => reorderSelectedObject(true)}
+            onBack={() => reorderSelectedObject(false)}
+            onRecolor={recolorSelectedObject}
+            onDelete={deleteSelected}
+          />
         );
       })()}
 
@@ -4578,71 +4509,34 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         </div>
       )}
 
-      {/* Context menu for a single selected object, pinned just above it. */}
+      {/* Floating action bar pinned just above a single selected object. */}
       {selectedInfo && !readonly && !hasSelection && !croppingImageId && (() => {
          const { kind, obj, box } = selectedInfo;
          const left = (box.minX + pageX) * scale + position.x + ((box.maxX - box.minX) * scale) / 2;
          const top = (box.minY + pageY) * scale + position.y - 54;
-         const btn = { height: 32, padding: '0 10px', borderRadius: 10, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' };
-         const divider = <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 3px' }} />;
-         const swatches = kind === 'stickers' ? STICKY_COLORS : ['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'];
-
          return (
-           <div
-             onPointerDown={(e) => e.stopPropagation()}
-             onMouseDown={(e) => e.preventDefault()}
-             style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, maxWidth: 'calc(100vw - 20px)', overflowX: 'auto' }}
-           >
-              {kind === 'images' && (
-                <>
-                  <button style={btn} onClick={() => setCroppingImageId(obj.id)}><Crop size={16} strokeWidth={1.7} /> ครอบตัด</button>
-                  <button style={btn} onClick={() => { runOcrOnImage(obj); selectShape(null); }}><ScanText size={16} strokeWidth={1.7} /> ดึงข้อความ (OCR)</button>
-                  {divider}
-                </>
-              )}
-
-              {(kind === 'texts' || kind === 'stickers') && !obj.audioUrl && (
-                <>
-                  <button
-                    style={btn}
-                    onClick={() => {
-                      if (kind === 'texts') {
-                        setEditingTextId(obj.id); setEditingTextValue(obj.text || ''); isEditingText.current = true;
-                      } else {
-                        setEditingStickerId(obj.id); setEditingStickerValue(obj.text || '');
-                      }
-                      selectShape(null);
-                    }}
-                  >
-                    <Type size={16} strokeWidth={1.7} /> แก้ไข
-                  </button>
-                  {divider}
-                </>
-              )}
-
-              {kind !== 'images' && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {swatches.map(c => (
-                      <div
-                        key={c}
-                        title="เปลี่ยนสี"
-                        onClick={() => recolorSelectedObject(c)}
-                        style={{ width: 18, height: 18, borderRadius: kind === 'stickers' ? 5 : '50%', background: c, cursor: 'pointer', boxShadow: `inset 0 0 0 1px ${HW.hairline}` }}
-                      />
-                    ))}
-                  </div>
-                  {divider}
-                </>
-              )}
-
-              <button style={btn} onClick={() => reorderSelectedObject(true)} title="นำไปด้านหน้า"><ChevronsUp size={16} strokeWidth={1.7} /></button>
-              <button style={btn} onClick={() => reorderSelectedObject(false)} title="ส่งไปด้านหลัง"><ChevronsDown size={16} strokeWidth={1.7} /></button>
-              {divider}
-              <button style={btn} onClick={duplicateSelectedObject} title="ทำซ้ำ"><FileStack size={16} strokeWidth={1.7} /></button>
-              <button style={{ ...btn, color: '#EF4444' }} onClick={deleteSelected} title="ลบ"><Trash2 size={16} strokeWidth={1.7} /></button>
-              <button style={{ ...btn, color: HW.accent }} onClick={() => selectShape(null)} title="เสร็จสิ้น"><Check size={17} strokeWidth={2} /></button>
-           </div>
+           <SelectionToolbar
+             left={left}
+             top={top}
+             kind={kind}
+             canEdit={(kind === 'texts' || kind === 'stickers') && !obj.audioUrl}
+             onCrop={() => setCroppingImageId(obj.id)}
+             onOcr={() => { runOcrOnImage(obj); selectShape(null); }}
+             onEdit={() => {
+               if (kind === 'texts') {
+                 setEditingTextId(obj.id); setEditingTextValue(obj.text || ''); isEditingText.current = true;
+               } else {
+                 setEditingStickerId(obj.id); setEditingStickerValue(obj.text || '');
+               }
+               selectShape(null);
+             }}
+             onRecolor={recolorSelectedObject}
+             onFront={() => reorderSelectedObject(true)}
+             onBack={() => reorderSelectedObject(false)}
+             onDuplicate={duplicateSelectedObject}
+             onDelete={deleteSelected}
+             onDone={() => selectShape(null)}
+           />
          );
       })()}
 
