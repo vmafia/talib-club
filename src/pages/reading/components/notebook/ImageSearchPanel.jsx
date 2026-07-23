@@ -32,21 +32,6 @@ export default function ImageSearchPanel({ query, setQuery, results, loading, on
           </button>
         </form>
 
-        <button 
-          type="button"
-          onClick={() => {
-            const searchUrl = query.trim() 
-              ? `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}` 
-              : 'https://images.google.com/';
-            window.open(searchUrl, 'GoogleImagesSearch', 'width=1000,height=700,left=100,top=100');
-          }}
-          style={{ width: '100%', marginBottom: 12, padding: '8px 12px', borderRadius: 8, border: `1px solid ${HW.accent}`, background: 'rgba(16,185,129,0.05)', color: HW.accent, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, transition: 'all 0.2s' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.05)'; }}
-        >
-          <Search size={15} /> เปิดหน้าต่าง Google ค้นหารูปภาพ (ลากรูปมาวางได้เลย)
-        </button>
-
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {loading && results.length === 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 10 }}>
