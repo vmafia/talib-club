@@ -231,6 +231,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   // fetched straight into a data URL and stored like any uploaded image.
   const [showImgSearch, setShowImgSearch] = useState(false);
   const [showAi, setShowAi] = useState(false);
+  // One-time hint (per book) that the book's PDF page can't be drawn on directly —
+  // it has to be captured/imported into the notebook first.
+  const [showPdfHint, setShowPdfHint] = useState(() => {
+    try { return !localStorage.getItem(`talib_pdf_hint_${bookId}`); } catch { return true; }
+  });
+  const dismissPdfHint = () => {
+    setShowPdfHint(false);
+    try { localStorage.setItem(`talib_pdf_hint_${bookId}`, '1'); } catch { /* ignore */ }
+  };
   const [imgQuery, setImgQuery] = useState("");
   const [imgResults, setImgResults] = useState([]);
   const [imgLoading, setImgLoading] = useState(false);
@@ -415,16 +424,26 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     });
   };
 
-  // Emoji lands as a large, scalable text object near the middle of the page.
+  // Emoji lands as a large, scalable text object at the centre of whatever is
+  // currently on screen, so it appears where the user is looking even when
+  // they've zoomed/panned into a corner (not off at the page centre).
   const insertEmoji = (emoji) => {
     const page = pagesRef.current[currentPageIndex] || { width: 800, height: 1130 };
-    const jitter = () => (Math.random() - 0.5) * 60;
+    const jitter = () => (Math.random() - 0.5) * 40;
+    let cx = page.width / 2, cy = page.height / 2;
+    const stage = stageRef.current;
+    if (stage) {
+      const rect = stage.container().getBoundingClientRect();
+      const s = stage.scaleX() || scale || 1;
+      cx = (rect.width / 2 - stage.x()) / s - pageX;
+      cy = (rect.height / 2 - stage.y()) / s - pageY;
+    }
     pushHistory();
     updatePage(currentPageIndex, (p) => {
       if (!p.texts) p.texts = [];
       p.texts.push({
         id: `text-${Date.now()}`, text: emoji, isEmoji: true,
-        x: page.width / 2 - 32 + jitter(), y: page.height / 2 - 32 + jitter(),
+        x: cx - 32 + jitter(), y: cy - 32 + jitter(),
         color: '#111827', size: 60, fontFamily: 'Kanit', bold: false, italic: false,
         underline: false, strikethrough: false, align: 'left', list: 'none',
       });
@@ -438,7 +457,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [penOpacity, setPenOpacity] = useState(1);
   const [stickerStyle, setStickerStyle] = useState('classic');
   // Huawei Notes offers two erasers: whole-stroke and area ("pixel").
-  const [eraserSettings, setEraserSettings] = useState({ mode: 'stroke', size: 24, eraseObjects: true });
+  // eraseObjects defaults OFF: the eraser only removes ink unless the user opts
+  // in, so beginners can't wipe out images/text/stickers without meaning to.
+  const [eraserSettings, setEraserSettings] = useState({ mode: 'stroke', size: 24, eraseObjects: false });
   // Stylus handling. 'auto' draws with whatever touches the screen; 'pen' ignores
   // finger input while drawing so a resting palm can't leave marks. The choice is
   // persisted, and the first pen contact auto-enables 'pen' (see handlePointerDown)
@@ -3270,6 +3291,21 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', padding: '12px 22px', borderRadius: 999, boxShadow: '0 8px 28px rgba(0,0,0,0.14)', fontWeight: 700, color: HW.text, fontSize: 15 }}>
             <ImageIcon size={20} color={HW.accent} /> วางรูปที่นี่เพื่อแทรกลงสมุด
           </div>
+        </div>
+      )}
+
+      {/* Hint: the book's PDF page is read-only; capture/import it to write on it */}
+      {showPdfHint && !readonly && activeBook?.book?.fileUrl && !isMobile && (
+        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 44, maxWidth: 'calc(100% - 24px)', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, background: 'rgba(255,251,235,0.97)', border: '1px solid #FDE68A', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', backdropFilter: 'blur(8px)' }}>
+          <FileText size={18} color="#B45309" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12.5, color: '#92400E', lineHeight: 1.4 }}>หน้า PDF ของหนังสือ <b>เขียนทับตรงๆ ไม่ได้</b> — ต้องดึงเข้ามาในโน้ตก่อน</span>
+          <button
+            onClick={() => { setBookSnipInitialPage(1); setShowBookSnip(true); dismissPdfHint(); }}
+            style={{ flexShrink: 0, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <Camera size={14} /> ดึงหน้าจากหนังสือ
+          </button>
+          <button onClick={dismissPdfHint} title="เข้าใจแล้ว" style={{ flexShrink: 0, border: 'none', background: 'transparent', color: '#92400E', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={16} /></button>
         </div>
       )}
 
