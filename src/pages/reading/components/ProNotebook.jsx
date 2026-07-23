@@ -102,7 +102,19 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [tool, setTool] = useState('pen'); // 'pen', 'pencil', 'highlighter', 'eraser', 'pan', 'text', 'laser', 'shape', 'lasso'
   const [shapeType, setShapeType] = useState('rect'); // 'rect', 'circle', 'line'
   const [isSpaceDown, setIsSpaceDown] = useState(false);
-  
+
+  // Item 7 (group C): the first time the lasso is picked, point out that two
+  // fingers still pan/zoom — so users don't feel forced to switch tools to move
+  // around. The gesture already works in every tool (handlePinch is tool-agnostic);
+  // this is pure discovery, no behaviour change and nothing to tune on-device.
+  useEffect(() => {
+    if (tool !== 'lasso') return;
+    if (typeof localStorage === 'undefined') return;
+    if (localStorage.getItem('talib_lasso_pan_hint') === 'seen') return;
+    localStorage.setItem('talib_lasso_pan_hint', 'seen');
+    toast('โหมดบ่วง: ใช้สองนิ้วเลื่อน/ซูมหน้าได้เลย ไม่ต้องสลับเครื่องมือ', { icon: '🤏', duration: 4500 });
+  }, [tool]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
