@@ -319,11 +319,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      })();
 
      try {
-        // Google first (if configured) so its results head the grid; show them
-        // immediately, then fill in the keyless sources.
-        await google;
-        if (merged.length) setImgResults([...merged]);
-        await Promise.all([wikiArticles('th'), wikiArticles('en'), commons, openverse]);
+        // Run every source in parallel and paint results as each arrives — don't
+        // block the fast keyless sources behind Google, which round-trips to a
+        // serverless function and can be slow or rate-limited.
+        const sources = [google, commons, openverse, wikiArticles('th'), wikiArticles('en')];
+        sources.forEach((p) => p.then(() => setImgResults([...merged])));
+        await Promise.allSettled(sources);
         setImgResults([...merged]);
         if (!merged.length) toast('ไม่พบรูปภาพที่ค้นหา — ลองคำอื่น');
      } catch (e) {
@@ -3863,6 +3864,23 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                       setEditingTextValue(t.text);
                       isEditingText.current = true;
                    }
+                }}
+                onDblClick={() => {
+                   // Double-tap edits text from ANY tool (e.g. an OCR note you
+                   // selected with the pan tool), so you don't have to switch to
+                   // the text tool first.
+                   if (t.isEmoji) return;
+                   selectShape(null);
+                   setEditingTextId(t.id);
+                   setEditingTextValue(t.text);
+                   isEditingText.current = true;
+                }}
+                onDblTap={() => {
+                   if (t.isEmoji) return;
+                   selectShape(null);
+                   setEditingTextId(t.id);
+                   setEditingTextValue(t.text);
+                   isEditingText.current = true;
                 }}
               >
                 {editingTextId !== t.id && (() => {

@@ -35,19 +35,29 @@ export default async function handler(req) {
   }
 
   try {
-    // Forward the incoming body untouched (JSON or multipart/form-data — the
-    // original content-type carries the multipart boundary), adding only auth.
+    // Buffer the body before forwarding. Streaming req.body across a redirect
+    // (the upstream 307/308s on auth or trailing-slash normalisation) fails with
+    // "a request with a one-time-use body … encountered a redirect"; a buffer is
+    // replayable so fetch can follow the redirect cleanly.
     const headers = new Headers();
     headers.set('Authorization', `Bearer ${key}`);
     const ct = req.headers.get('content-type');
     if (ct) headers.set('content-type', ct);
+    const body = await req.arrayBuffer();
 
     const upstream = await fetch(`${BASE}/api/v1/${path}`, {
       method: 'POST',
       headers,
-      body: req.body,
-      duplex: 'half',
+      body,
     });
+
+    // A rejected key lands us on the login page instead of an answer; surface a
+    // clear, actionable error instead of leaking the HTML login screen.
+    if (upstream.redirected && /login|auth/i.test(upstream.url)) {
+      return new Response(JSON.stringify({ error: 'ai_auth_failed', detail: 'upstream redirected to login — UNCLEDEV_AI_KEY is missing/invalid/expired' }), {
+        status: 502, headers: { ...cors, 'Content-Type': 'application/json' },
+      });
+    }
 
     const respHeaders = new Headers(cors);
     respHeaders.set('content-type', upstream.headers.get('content-type') || 'application/json');

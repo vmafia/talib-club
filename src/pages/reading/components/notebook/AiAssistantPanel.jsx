@@ -34,6 +34,7 @@ export default function AiAssistantPanel({ onClose, onInsertText }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.error === 'not_configured') setError('ยังไม่ได้ตั้งค่า AI — ต้องใส่ UNCLEDEV_AI_KEY ใน Vercel แล้ว redeploy');
+        else if (data.error === 'ai_auth_failed') setError('AI ปฏิเสธการเข้าถึง — UNCLEDEV_AI_KEY อาจหมดอายุ/ไม่ถูกต้อง ตรวจสอบใน Vercel');
         else setError(`เรียก AI ไม่สำเร็จ (${data.error || res.status})`);
         return;
       }

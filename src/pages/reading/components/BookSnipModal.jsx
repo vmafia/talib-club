@@ -52,7 +52,11 @@ export default function BookSnipModal({ fileUrl, onInsert, onClose, initialPage 
         if (cancelled) return;
         pdfRef.current = pdf;
         setNumPages(pdf.numPages);
-        await renderPage(pdf, 1);
+        // Open on the page we were asked for (e.g. a tapped page link), not
+        // always page 1 — otherwise the counter says "5" while the cover shows.
+        const startPage = Math.max(1, Math.min(pdf.numPages, initialPage || 1));
+        setPageNum(startPage);
+        await renderPage(pdf, startPage);
         if (!cancelled) setStatus('ready');
       } catch (err) {
         console.error('Book snip: PDF load failed', err);
