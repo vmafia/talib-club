@@ -23,6 +23,11 @@ import { useDragScroll } from './notebook/useDragScroll.js';
 import ImageSearchPanel from './notebook/ImageSearchPanel.jsx';
 import ObjectContextMenu from './notebook/ObjectContextMenu.jsx';
 import SelectionToolbar from './notebook/SelectionToolbar.jsx';
+import LassoToolbar from './notebook/LassoToolbar.jsx';
+import StickyNoteEditor from './notebook/StickyNoteEditor.jsx';
+import TextEditor from './notebook/TextEditor.jsx';
+import PaperTemplateModal from './notebook/PaperTemplateModal.jsx';
+import ExportModal from './notebook/ExportModal.jsx';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -4207,181 +4212,37 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         );
       })()}
 
-      {/* Floating Textarea for inline editing */}
+      {/* Floating text editor (format toolbar + textarea) */}
       {(() => {
          if (!editingTextId) return null;
          const t = currentPage.texts?.find(tx => tx.id === editingTextId);
          if (!t) return null;
-         
-         const absoluteX = (t.x + pageX) * scale + position.x;
-         const absoluteY = (t.y + pageY) * scale + position.y;
-         
+         const upd = (fn) => updatePage(currentPageIndex, (page) => { const txt = page.texts?.find(tx => tx.id === editingTextId); if (txt) fn(txt); });
          return (
-           <div data-text-editor style={{ position: 'absolute', top: absoluteY - 50, left: absoluteX, zIndex: 101, display: 'flex', flexDirection: 'column', gap: 8 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'white', padding: '6px', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', border: '1px solid var(--br2)', maxWidth: '92vw', overflowX: 'auto' }}>
-                {/* Font selector — lets you restyle an existing text's font after it's created */}
-                <select
-                  value={t.fontFamily || 'Kanit'}
-                  onMouseDown={e => e.stopPropagation()}
-                  onChange={(e) => {
-                     const font = e.target.value;
-                     setTextStyle(s => ({ ...s, fontFamily: font }));
-                     updatePage(currentPageIndex, (page) => {
-                        const txt = page.texts?.find(tx => tx.id === editingTextId);
-                        if (txt) txt.fontFamily = font;
-                     });
-                     // Return focus to the textarea so a later tap on the canvas still
-                     // commits and closes the editor normally.
-                     setTimeout(() => textareaRef.current?.focus(), 0);
-                  }}
-                  title="เปลี่ยนฟอนต์"
-                  style={{ height: 28, borderRadius: 6, border: '1px solid var(--br2)', background: '#F9FAFB', color: '#111827', fontSize: 12.5, padding: '0 6px', cursor: 'pointer', fontFamily: t.fontFamily || 'Kanit', maxWidth: 118 }}
-                >
-                  {FONT_OPTIONS.map(f => (
-                    <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
-                  ))}
-                </select>
-                <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }}></div>
-                {[
-                  { id: 'bold', icon: <span style={{fontWeight: 700, fontFamily: 'serif', fontSize: 16}}>B</span>, prop: 'bold' },
-                  { id: 'italic', icon: <span style={{fontStyle: 'italic', fontFamily: 'serif', fontSize: 16}}>I</span>, prop: 'italic' },
-                  { id: 'underline', icon: <span style={{textDecoration: 'underline', fontFamily: 'serif', fontSize: 16}}>U</span>, prop: 'underline' }
-                ].map(btn => (
-                  <button
-                    key={btn.id}
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={(e) => {
-                       e.stopPropagation();
-                       updatePage(currentPageIndex, (page) => {
-                          const txt = page.texts?.find(tx => tx.id === editingTextId);
-                          if (txt) txt[btn.prop] = !txt[btn.prop];
-                       });
-                    }}
-                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: t[btn.prop] ? 'var(--teal-light)' : 'transparent', color: t[btn.prop] ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >{btn.icon}</button>
-                ))}
-                <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }}></div>
-                {[ 
-                  { id: 'left', icon: <AlignLeft size={16} />, prop: 'align', val: 'left' },
-                  { id: 'center', icon: <AlignCenter size={16} />, prop: 'align', val: 'center' },
-                  { id: 'right', icon: <AlignRight size={16} />, prop: 'align', val: 'right' }
-                ].map(btn => (
-                  <button
-                    key={btn.id}
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={(e) => {
-                       e.stopPropagation();
-                       updatePage(currentPageIndex, (page) => {
-                          const txt = page.texts?.find(tx => tx.id === editingTextId);
-                          if (txt) txt[btn.prop] = btn.val;
-                       });
-                    }}
-                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: (t.align || 'left') === btn.val ? 'var(--teal-light)' : 'transparent', color: (t.align || 'left') === btn.val ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >{btn.icon}</button>
-                ))}
-                <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }}></div>
-                {[ 
-                  { id: 'bullet', icon: <List size={16} />, prop: 'list', val: 'bullet' },
-                  { id: 'number', icon: <ListOrdered size={16} />, prop: 'list', val: 'number' }
-                ].map(btn => (
-                  <button
-                    key={btn.id}
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={(e) => {
-                       e.stopPropagation();
-                       updatePage(currentPageIndex, (page) => {
-                          const txt = page.texts?.find(tx => tx.id === editingTextId);
-                          if (txt) {
-                             if (txt.list === btn.val) txt.list = 'none';
-                             else txt.list = btn.val;
-                          }
-                       });
-                    }}
-                    style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: t.list === btn.val ? 'var(--teal-light)' : 'transparent', color: t.list === btn.val ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  >{btn.icon}</button>
-                ))}
-             </div>
-             <div style={{ position: 'relative' }}>
-               {(() => {
-                 const txt = pages[currentPageIndex]?.texts?.find(tx => tx.id === editingTextId);
-                 if (txt?.list === 'bullet' || txt?.list === 'number') {
-                   return (
-                     <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none', color: txt.color || 'black', fontSize: (txt.size || 24) * scale, fontFamily: txt.fontFamily || 'Kanit', lineHeight: 1.2, zIndex: 101 }}>
-                       {editingTextValue.split('\n').map((_, i) => <div key={i} style={{ minHeight: '1.2em', lineHeight: 1.2 }}>{txt.list === 'bullet' ? '•' : `${i + 1}.`}</div>)}
-                     </div>
-                   );
-                 }
-                 return null;
-               })()}
-             <textarea
-               key={`textarea-${editingTextId}`}
-               ref={textareaRef}
-               placeholder="พิมพ์ข้อความที่นี่..."
-               value={editingTextValue}
-               onChange={(e) => {
-                  const val = e.target.value;
-                  setEditingTextValue(val);
-                  // Persist live so switching focus to the font dropdown or a format
-                  // button never loses what's been typed.
-                  updatePage(currentPageIndex, (page) => {
-                     const txt = page.texts?.find(tx => tx.id === editingTextId);
-                     if (txt) txt.text = val;
-                  });
-               }}
-               onBlur={(e) => {
-                  // Keep the editor open when focus moves to one of its own controls
-                  // (the font <select>, alignment/list buttons) so they can restyle
-                  // the text that's still being edited.
-                  const editor = e.currentTarget.closest('[data-text-editor]');
-                  if (editor && e.relatedTarget && editor.contains(e.relatedTarget)) return;
-                  if (!isEditingText.current) return;
-                  isEditingText.current = false;
-
-                  if (editingTextValue.trim() === '') {
-                     updatePage(currentPageIndex, (page) => {
-                        page.texts = page.texts.filter(tx => tx.id !== editingTextId);
-                     });
-                  } else {
-                     updatePage(currentPageIndex, (page) => {
-                        const txt = page.texts?.find(tx => tx.id === editingTextId);
-                        if (txt) txt.text = editingTextValue;
-                     });
-                  }
-                  setEditingTextId(null);
-               }}
-               onPointerDown={(e) => e.stopPropagation()}
-               onMouseDown={(e) => e.stopPropagation()}
-               style={{
-                  margin: 0,
-                  padding: 8,
-                  paddingLeft: ['bullet', 'number'].includes(pages[currentPageIndex]?.texts?.find(tx => tx.id === editingTextId)?.list) ? ((pages[currentPageIndex]?.texts?.find(tx => tx.id === editingTextId)?.size || 24) * scale) + 12 : 8,
-                  border: '2px solid var(--teal)',
-                  background: 'rgba(255,255,255,0.95)',
-                  color: t.color,
-                  fontSize: `${t.size * scale}px`,
-                  fontFamily: t.fontFamily || 'Kanit',
-                  fontWeight: t.bold ? 700 : 400,
-                  fontStyle: t.italic ? 'italic' : 'normal',
-                  textDecoration: [t.underline ? 'underline' : '', t.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
-                  textAlign: t.align || 'left',
-                  lineHeight: 1.2,
-                  outline: 'none',
-                  resize: 'none',
-                  minWidth: 240,
-                  minHeight: 100,
-                  overflow: 'hidden',
-                  zIndex: 100,
-                  borderRadius: 8,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-               }}
-               onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                     if (textareaRef.current) textareaRef.current.blur();
-                  }
-               }}
-             />
-           </div>
-           </div>
+           <TextEditor
+             key={editingTextId}
+             x={(t.x + pageX) * scale + position.x}
+             y={(t.y + pageY) * scale + position.y}
+             scale={scale}
+             t={t}
+             value={editingTextValue}
+             textareaRef={textareaRef}
+             onChange={(val) => { setEditingTextValue(val); upd(txt => { txt.text = val; }); }}
+             onToggle={(prop) => upd(txt => { txt[prop] = !txt[prop]; })}
+             onAlign={(val) => upd(txt => { txt.align = val; })}
+             onList={(val) => upd(txt => { txt.list = txt.list === val ? 'none' : val; })}
+             onFont={(font) => { setTextStyle(s => ({ ...s, fontFamily: font })); upd(txt => { txt.fontFamily = font; }); }}
+             onCommit={() => {
+                if (!isEditingText.current) return;
+                isEditingText.current = false;
+                if (editingTextValue.trim() === '') {
+                   updatePage(currentPageIndex, (page) => { page.texts = page.texts.filter(tx => tx.id !== editingTextId); });
+                } else {
+                   upd(txt => { txt.text = editingTextValue; });
+                }
+                setEditingTextId(null);
+             }}
+           />
          );
       })()}
       
@@ -4390,63 +4251,32 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          if (!editingStickerId) return null;
          const st = currentPage.stickers?.find(s => s.id === editingStickerId);
          if (!st || st.audioUrl) return null;
-         
-         const absoluteX = (st.x + pageX) * scale + position.x;
-         const absoluteY = (st.y + pageY) * scale + position.y;
-         
          return (
-           <div style={{ position: 'absolute', top: absoluteY, left: absoluteX, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8 }}>
-             <textarea
-               ref={stickerTextareaRef}
-               autoFocus
-               placeholder="พิมพ์ข้อความที่นี่..."
-               value={editingStickerValue}
-               onChange={(e) => setEditingStickerValue(e.target.value)}
-               onBlur={() => {
-                  updatePage(currentPageIndex, (page) => {
-                     const sticker = page.stickers?.find(s => s.id === editingStickerId);
-                     if (sticker) sticker.text = editingStickerValue;
-                  });
-                  setEditingStickerId(null);
-               }}
-               onPointerDown={(e) => e.stopPropagation()}
-               onMouseDown={(e) => e.stopPropagation()}
-               style={{
-                  margin: 0,
-                  padding: 16,
-                  border: '2px solid var(--teal)',
-                  background: 'transparent',
-                  color: '#111827',
-                  fontSize: `${16 * scale}px`,
-                  fontFamily: 'Kanit, sans-serif',
-                  outline: 'none',
-                  resize: 'none',
-                  width: 150 * scale,
-                  height: 150 * scale,
-                  overflow: 'hidden',
-                  borderRadius: st.style === 'round' ? 16 * scale : 2 * scale,
-               }}
-             />
-             {/* preventDefault keeps focus on the textarea. Without it the button
-                 steals focus, onBlur closes the editor, and this button unmounts
-                 before the click can land — so delete silently did nothing. */}
-             <button
-               onPointerDown={(e) => e.stopPropagation()}
-               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-               onClick={() => {
-                 const id = editingStickerId;
-                 pushHistory();
-                 updatePage(currentPageIndex, (page) => {
-                    page.stickers = (page.stickers || []).filter(s => s.id !== id);
-                 });
-                 setEditingStickerId(null);
-                 toast.success('ลบโพสต์อิทแล้ว');
-               }}
-               style={{ background: '#EF4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', alignSelf: 'flex-start', fontSize: 13, boxShadow: '0 2px 8px rgba(239,68,68,0.2)' }}
-             >
-                ลบโพสต์อิท
-             </button>
-           </div>
+           <StickyNoteEditor
+             x={(st.x + pageX) * scale + position.x}
+             y={(st.y + pageY) * scale + position.y}
+             scale={scale}
+             round={st.style === 'round'}
+             value={editingStickerValue}
+             onChange={setEditingStickerValue}
+             textareaRef={stickerTextareaRef}
+             onCommit={() => {
+                updatePage(currentPageIndex, (page) => {
+                   const sticker = page.stickers?.find(s => s.id === editingStickerId);
+                   if (sticker) sticker.text = editingStickerValue;
+                });
+                setEditingStickerId(null);
+             }}
+             onDelete={() => {
+                const id = editingStickerId;
+                pushHistory();
+                updatePage(currentPageIndex, (page) => {
+                   page.stickers = (page.stickers || []).filter(s => s.id !== id);
+                });
+                setEditingStickerId(null);
+                toast.success('ลบโพสต์อิทแล้ว');
+             }}
+           />
          );
       })()}
       {/* Zoom-in writing strip */}
@@ -4545,162 +4375,51 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          const left = (lassoBounds.minX + lassoGroupPos.x + pageX) * scale + position.x
                     + ((lassoBounds.maxX - lassoBounds.minX) * scale) / 2;
          const top = (lassoBounds.minY + lassoGroupPos.y + pageY) * scale + position.y - 58;
-         const btn = { width: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-
          return (
-           <div
-             onPointerDown={(e) => e.stopPropagation()}
-             style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}` }}
-           >
-              <button title="ทำซ้ำ" onClick={duplicateLassoSelection} style={btn}><FileStack size={18} strokeWidth={1.6} /></button>
-              <button title="ย่อ" onClick={() => scaleLassoSelection(0.85)} style={btn}><Minus size={18} strokeWidth={1.8} /></button>
-              <button title="ขยาย" onClick={() => scaleLassoSelection(1.18)} style={btn}><Plus size={18} strokeWidth={1.8} /></button>
-
-              <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
-
-              {['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'].map(c => (
-                 <div
-                   key={c}
-                   title="เปลี่ยนสี"
-                   onClick={() => recolorLassoSelection(c)}
-                   style={{ width: 18, height: 18, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, margin: '0 2px' }}
-                 />
-              ))}
-              {/* Full palette for the lasso selection */}
-              <label title="เลือกสีเอง (จานสี)" style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', margin: '0 2px', background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, display: 'block' }}>
-                 <input type="color" defaultValue="#111827" onChange={(e) => recolorLassoSelection(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-              </label>
-
-              <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
-
-              <button title="ลบ" onClick={deleteLassoSelection} style={{ ...btn, color: '#EF4444' }}><Trash2 size={18} strokeWidth={1.6} /></button>
-              <button title="เสร็จสิ้น" onClick={bakeLassoSelection} style={{ ...btn, color: HW.accent }}><Check size={18} strokeWidth={2} /></button>
-           </div>
+           <LassoToolbar
+             left={left}
+             top={top}
+             onDuplicate={duplicateLassoSelection}
+             onScale={scaleLassoSelection}
+             onRecolor={recolorLassoSelection}
+             onDelete={deleteLassoSelection}
+             onDone={bakeLassoSelection}
+           />
          );
       })()}
 
       {/* Paper template picker. The "เปลี่ยนแม่แบบกระดาษ" button set this flag but
           nothing ever rendered — so the whole feature looked broken. */}
-      {showPageSettings && !readonly && (() => {
-        const paperTypes = [
-          { id: 'blank', label: 'เปล่า' },
-          { id: 'lines', label: 'เส้นบรรทัด' },
-          { id: 'grid', label: 'ตาราง' },
-          { id: 'dots', label: 'จุดไข่ปลา' },
-        ];
-        const paperColors = [
-          { id: 'white', label: 'ขาว', bg: '#FFFFFF' },
-          { id: 'yellow', label: 'ครีม', bg: '#FEF3C7' },
-          { id: 'dark', label: 'มืด', bg: '#1F2937' },
-        ];
-        const cur = pages[currentPageIndex] || {};
-        const isDark = cur.paperColor === 'dark';
-        const lineCol = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)';
-        const previewBg = (id) => (id === 'yellow' ? '#FEF3C7' : id === 'dark' ? '#1F2937' : '#FFFFFF');
-        const patternCss = (type, col) => {
-          if (type === 'lines') return { backgroundImage: `repeating-linear-gradient(${col} 0 1px, transparent 1px 12px)` };
-          if (type === 'grid') return { backgroundImage: `repeating-linear-gradient(${col} 0 1px, transparent 1px 12px), repeating-linear-gradient(90deg, ${col} 0 1px, transparent 1px 12px)` };
-          if (type === 'dots') return { backgroundImage: `radial-gradient(${col} 1.2px, transparent 1.3px)`, backgroundSize: '12px 12px' };
-          return {};
-        };
-        const applyPaper = (patch, allPages) => {
-          pushHistory();
-          if (allPages) {
-            setPages((prev) => prev.map((p) => (p.src ? p : { ...p, ...patch })));
-          } else {
-            updatePage(currentPageIndex, (p) => { Object.assign(p, patch); });
-          }
-        };
-        return (
-          <div onPointerDown={(e) => { if (e.target === e.currentTarget) setShowPageSettings(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'white', borderRadius: 18, width: '100%', maxWidth: 460, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', fontFamily: 'Kanit, sans-serif' }}>แม่แบบกระดาษ</h3>
-                <button onClick={() => setShowPageSettings(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6B7280', display: 'flex' }}><X size={22} /></button>
-              </div>
-
-              {cur.src && (
-                <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 10, background: '#FEF3C7', color: '#92400E', fontSize: 12.5, fontFamily: 'Kanit, sans-serif' }}>
-                  หน้านี้เป็นหน้าจาก PDF — เปลี่ยนแม่แบบได้เฉพาะหน้าเปล่าเท่านั้น
-                </div>
-              )}
-
-              {/* Pattern */}
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8, fontFamily: 'Kanit, sans-serif' }}>ลวดลาย</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-                {paperTypes.map((pt) => {
-                  const active = (cur.paperType || 'lines') === pt.id;
-                  return (
-                    <button key={pt.id} disabled={!!cur.src} onClick={() => applyPaper({ paperType: pt.id })} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: cur.src ? 'default' : 'pointer', opacity: cur.src ? 0.4 : 1, padding: 0 }}>
-                      <div style={{ width: '100%', aspectRatio: '3/4', borderRadius: 8, background: previewBg(cur.paperColor), boxShadow: active ? `0 0 0 2.5px ${HW.accent}` : 'inset 0 0 0 1px rgba(0,0,0,0.1)', ...patternCss(pt.id, lineCol) }} />
-                      <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? HW.accent : '#4B5563', fontFamily: 'Kanit, sans-serif' }}>{pt.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Colour */}
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8, fontFamily: 'Kanit, sans-serif' }}>สีกระดาษ</div>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 22 }}>
-                {paperColors.map((pc) => {
-                  const active = (cur.paperColor || 'white') === pc.id;
-                  return (
-                    <button key={pc.id} disabled={!!cur.src} onClick={() => applyPaper({ paperColor: pc.id })} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: cur.src ? 'default' : 'pointer', opacity: cur.src ? 0.4 : 1 }}>
-                      <div style={{ width: '100%', height: 40, borderRadius: 8, background: pc.bg, boxShadow: active ? `0 0 0 2.5px ${HW.accent}` : 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
-                      <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? HW.accent : '#4B5563', fontFamily: 'Kanit, sans-serif' }}>{pc.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => { const cp = pages[currentPageIndex]; if (!cp?.src) applyPaper({ paperType: cp?.paperType, paperColor: cp?.paperColor }, true); toast.success('ใช้กับทุกหน้าแล้ว'); }} disabled={!!cur.src} style={{ flex: 1, height: 42, borderRadius: 11, border: '1px solid #D1D5DB', background: 'white', color: cur.src ? '#D1D5DB' : '#4B5563', fontWeight: 600, cursor: cur.src ? 'default' : 'pointer', fontFamily: 'Kanit, sans-serif', fontSize: 13.5 }}>ใช้กับทุกหน้า</button>
-                <button onClick={() => setShowPageSettings(false)} style={{ flex: 1, height: 42, borderRadius: 11, border: 'none', background: HW.accent, color: 'white', fontWeight: 600, cursor: 'pointer', fontFamily: 'Kanit, sans-serif', fontSize: 13.5 }}>ปิด</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {showPageSettings && !readonly && (
+        <PaperTemplateModal
+          page={pages[currentPageIndex] || {}}
+          onClose={() => setShowPageSettings(false)}
+          onApply={(patch, allPages) => {
+            pushHistory();
+            if (allPages) {
+              setPages((prev) => prev.map((p) => (p.src ? p : { ...p, ...patch })));
+              toast.success('ใช้กับทุกหน้าแล้ว');
+            } else {
+              updatePage(currentPageIndex, (p) => { Object.assign(p, patch); });
+            }
+          }}
+        />
+      )}
 
       {/* Export modal — choose format (image / PDF) and scope (this page / all) */}
-      {showExport && (() => {
-        const Choice = ({ selected, onClick, icon, title, sub }) => (
-          <button onClick={onClick} disabled={exporting} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', borderRadius: 14, border: `2px solid ${selected ? HW.accent : 'rgba(0,0,0,0.08)'}`, background: selected ? HW.accentSoft : 'white', cursor: exporting ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-            {icon}
-            <span style={{ fontSize: 14, fontWeight: 700, color: selected ? HW.accent : '#111827', fontFamily: 'Kanit, sans-serif' }}>{title}</span>
-            {sub && <span style={{ fontSize: 11.5, color: '#9CA3AF', fontFamily: 'Kanit, sans-serif' }}>{sub}</span>}
-          </button>
-        );
-        return (
-          <div onPointerDown={(e) => { if (e.target === e.currentTarget && !exporting) setShowExport(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'white', borderRadius: 18, width: '100%', maxWidth: 440, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827', fontFamily: 'Kanit, sans-serif' }}>ส่งออกสมุดโน้ต</h3>
-                <button onClick={() => !exporting && setShowExport(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6B7280', display: 'flex' }}><X size={22} /></button>
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8, fontFamily: 'Kanit, sans-serif' }}>รูปแบบไฟล์</div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-                <Choice selected={exportFormat === 'png'} onClick={() => setExportFormat('png')} icon={<ImageIcon size={26} color={exportFormat === 'png' ? HW.accent : '#6B7280'} />} title="รูปภาพ" sub="ไฟล์ .png" />
-                <Choice selected={exportFormat === 'pdf'} onClick={() => setExportFormat('pdf')} icon={<FileText size={26} color={exportFormat === 'pdf' ? HW.accent : '#6B7280'} />} title="PDF" sub="รวมทุกหน้าในไฟล์เดียว" />
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8, fontFamily: 'Kanit, sans-serif' }}>ขอบเขต</div>
-              <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
-                <Choice selected={exportScope === 'current'} onClick={() => setExportScope('current')} icon={<FileStack size={26} color={exportScope === 'current' ? HW.accent : '#6B7280'} />} title="เฉพาะหน้านี้" sub={`หน้า ${currentPageIndex + 1}`} />
-                <Choice selected={exportScope === 'all'} onClick={() => setExportScope('all')} icon={<Columns size={26} color={exportScope === 'all' ? HW.accent : '#6B7280'} />} title="ทุกหน้า" sub={`${pages.length} หน้า`} />
-              </div>
-
-              <button onClick={() => runExport(exportFormat, exportScope)} disabled={exporting} style={{ width: '100%', height: 46, borderRadius: 12, border: 'none', background: HW.accent, color: 'white', fontWeight: 700, fontSize: 15, cursor: exporting ? 'default' : 'pointer', fontFamily: 'Kanit, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: exporting ? 0.7 : 1 }}>
-                {exporting ? 'กำลังส่งออก...' : (<><Download size={18} /> ดาวน์โหลด</>)}
-              </button>
-              {exportScope === 'all' && exportFormat === 'png' && (
-                <p style={{ fontSize: 11.5, color: '#9CA3AF', textAlign: 'center', marginTop: 10, marginBottom: 0, fontFamily: 'Kanit, sans-serif' }}>* จะดาวน์โหลดแยกเป็นไฟล์รูปทีละหน้า</p>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {showExport && (
+        <ExportModal
+          format={exportFormat}
+          setFormat={setExportFormat}
+          scope={exportScope}
+          setScope={setExportScope}
+          exporting={exporting}
+          pageCount={pages.length}
+          currentIndex={currentPageIndex}
+          onExport={runExport}
+          onClose={() => setShowExport(false)}
+        />
+      )}
 
       {/* Snip-from-book overlay */}
       {/* Jump-back link on book snips. Shown only in move mode so it never sits in
