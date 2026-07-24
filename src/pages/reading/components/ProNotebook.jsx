@@ -78,15 +78,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null); // null = indeterminate
 
-  // Whenever the tool changes away from 'text', force close any open text editor
-  useEffect(() => {
-    if (tool !== 'text' && editingTextId) {
-      if (textareaRef.current) {
-        textareaRef.current.blur();
-      }
-    }
-  }, [tool, editingTextId]);
-
   useEffect(() => {
      const loadData = async () => {
         setIsSyncing(true);
@@ -178,6 +169,18 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         }, 150);
      }
   }, [editingTextId]);
+
+  // Whenever the tool changes away from 'text', force close any open text editor.
+  // Declared here (not at the top of the component) so `tool`/`editingTextId`/
+  // `textareaRef` already exist — referencing them earlier throws a TDZ
+  // ("Cannot access 'tool' before initialization") that crashes the reader.
+  useEffect(() => {
+    if (tool !== 'text' && editingTextId) {
+      if (textareaRef.current) {
+        textareaRef.current.blur();
+      }
+    }
+  }, [tool, editingTextId]);
 
   // Size the edit box to its content whenever it opens or its text changes, so an
   // existing multi-line note (bullets/numbered lists) is fully visible right away.
