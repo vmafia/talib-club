@@ -78,6 +78,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null); // null = indeterminate
 
+  // Whenever the tool changes away from 'text', force close any open text editor
+  useEffect(() => {
+    if (tool !== 'text' && editingTextId) {
+      if (textareaRef.current) {
+        textareaRef.current.blur();
+      }
+    }
+  }, [tool, editingTextId]);
+
   useEffect(() => {
      const loadData = async () => {
         setIsSyncing(true);

@@ -356,11 +356,6 @@ export default function TextEditor({ x, y, scale, t, textareaRef, onChange, onLi
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onBlur={(e) => {
-          // If the blur happens extremely fast after mount (e.g. mouseup on the canvas stealing focus back), ignore it
-          if (Date.now() - mountTime.current < 250) {
-            setTimeout(() => edRef.current?.focus(), 10);
-            return;
-          }
           // Stay open when focus moves to one of our own controls.
           const editor = e.currentTarget.closest('[data-text-editor]');
           if (editor && e.relatedTarget && editor.contains(e.relatedTarget)) return;
