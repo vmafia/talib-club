@@ -278,64 +278,61 @@ export default function TextEditor({ x, y, scale, t, textareaRef, onChange, onLi
         position: 'absolute', 
         top: y < 60 ? '100%' : 'auto', 
         bottom: y >= 60 ? '100%' : 'auto', 
-        marginTop: y < 60 ? 8 : 0, 
-        marginBottom: y >= 60 ? 8 : 0, 
+        marginTop: y < 60 ? 6 : 0, 
+        marginBottom: y >= 60 ? 6 : 0, 
         left: 0, 
-        display: 'flex', alignItems: 'center', gap: 3, background: 'white', padding: 6, borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', border: '1px solid var(--br2)', maxWidth: '92vw', overflowX: 'auto' 
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, background: 'white', padding: '6px 8px', borderRadius: 10, boxShadow: '0 4px 24px rgba(0,0,0,0.15)', border: '1px solid var(--br2)', width: 'max-content', maxWidth: 'calc(100vw - 32px)'
       }}>
         <select
           value={fontFamily}
           onChange={(e) => { onFont(e.target.value); setTimeout(() => edRef.current?.focus(), 0); }}
           title="เปลี่ยนฟอนต์"
-          style={{ height: 30, borderRadius: 8, border: '1px solid var(--br2)', background: '#F9FAFB', color: '#111827', fontSize: 12.5, padding: '0 6px', cursor: 'pointer', fontFamily, maxWidth: 112, flexShrink: 0 }}
+          style={{ height: 26, borderRadius: 6, border: '1px solid var(--br2)', background: '#F9FAFB', color: '#111827', fontSize: 12, padding: '0 4px', cursor: 'pointer', fontFamily, maxWidth: 100, flexShrink: 0 }}
         >
           {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
         </select>
 
         {onSize && (
-          <>
-            {sep}
-            <button {...noFocusSteal} onClick={() => onSize(Math.max(10, size - 2))} style={toolBtn(false)} title="เล็กลง"><Minus size={15} /></button>
-            <span style={{ fontSize: 12.5, color: '#4B5563', minWidth: 22, textAlign: 'center', flexShrink: 0 }}>{size}</span>
-            <button {...noFocusSteal} onClick={() => onSize(Math.min(96, size + 2))} style={toolBtn(false)} title="ใหญ่ขึ้น"><Plus size={15} /></button>
-          </>
+          <div style={{ display: 'flex', alignItems: 'center', background: '#F9FAFB', border: '1px solid var(--br2)', borderRadius: 6, height: 26 }}>
+            <button {...noFocusSteal} onClick={() => onSize(Math.max(10, size - 2))} style={{ ...toolBtn(false), width: 24, height: 24 }} title="เล็กลง"><Minus size={13} /></button>
+            <span style={{ fontSize: 12, color: '#4B5563', minWidth: 20, textAlign: 'center' }}>{size}</span>
+            <button {...noFocusSteal} onClick={() => onSize(Math.min(96, size + 2))} style={{ ...toolBtn(false), width: 24, height: 24 }} title="ใหญ่ขึ้น"><Plus size={13} /></button>
+          </div>
         )}
-
-        {sep}
-        {[
-          { id: 'bold', label: <span style={{ fontWeight: 800, fontFamily: 'serif', fontSize: 15 }}>B</span> },
-          { id: 'italic', label: <span style={{ fontStyle: 'italic', fontFamily: 'serif', fontSize: 15 }}>I</span> },
-          { id: 'underline', label: <span style={{ textDecoration: 'underline', fontFamily: 'serif', fontSize: 15 }}>U</span> },
-          { id: 'strikethrough', label: <span style={{ textDecoration: 'line-through', fontFamily: 'serif', fontSize: 15 }}>S</span> },
-        ].map((b) => (
-          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); toggleFlag(b.id); }} style={toolBtn(active[b.id])}>{b.label}</button>
-        ))}
 
         {onColor && (
-          <>
-            {sep}
-            <label title="สีข้อความ" {...noFocusSteal} style={{ width: 22, height: 22, borderRadius: '50%', background: t.color || '#111827', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15)', cursor: 'pointer', flexShrink: 0, display: 'block', overflow: 'hidden' }}>
-              <input type="color" value={t.color || '#111827'} onChange={(e) => onColor(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-            </label>
-          </>
+          <label title="สีข้อความ" {...noFocusSteal} style={{ width: 22, height: 22, borderRadius: '50%', background: t.color || '#111827', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15)', cursor: 'pointer', flexShrink: 0, display: 'block', overflow: 'hidden', marginLeft: 2 }}>
+            <input type="color" value={t.color || '#111827'} onChange={(e) => onColor(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+          </label>
         )}
+        
+        <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 2px' }} />
 
-        {sep}
-        {[
-          { id: 'left', icon: <AlignLeft size={15} /> },
-          { id: 'center', icon: <AlignCenter size={15} /> },
-          { id: 'right', icon: <AlignRight size={15} /> },
-        ].map((b) => (
-          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); setAlign(b.id); }} style={toolBtn(active.align === b.id)}>{b.icon}</button>
-        ))}
+        <div style={{ display: 'flex', gap: 2 }}>
+          {[
+            { id: 'bold', label: <span style={{ fontWeight: 800, fontFamily: 'serif', fontSize: 14 }}>B</span> },
+            { id: 'italic', label: <span style={{ fontStyle: 'italic', fontFamily: 'serif', fontSize: 14 }}>I</span> },
+            { id: 'underline', label: <span style={{ textDecoration: 'underline', fontFamily: 'serif', fontSize: 14 }}>U</span> },
+            { id: 'strikethrough', label: <span style={{ textDecoration: 'line-through', fontFamily: 'serif', fontSize: 14 }}>S</span> },
+          ].map((b) => (
+            <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); toggleFlag(b.id); }} style={{...toolBtn(active[b.id]), width: 26, height: 26}}>{b.label}</button>
+          ))}
+        </div>
+        
+        <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 2px' }} />
 
-        {sep}
-        {[
-          { id: 'bullet', icon: <List size={15} /> },
-          { id: 'number', icon: <ListOrdered size={15} /> },
-        ].map((b) => (
-          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); toggleList(b.id); }} style={toolBtn(active.list === b.id)}>{b.icon}</button>
-        ))}
+        <div style={{ display: 'flex', gap: 2 }}>
+          <FormatBtn icon={<List size={15} />} active={active.list === 'bullet'} onClick={() => toggleFormat('list', 'bullet')} />
+          <FormatBtn icon={<ListOrdered size={15} />} active={active.list === 'number'} onClick={() => toggleFormat('list', 'number')} />
+        </div>
+        
+        <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 2px' }} />
+
+        <div style={{ display: 'flex', gap: 2 }}>
+          <FormatBtn icon={<AlignLeft size={15} />} active={!active.align || active.align === 'left'} onClick={() => toggleFormat('align', 'left')} />
+          <FormatBtn icon={<AlignCenter size={15} />} active={active.align === 'center'} onClick={() => toggleFormat('align', 'center')} />
+          <FormatBtn icon={<AlignRight size={15} />} active={active.align === 'right'} onClick={() => toggleFormat('align', 'right')} />
+        </div>
       </div>
 
       <div
