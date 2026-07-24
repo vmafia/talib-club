@@ -406,20 +406,18 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      const ddgClient = (async () => {
         try {
            const htmlUrl = `https://duckduckgo.com/?q=${encodeURIComponent(q)}&iax=images&ia=images`;
-           const htmlRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(htmlUrl)}`);
+           const htmlRes = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(htmlUrl)}`);
            if (!htmlRes.ok) return;
-           const htmlData = await htmlRes.json();
-           const html = htmlData.contents;
+           const html = await htmlRes.text();
            const m = html.match(/vqd="([^"]+)"/) || html.match(/vqd=([\d-]+)&/);
            if (!m) return;
            const vqd = m[1];
            
            const fStr = ['', '', '', filter === 'clipart' ? 'type:clipart' : filter === 'transparent' ? 'type:transparent' : filter === 'photo' ? 'type:photo' : '', '', ''].join(',');
            const imgUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=${encodeURIComponent(fStr)}&p=1`;
-           const imgRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(imgUrl)}`);
+           const imgRes = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(imgUrl)}`);
            if (!imgRes.ok) return;
-           const imgData = await imgRes.json();
-           const data = JSON.parse(imgData.contents);
+           const data = await imgRes.json();
            
            (data.results || []).forEach((it, i) => add({
               id: `ddg-c-${i}`, title: it.title, thumbnail: it.thumbnail || it.image, url: it.image,
