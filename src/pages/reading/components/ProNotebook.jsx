@@ -19,7 +19,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { PDFPageImage, PaperPattern, getSvgPathFromStroke, PEN_STYLES, StrokeShape, CommittedStrokes, StickyStyleThumb } from './notebook/canvasElements.jsx';
 import { polygonBounds, polygonCentroid, polygonInteriorAngle, applyListPrefix, textDecorationOf, migrateText, textOf, isUniformText, uniformFormatOf, listPrefixes } from './notebook/geometry.js';
-import { HW, ZERO_OFFSET, TEXT_BOX_WIDTH, STICKY_COLORS, STICKY_STYLES, FONT_OPTIONS } from './notebook/theme.js';
+import { HW, ZERO_OFFSET, TEXT_BOX_WIDTH, LINE_HEIGHT, STICKY_COLORS, STICKY_STYLES, FONT_OPTIONS } from './notebook/theme.js';
 import { useDragScroll } from './notebook/useDragScroll.js';
 import ImageSearchPanel from './notebook/ImageSearchPanel.jsx';
 import ObjectContextMenu from './notebook/ObjectContextMenu.jsx';
@@ -32,6 +32,20 @@ import ExportModal from './notebook/ExportModal.jsx';
 import AiAssistantPanel from './notebook/AiAssistantPanel.jsx';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+// Tools whose options popover opens with the tool.
+const TOOLS_WITH_OPTIONS = ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser', 'text', 'laser', 'lasso'];
+
+// What the lasso is allowed to pick up, GoodNotes-style. Stored per kind so the
+// user can grab only the handwriting out of a page full of images and notes.
+const LASSO_KINDS = [
+  { key: 'lines', label: 'ลายมือ' },
+  { key: 'shapes', label: 'รูปทรง/เรขาคณิต' },
+  { key: 'images', label: 'รูปภาพ' },
+  { key: 'texts', label: 'กล่องข้อความ' },
+  { key: 'stickers', label: 'โน้ตสติกเกอร์' },
+];
+const DEFAULT_LASSO_FILTER = { lines: true, shapes: true, images: true, texts: true, stickers: true };
 
 export default function ProNotebook({ bookId, uid, activeBook, readonly = false, fullView = false, onToggleFullView }) {
   const leftToolbarScroll = useDragScroll();
@@ -148,19 +162,25 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   useEffect(() => {
      if (editingTextId && textareaRef.current) {
         setTimeout(() => {
-           textareaRef.current?.focus();
+           // The WYSIWYG editor focuses itself on mount and parks the caret at the
+           // end; re-focusing here would send it back to the start.
+           const el = textareaRef.current;
+           if (el && !el.isContentEditable) el.focus();
         }, 150);
      }
   }, [editingTextId]);
 
   // Size the edit box to its content whenever it opens or its text changes, so an
   // existing multi-line note (bullets/numbered lists) is fully visible right away.
+  // The WYSIWYG editor is a contentEditable box that already grows with its own
+  // content — forcing a pixel height on it would clip long notes — so this only
+  // applies to the plain textareas.
   // NB: `scale` is intentionally not a dependency — it is declared far below this
   // effect, and referencing it here evaluates during render, before its useState
   // runs, which throws "Cannot access 'scale' before initialization".
   useEffect(() => {
      const el = textareaRef.current;
-     if (!el || !editingTextId) return;
+     if (!el || !editingTextId || el.isContentEditable) return;
      el.style.height = 'auto';
      el.style.height = `${el.scrollHeight}px`;
      el.style.width = 'auto';
@@ -179,6 +199,18 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      return () => clearTimeout(t);
   }, [editingStickerId]);
   
+  // Which kinds of thing the lasso picks up. Remembered between sessions — a
+  // "handwriting only" habit shouldn't have to be re-set every time.
+  const [lassoFilter, setLassoFilter] = useState(() => {
+    try { return { ...DEFAULT_LASSO_FILTER, ...JSON.parse(localStorage.getItem('talib_lasso_filter') || '{}') }; }
+    catch { return { ...DEFAULT_LASSO_FILTER }; }
+  });
+  const lassoFilterRef = useRef(lassoFilter);
+  useEffect(() => {
+    lassoFilterRef.current = lassoFilter;
+    try { localStorage.setItem('talib_lasso_filter', JSON.stringify(lassoFilter)); } catch { /* private mode */ }
+  }, [lassoFilter]);
+
   // Free-form lasso path in page coordinates: flat [x,y,x,y,...].
   const [lassoPath, setLassoPath] = useState(null);
   const lassoPathRef = useRef(null);
@@ -256,18 +288,29 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [imgQuery, setImgQuery] = useState("");
   const [imgResults, setImgResults] = useState([]);
   const [imgLoading, setImgLoading] = useState(false);
+  // Kind of picture wanted: '' (anything), photo, clipart, transparent, gif.
+  // Only the DuckDuckGo proxy understands these, so a filtered search queries it
+  // alone rather than padding the grid with unfiltered results from elsewhere.
+  const [imgFilter, setImgFilter] = useState('');
 
   // Search several open, CORS-friendly image sources at once so a query like
   // "ซัยยิด กุฏุบ" returns real photos without leaving the app. Thai + English
   // Wikipedia surface the lead photo of matching articles (people, places, books),
   // Wikimedia Commons adds broader media, and Openverse covers stickers/clip-art.
-  const searchWebImages = async (q) => {
+  const searchWebImages = async (q, filter = imgFilter) => {
      if (!q.trim()) return;
      setImgLoading(true);
      setImgResults([]);
      const merged = [];
      const seen = new Set();
      const add = (r) => { if (r?.thumbnail && !seen.has(r.thumbnail)) { seen.add(r.thumbnail); merged.push(r); } };
+
+     // Pasting a direct image link should just work instead of being searched for.
+     if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg)(\?\S*)?$/i.test(q.trim())) {
+        setImgResults([{ id: 'pasted', title: 'ลิงก์ที่วาง', thumbnail: q.trim(), url: q.trim(), source: 'ลิงก์', license: 'ตรวจสอบเอง' }]);
+        setImgLoading(false);
+        return;
+     }
 
      // Real Google image results via our server-side proxy. Only returns data when
      // GOOGLE_CSE_KEY / GOOGLE_CSE_CX are set in the deployment; otherwise it 503s
@@ -310,12 +353,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
               return;
            }
 
-           const res = await fetch(`/api/image-search?q=${encodeURIComponent(q)}`);
+           const params = new URLSearchParams({ q });
+           if (filter) params.set('type', filter);
+           const res = await fetch(`/api/image-search?${params}`);
            if (!res.ok) {
-              if (res.status === 502) {
-                 const errText = await res.text();
-                 console.error("Google API Server Error:", errText);
-              }
+              const errText = await res.text().catch(() => '');
+              console.error('Image search proxy error:', res.status, errText);
               return;
            }
            const data = await res.json();
@@ -364,7 +407,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         // Run every source in parallel and paint results as each arrives — don't
         // block the fast keyless sources behind Google, which round-trips to a
         // serverless function and can be slow or rate-limited.
-        const sources = [google, commons, openverse, wikiArticles('th'), wikiArticles('en')];
+        // A kind filter (สติกเกอร์โปร่งใส / คลิปอาร์ต / GIF) is only honoured by the
+        // proxy, so mixing in the other sources would just dilute the results.
+        const sources = filter ? [google] : [google, commons, openverse, wikiArticles('th'), wikiArticles('en')];
         sources.forEach((p) => p.then(() => setImgResults([...merged])));
         await Promise.allSettled(sources);
         setImgResults([...merged]);
@@ -793,27 +838,50 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
         ? await pdfjsLib.getDocument({ url: pdfUrl }).promise
         : await loadBookPdf(activeBook.book.fileUrl);
       const numPages = Math.min(pdf.numPages, 30);
-      
+
       toast.loading(`กำลังแยกหน้า PDF (0/${numPages})...`, { id: 'pdf-load' });
-      
+
+      // Tablets used to fail here while desktops were fine: every page was
+      // rendered at a fixed 2× (a ~2400×3400 canvas) and 30 of those, plus their
+      // JPEG data URLs, blow past the canvas/memory ceiling mobile browsers
+      // enforce — the throw surfaced only as "โหลด PDF ไม่สำเร็จ". So: size each
+      // page to what the notebook actually displays, cap the pixel budget, and
+      // release every canvas as soon as it has been encoded.
+      const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      const maxPixels = isTouch ? 2.2e6 : 6e6;
+      const quality = isTouch ? 0.8 : 0.85;
+      const targetWidth = Math.min(isTouch ? 1400 : 1800, Math.max(700, (dimensions.width || 800) * 2));
+
       let extractedPages = [];
       for (let i = 1; i <= numPages; i++) {
         toast.loading(`กำลังแยกหน้า PDF (${i}/${numPages})...`, { id: 'pdf-load' });
         const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: isMobile ? 1.2 : 2.0 }); 
+
+        const base = page.getViewport({ scale: 1 });
+        let renderScale = Math.min(3, targetWidth / base.width);
+        const area = base.width * base.height;
+        if (area * renderScale * renderScale > maxPixels) renderScale = Math.sqrt(maxPixels / area);
+        const viewport = page.getViewport({ scale: renderScale });
+
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+
         await page.render({ canvasContext: context, viewport }).promise;
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // Use JPEG instead of PNG for memory optimization on large PDFs
-        
+        const dataUrl = canvas.toDataURL('image/jpeg', quality); // JPEG: a fraction of PNG's memory on long PDFs
+        // Hand the bitmap back to the browser now instead of waiting for GC.
+        canvas.width = 0; canvas.height = 0;
+        page.cleanup?.();
+        // Let the browser breathe (paint the progress toast, reclaim memory)
+        // before allocating the next page's canvas.
+        await new Promise((r) => setTimeout(r, 0));
+
         // Calculate display dimensions fitting screen width
         const displayWidth = dimensions.width > 0 ? dimensions.width - 40 : viewport.width;
         const displayScale = displayWidth / viewport.width;
         const displayHeight = viewport.height * displayScale;
-        
+
         extractedPages.push({
           id: `page-${Date.now()}-${i}`,
           src: dataUrl,
@@ -834,7 +902,10 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       toast.success('ดึงหน้า PDF สำเร็จ!', { id: 'pdf-load' });
     } catch (err) {
       console.error("PDF Load Error", err);
-      toast.error('โหลด PDF ไม่สำเร็จ จะใช้เป็นกระดานเปล่าแทน', { id: 'pdf-load', duration: 4000 });
+      // Say what actually went wrong — "ไม่สำเร็จ" on its own gave us nothing to
+      // work with when it only failed on the tablet.
+      const why = String(err?.message || err || '').slice(0, 120);
+      toast.error(`โหลด PDF ไม่สำเร็จ จะใช้เป็นกระดานเปล่าแทน${why ? `\n(${why})` : ''}`, { id: 'pdf-load', duration: 7000 });
     } finally {
       setLoadingPdf(false);
     }
@@ -1892,6 +1963,108 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
     }
   };
 
+  // Paint the lassoed strokes alone onto a white canvas, big and high-contrast,
+  // which is what the recogniser wants — the page background, ruled lines and
+  // neighbouring ink only confuse it.
+  const rasterizeStrokes = (strokes, pad = 24) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    strokes.forEach((l) => {
+      for (let i = 0; i < l.points.length; i += 2) {
+        minX = Math.min(minX, l.points[i]); maxX = Math.max(maxX, l.points[i]);
+        minY = Math.min(minY, l.points[i + 1]); maxY = Math.max(maxY, l.points[i + 1]);
+      }
+    });
+    if (minX === Infinity) return null;
+    minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+
+    const w = Math.max(1, maxX - minX);
+    const h = Math.max(1, maxY - minY);
+    // Upscale small writing (Tesseract is unhappy below ~30px letter height) but
+    // stay inside what a tablet canvas can hold.
+    const zoom = Math.min(4, Math.max(1.5, 1400 / w));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * zoom);
+    canvas.height = Math.round(h * zoom);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-minX, -minY);
+    ctx.strokeStyle = '#000000';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    strokes.forEach((l) => {
+      if (l.points.length < 4) return;
+      ctx.lineWidth = Math.max(2, l.size || 4);
+      ctx.beginPath();
+      ctx.moveTo(l.points[0], l.points[1]);
+      for (let i = 2; i < l.points.length; i += 2) ctx.lineTo(l.points[i], l.points[i + 1]);
+      ctx.stroke();
+    });
+    return { dataUrl: canvas.toDataURL('image/png'), minX, minY, maxX, maxY };
+  };
+
+  // Handwriting → typed text. Runs the same local Tesseract engine the image OCR
+  // uses, on the lassoed ink only, then swaps the strokes for an editable text
+  // box. Neat writing converts well; messy Thai is hit-and-miss, which is why the
+  // result lands as a normal editable note rather than something final.
+  const convertLassoToText = async () => {
+    const strokes = selectionRef.current;
+    if (!strokes || strokes.length === 0) { toast.error('เลือกลายมือด้วยบ่วงก่อน'); return; }
+    if (ocrRunningRef.current) return;
+
+    const shot = rasterizeStrokes(strokes);
+    if (!shot) { toast.error('ไม่พบเส้นลายมือในส่วนที่เลือก'); return; }
+
+    ocrRunningRef.current = true;
+    toast.loading('กำลังแปลงลายมือเป็นข้อความ... 0%', { id: 'hw2text' });
+    try {
+      const Tesseract = (await import('tesseract.js')).default;
+      const { data } = await Tesseract.recognize(shot.dataUrl, 'tha+eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            toast.loading(`กำลังแปลงลายมือเป็นข้อความ... ${Math.round(m.progress * 100)}%`, { id: 'hw2text' });
+          }
+        },
+      });
+      const text = (data?.text || '').replace(/\n{3,}/g, '\n\n').trim();
+      if (!text) {
+        // Nothing recognised — put the ink back exactly where it was.
+        bakeLassoSelection();
+        toast.error('อ่านลายมือไม่ออก — ลองเขียนตัวใหญ่ขึ้นหรือเว้นช่องไฟให้ห่างขึ้น', { id: 'hw2text', duration: 5000 });
+        return;
+      }
+
+      const { x: dx, y: dy } = lassoGroupPos;
+      const id = `text-${Date.now()}`;
+      pushHistory();
+      updatePage(currentPageIndex, (page) => {
+        if (!page.texts) page.texts = [];
+        page.texts.push({
+          id,
+          text,
+          lines: text.split('\n').map((line) => ({ text: line, bold: false, italic: false, underline: false, strikethrough: false, list: 'none', align: 'left' })),
+          x: shot.minX + dx + 24,
+          y: shot.minY + dy + 24,
+          color: penColor,
+          size: 22,
+          fontFamily: textStyle.fontFamily || 'Sarabun',
+          width: TEXT_BOX_WIDTH,
+        });
+      });
+      // The strokes were lifted off the page when the lasso closed, so dropping
+      // the selection without baking is what replaces them with the text.
+      clearLassoSelection();
+      toast.success('แปลงเป็นข้อความแล้ว — แตะสองครั้งเพื่อแก้คำที่เพี้ยน', { id: 'hw2text', icon: '✍️', duration: 5000 });
+    } catch (e) {
+      console.error('handwriting OCR failed', e);
+      bakeLassoSelection();
+      toast.error('แปลงไม่สำเร็จ (ครั้งแรกต้องต่อเน็ตเพื่อโหลดตัวอ่าน)', { id: 'hw2text' });
+    } finally {
+      ocrRunningRef.current = false;
+    }
+  };
+
   const duplicateSelectedObject = () => {
     if (!selectedInfo) return;
     const { kind, obj } = selectedInfo;
@@ -2254,29 +2427,35 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
           return;
        }
 
+       // Kinds switched off in the lasso filter are simply never looked at, so a
+       // loop drawn over mixed content picks up only what was asked for.
+       const want = lassoFilterRef.current || DEFAULT_LASSO_FILTER;
+
        const inside = [];
        const outside = [];
        (page.lines || []).forEach((line) => {
           let hit = false;
-          for (let i = 0; i < line.points.length; i += 2) {
-             if (pointInPolygon(line.points[i], line.points[i + 1], path)) { hit = true; break; }
+          if (want.lines) {
+             for (let i = 0; i < line.points.length; i += 2) {
+                if (pointInPolygon(line.points[i], line.points[i + 1], path)) { hit = true; break; }
+             }
           }
           (hit ? inside : outside).push(line);
        });
 
        // Objects are caught by their anchor point falling inside the loop.
        const objects = [];
-       (page.shapes || []).forEach((s) => {
+       if (want.shapes) (page.shapes || []).forEach((s) => {
           const c = s.type === 'polygon' ? polygonCentroid(s.points) : { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
           if (pointInPolygon(c.x, c.y, path)) objects.push({ kind: 'shapes', id: s.id });
        });
-       (page.texts || []).forEach((t) => {
+       if (want.texts) (page.texts || []).forEach((t) => {
           if (pointInPolygon(t.x, t.y, path)) objects.push({ kind: 'texts', id: t.id });
        });
-       (page.stickers || []).forEach((st) => {
+       if (want.stickers) (page.stickers || []).forEach((st) => {
           if (pointInPolygon(st.x, st.y, path)) objects.push({ kind: 'stickers', id: st.id });
        });
-       (page.images || []).forEach((im) => {
+       if (want.images) (page.images || []).forEach((im) => {
           if (pointInPolygon(im.x + (im.width || 0) / 2, im.y + (im.height || 0) / 2, path)) objects.push({ kind: 'images', id: im.id });
        });
 
@@ -2612,6 +2791,43 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [showShapeSettings, setShowShapeSettings] = useState(false);
   const [recordingTimer, setRecordingTimer] = useState(0);
 
+  // Only one floating panel at a time. Every opener announces itself here, so
+  // picking a new one always puts the previous one away instead of stacking
+  // three cards over the page you are trying to write on.
+  // `keep` is a panel name, or a list of them when one panel legitimately sits on
+  // top of another (the colour picker belongs to the open tool options).
+  const closeOverlays = useCallback((keep) => {
+     const kept = new Set(Array.isArray(keep) ? keep : [keep]);
+     const panels = {
+        tools: setShowToolOptions,
+        color: setShowColorPicker,
+        emoji: setShowEmojiPicker,
+        more: setShowMoreMenu,
+        add: setShowAddMenu,
+        pageSettings: setShowPageSettings,
+        pages: setShowPageManager,
+        eraser: setShowEraserSettings,
+        lassoSettings: setShowLassoSettings,
+        shapeSettings: setShowShapeSettings,
+        toolSettings: setShowToolSettings,
+        search: setShowSearch,
+        imgSearch: setShowImgSearch,
+        ai: setShowAi,
+        recordings: setShowRecordings,
+        export: setShowExport,
+        snip: setShowBookSnip,
+     };
+     Object.entries(panels).forEach(([name, set]) => { if (!kept.has(name)) set(false); });
+     if (!kept.has('context')) setContextMenu(null);
+  }, []);
+
+  // Open (or toggle) a panel through the manager so the rest always close.
+  const togglePanel = useCallback((name, set, current, alsoKeep = []) => {
+     const next = !current;
+     closeOverlays(next ? [name, ...alsoKeep] : alsoKeep);
+     set(next);
+  }, [closeOverlays]);
+
   useEffect(() => {
      let interval;
      if (isRecording) {
@@ -2652,10 +2868,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
       }
       if (e.key === 'Escape') {
         selectShape(null);
-        setShowToolOptions(false);
-        setShowMoreMenu(false);
-        setShowPageManager(false);
-        setShowSearch(false);
+        closeOverlays(null);
         return;
       }
       if (e.key === 'PageDown') { e.preventDefault(); setCurrentPageIndex(i => Math.min(pages.length - 1, i + 1)); return; }
@@ -2783,12 +2996,12 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                      { id: 'addpage', icon: FilePlus, title: 'เพิ่มหน้าใหม่', onClick: handleAddPage },
                      { id: 'pdf', icon: FileText, title: 'นำเข้า PDF', onClick: () => document.getElementById('pdf-upload').click() },
                      // Snip a region of the companion book straight into the note.
-                     ...(activeBook?.book?.fileUrl ? [{ id: 'snip', icon: Camera, title: 'แคปจากหนังสือ', onClick: () => { setBookSnipInitialPage(1); setShowBookSnip(true); }, active: showBookSnip }] : []),
+                     ...(activeBook?.book?.fileUrl ? [{ id: 'snip', icon: Camera, title: 'แคปจากหนังสือ', onClick: () => { closeOverlays('snip'); setBookSnipInitialPage(1); setShowBookSnip(true); }, active: showBookSnip }] : []),
                      { id: 'zoomwrite', icon: Maximize2, title: 'ขยายเขียน', onClick: () => setZoomWriter(v => !v), active: zoomWriter },
-                     { id: 'recordings', icon: ListMusic, title: 'บันทึกเสียง', onClick: () => setShowRecordings(v => !v), active: showRecordings, badge: recordings.length },
-                     { id: 'search', icon: Search, title: 'ค้นหา', onClick: () => setShowSearch(!showSearch), active: showSearch },
-                     { id: 'pages', icon: Columns, title: 'จัดการหน้า', onClick: () => setShowPageManager(!showPageManager), active: showPageManager },
-                     { id: 'more', icon: LayoutGrid, title: 'เพิ่มเติม', onClick: () => setShowMoreMenu(!showMoreMenu), active: showMoreMenu },
+                     { id: 'recordings', icon: ListMusic, title: 'บันทึกเสียง', onClick: () => togglePanel('recordings', setShowRecordings, showRecordings), active: showRecordings, badge: recordings.length },
+                     { id: 'search', icon: Search, title: 'ค้นหา', onClick: () => togglePanel('search', setShowSearch, showSearch), active: showSearch },
+                     { id: 'pages', icon: Columns, title: 'จัดการหน้า', onClick: () => togglePanel('pages', setShowPageManager, showPageManager), active: showPageManager },
+                     { id: 'more', icon: LayoutGrid, title: 'เพิ่มเติม', onClick: () => togglePanel('more', setShowMoreMenu, showMoreMenu), active: showMoreMenu },
                    ].map(b => (
                      <button
                        key={b.id}
@@ -2805,7 +3018,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                  </>
                )}
                {readonly && (
-                 <button onClick={() => setShowExport(true)} style={{ padding: '8px 16px', borderRadius: 20, border: 'none', background: 'var(--teal)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
+                 <button onClick={() => { closeOverlays('export'); setShowExport(true); }} style={{ padding: '8px 16px', borderRadius: 20, border: 'none', background: 'var(--teal)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600 }}>
                     <Download size={18} strokeWidth={2} /> ส่งออก
                  </button>
                )}
@@ -2836,17 +3049,17 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     <button onClick={() => { document.getElementById('image-upload').click(); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <ImageIcon size={20} strokeWidth={1.5} color="#4B5563" /> นำเข้ารูปภาพจากเครื่อง
                     </button>
-                    <button onClick={() => { setShowImgSearch(true); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                    <button onClick={() => { closeOverlays('imgSearch'); setShowImgSearch(true); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Search size={20} strokeWidth={1.5} color="#4B5563" /> ค้นหารูป/สติกเกอร์จากเน็ต
                     </button>
-                    <button onClick={() => { setShowAi(true); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                    <button onClick={() => { closeOverlays('ai'); setShowAi(true); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Wand2 size={20} strokeWidth={1.5} color="#4B5563" /> ผู้ช่วย AI · ถาม PDF
                     </button>
                     <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }}></div>
-                    <button onClick={() => setShowPageSettings(true)} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                    <button onClick={() => { closeOverlays('pageSettings'); setShowPageSettings(true); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Settings size={20} strokeWidth={1.5} color="#4B5563" /> เปลี่ยนแม่แบบกระดาษ
                     </button>
-                    <button onClick={() => { setShowExport(true); setShowMoreMenu(false); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
+                    <button onClick={() => { closeOverlays('export'); setShowExport(true); }} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
                        <Download size={20} strokeWidth={1.5} color="#4B5563" /> ส่งออก (รูป / PDF)
                     </button>
                     <button onClick={toggleBookmark} style={{ padding: '12px 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#111827', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, textAlign: 'left' }}>
@@ -2974,16 +3187,16 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                        onClick={() => {
                           if (t.id === 'image') { document.getElementById('image-upload').click(); return; }
                           if (t.id === 'mic') { toggleRecording(); return; }
-                          if (t.id === 'emoji') { setShowEmojiPicker(v => !v); setShowToolOptions(false); setShowColorPicker(false); return; }
+                          if (t.id === 'emoji') { togglePanel('emoji', setShowEmojiPicker, showEmojiPicker); return; }
                           if (t.id === 'ruler') { setRulerOn(v => !v); return; }
                           if (t.id === 'protractor') { setProtractorOn(v => !v); return; }
                           // One tap does it all: selecting a tool also opens its
                           // options right away (nobody discovers a second tap), and
                           // the popover tucks itself away as soon as drawing starts.
                           // Tapping the active tool toggles the popover.
-                          const hasOptions = ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser', 'text', 'laser'].includes(t.id);
-                          if (tool === t.id) setShowToolOptions(v => !v);
-                          else { setTool(t.id); setShowToolOptions(hasOptions); setShowColorPicker(false); }
+                          const hasOptions = TOOLS_WITH_OPTIONS.includes(t.id);
+                          if (tool === t.id) togglePanel('tools', setShowToolOptions, showToolOptions);
+                          else { setTool(t.id); closeOverlays(hasOptions ? 'tools' : null); setShowToolOptions(hasOptions); }
                        }}
                        style={(() => {
                           const active = t.id === 'ruler' ? rulerOn : t.id === 'protractor' ? protractorOn : t.id === 'emoji' ? showEmojiPicker : (tool === t.id && !['image','mic'].includes(t.id));
@@ -3043,7 +3256,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
             )}
 
             {/* Tool options popover — floats above the capsule, Huawei style */}
-            {showToolOptions && ['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape', 'sticker', 'eraser', 'text', 'laser'].includes(tool) && (
+            {showToolOptions && TOOLS_WITH_OPTIONS.includes(tool) && (
               <div className="hide-scroll" style={{ order: -1, display: 'flex', alignItems: 'center', gap: 12, maxWidth: '100%', overflowX: 'auto', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 16, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}`, padding: '10px 14px' }} onWheel={(e) => { if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY; }} {...rightToolbarScroll}>
                   {['pen', 'fountain', 'marker', 'pencil', 'highlighter', 'shape'].includes(tool) && (
                      <>
@@ -3060,55 +3273,81 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                            </>
                         )}
 
+                        {/* Live preview of the nib you are about to draw with —
+                            size, colour and opacity together, the way a real pen
+                            case shows you the pen rather than a number. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, padding: '6px 12px 6px 8px', borderRadius: 14, background: 'rgba(0,0,0,0.035)' }}>
+                           <svg width="62" height="30" viewBox="0 0 62 30" style={{ flexShrink: 0, display: 'block' }}>
+                              <path
+                                d="M4 21 C 14 5, 22 5, 31 15 C 40 25, 48 25, 58 9"
+                                fill="none"
+                                stroke={penColor === '#FFFFFF' ? '#D1D5DB' : penColor}
+                                strokeWidth={Math.max(1.5, Math.min(14, penSize))}
+                                strokeLinecap="round"
+                                opacity={tool === 'highlighter' ? Math.min(0.5, penOpacity) : penOpacity}
+                              />
+                           </svg>
+                           <span style={{ fontSize: 12.5, fontWeight: 700, color: HW.text, whiteSpace: 'nowrap' }}>{penSize}<span style={{ fontSize: 10.5, fontWeight: 600, color: HW.textDim }}> px</span></span>
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 26, flexShrink: 0 }}></div>
+
                         {/* Stroke sizes as graduated dots (Huawei) */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                            {sizes.map(s => (
                               <button
                                 key={s}
                                 onClick={() => setPenSize(s)}
                                 title={`${s}px`}
-                                style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: penSize === s ? HW.accentSoft : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.18s' }}
+                                style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: penSize === s ? HW.accentSoft : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.18s' }}
                               >
-                                <span style={{ display: 'block', width: Math.min(18, 4 + s * 0.7), height: Math.min(18, 4 + s * 0.7), borderRadius: '50%', background: penSize === s ? HW.accent : HW.textDim }} />
+                                <span style={{ display: 'block', width: Math.min(20, 4 + s * 0.7), height: Math.min(20, 4 + s * 0.7), borderRadius: '50%', background: penSize === s ? HW.accent : HW.textDim, transition: 'background 0.18s' }} />
                               </button>
                            ))}
                         </div>
 
-{/* Sliders removed to match Huawei Note clean UI */}
+                        <div style={{ width: 1, background: HW.hairline, height: 26, flexShrink: 0 }}></div>
 
-                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
-                           {colors.map(c => (
-                              <div
-                                key={c}
-                                onClick={() => setPenColor(c)}
-                                title={c}
-                                style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2, transition: 'outline 0.15s' }}
-                              />
+                        {/* Opacity — the ink was always adjustable, there was just
+                            no way to reach it. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                           {[1, 0.7, 0.45, 0.25].map(o => (
+                              <button
+                                key={o}
+                                onClick={() => setPenOpacity(o)}
+                                title={`ความเข้ม ${Math.round(o * 100)}%`}
+                                style={{ width: 34, height: 34, borderRadius: 12, border: 'none', background: Math.abs(penOpacity - o) < 0.01 ? HW.accentSoft : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                              >
+                                <span style={{ display: 'block', width: 18, height: 18, borderRadius: 6, background: penColor === '#FFFFFF' ? '#9CA3AF' : penColor, opacity: o, boxShadow: `inset 0 0 0 1px ${HW.hairline}` }} />
+                              </button>
                            ))}
-                           {customColors.slice(0, 3).map((c) => (
+                        </div>
+
+                        <div style={{ width: 1, background: HW.hairline, height: 26, flexShrink: 0 }}></div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                           {[...colors, ...customColors.slice(0, 3)].map((c, i) => (
                               <div
-                                key={`custom-${c}`}
+                                key={`${c}-${i}`}
                                 onClick={() => setPenColor(c)}
                                 title={c}
-                                style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
+                                style={{ width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer', flexShrink: 0, boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: penColor === c ? `2.5px solid ${HW.accent}` : 'none', outlineOffset: 2, transition: 'outline 0.15s, transform 0.15s', transform: penColor === c ? 'scale(1.08)' : 'none' }}
                               />
                            ))}
                            <button
                              title="เลือกสีเอง"
-                             onClick={() => setShowColorPicker(v => !v)}
-                             style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: 'none', padding: 0, background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: showColorPicker ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
+                             onClick={() => togglePanel('color', setShowColorPicker, showColorPicker, ['tools'])}
+                             style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: 'none', padding: 0, background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: showColorPicker ? `2.5px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
                            />
                         </div>
 
                         {['pen', 'fountain', 'marker', 'pencil'].includes(tool) && (
                            <>
-                              <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+                              <div style={{ width: 1, background: HW.hairline, height: 26, flexShrink: 0 }}></div>
                               <button
                                 onClick={() => setAutoShape(v => !v)}
                                 title="วาดรูปทรงคร่าว ๆ แล้วปล่อย ระบบจะจัดให้เป็นรูปทรงที่สมบูรณ์"
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 9, border: 'none', background: autoShape ? HW.accentSoft : 'transparent', color: autoShape ? HW.accent : HW.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 17, border: 'none', background: autoShape ? HW.accentSoft : 'rgba(0,0,0,0.035)', color: autoShape ? HW.accent : HW.textDim, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                               >
                                 <Triangle size={15} strokeWidth={1.8} /> จัดรูปทรงอัตโนมัติ
                               </button>
@@ -3223,13 +3462,42 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                              ))}
                              <button
                                title="เลือกสีเอง"
-                               onClick={() => setShowColorPicker(v => !v)}
+                               onClick={() => togglePanel('color', setShowColorPicker, showColorPicker, ['tools'])}
                                style={{ width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: 'none', padding: 0, background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)', boxShadow: `inset 0 0 0 1px ${HW.hairline}`, outline: showColorPicker ? `2px solid ${HW.accent}` : 'none', outlineOffset: 2 }}
                              />
                           </div>
                        </>
                      );
                   })()}
+
+                  {tool === 'lasso' && (
+                     <>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: HW.text, flexShrink: 0, whiteSpace: 'nowrap' }}>เลือกเฉพาะ</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                           {LASSO_KINDS.map(({ key, label }) => {
+                              const on = lassoFilter[key] !== false;
+                              return (
+                                 <button
+                                   key={key}
+                                   onClick={() => setLassoFilter(f => ({ ...f, [key]: !on }))}
+                                   title={on ? `กำลังเลือก${label}` : `ข้าม${label}`}
+                                   style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 16, border: 'none', background: on ? HW.accentSoft : 'rgba(0,0,0,0.04)', color: on ? HW.accent : HW.textDim, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', transition: 'background 0.18s, color 0.18s' }}
+                                 >
+                                   <span style={{ width: 26, height: 15, borderRadius: 8, background: on ? HW.accent : '#D1D5DB', position: 'relative', flexShrink: 0, transition: 'background 0.18s' }}>
+                                     <span style={{ position: 'absolute', top: 1.5, left: on ? 12.5 : 1.5, width: 12, height: 12, borderRadius: '50%', background: 'white', transition: 'left 0.18s cubic-bezier(0.2,0.8,0.2,1)', boxShadow: '0 1px 2px rgba(0,0,0,0.25)' }} />
+                                   </span>
+                                   {label}
+                                 </button>
+                              );
+                           })}
+                        </div>
+                        <div style={{ width: 1, background: HW.hairline, height: 22, flexShrink: 0 }}></div>
+                        <button
+                          onClick={() => setLassoFilter({ ...DEFAULT_LASSO_FILTER })}
+                          style={{ height: 32, padding: '0 12px', borderRadius: 16, border: 'none', background: 'transparent', color: HW.textDim, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                        >เลือกทั้งหมด</button>
+                     </>
+                  )}
 
                   {tool === 'sticker' && (
                      <>
@@ -3410,7 +3678,9 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                     </div>
                   )}
                   <div style={{ width: '100%', aspectRatio: '800/1130', background: p.paperColor === 'yellow' ? '#FEF3C7' : p.paperColor === 'dark' ? '#1F2937' : 'white', border: '1px solid var(--br2)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                    {p.src && <img src={p.src} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="pdf page" />}
+                    {/* lazy: a 30-page PDF notebook would otherwise decode every
+                        full-size background at once when this grid opens. */}
+                    {p.src && <img src={p.src} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="pdf page" />}
                     {!p.src && p.paperType !== 'blank' && <SquareSquare size={24} color="#9CA3AF" opacity={0.3} />}
                     {p.lines.length > 0 && <PenTool size={16} color="#10B981" style={{ position: 'absolute', bottom: 4, right: 4 }} />}
                   </div>
@@ -3453,13 +3723,15 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
          </div>
        )}
 
-      {/* Web image search panel (Google + Wikipedia + Commons + Openverse) */}
+      {/* Web image search panel (DuckDuckGo + Wikipedia + Commons + Openverse) */}
       {showImgSearch && (
         <ImageSearchPanel
           query={imgQuery}
           setQuery={setImgQuery}
           results={imgResults}
           loading={imgLoading}
+          filter={imgFilter}
+          setFilter={setImgFilter}
           onSearch={searchWebImages}
           onInsert={insertWebImage}
           onClose={() => setShowImgSearch(false)}
@@ -3942,12 +4214,13 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
                         textDecoration={textDecorationOf(f)}
                         align={f.align || 'left'}
                         width={f.align && f.align !== 'left' ? (t.width || TEXT_BOX_WIDTH) : undefined}
+                        lineHeight={LINE_HEIGHT}
                         padding={4}
                       />
                     );
                   }
                   const prefixes = listPrefixes(tt.lines);
-                  const lh = t.size; // Konva default lineHeight = 1 → lines are fontSize apart
+                  const lh = t.size * LINE_HEIGHT; // must match the editor's line-height
                   return tt.lines.map((l, i) => (
                     <Text
                       key={i}
@@ -4374,6 +4647,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
              onChange={(val) => setEditingTextValue(val)}
              onLinesChange={(lines) => upd(txt => { txt.lines = lines; txt.text = lines.map(l => l.text).join('\n'); })}
              onFont={(font) => { setTextStyle(s => ({ ...s, fontFamily: font })); upd(txt => { txt.fontFamily = font; }); }}
+             onSize={(n) => { setTextStyle(s => ({ ...s, fontSize: n })); upd(txt => { txt.size = n; }); }}
+             onColor={(c) => upd(txt => { txt.color = c; })}
              onCommit={() => {
                 if (!isEditingText.current) return;
                 isEditingText.current = false;
@@ -4519,6 +4794,8 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
            <LassoToolbar
              left={left}
              top={top}
+             hasInk={selectedLassoLines.length > 0}
+             onToText={convertLassoToText}
              onDuplicate={duplicateLassoSelection}
              onScale={scaleLassoSelection}
              onRecolor={recolorLassoSelection}

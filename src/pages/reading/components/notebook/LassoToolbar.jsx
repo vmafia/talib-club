@@ -1,12 +1,12 @@
 import React from 'react';
-import { FileStack, Minus, Plus, Trash2, Check } from 'lucide-react';
+import { FileStack, Minus, Plus, Trash2, Check, ScanText } from 'lucide-react';
 import { HW } from './theme.js';
 
 const SWATCHES = ['#111827', '#EF4444', '#F59E0B', '#10B981', '#3B82F6'];
 
 // Huawei-style action bar above a lasso (marquee) selection of freehand ink and
 // objects. Presentational; the parent computes position and binds the actions.
-export default function LassoToolbar({ left, top, onDuplicate, onScale, onRecolor, onDelete, onDone }) {
+export default function LassoToolbar({ left, top, hasInk, onToText, onDuplicate, onScale, onRecolor, onDelete, onDone }) {
   const btn = { width: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', color: HW.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
   return (
@@ -14,6 +14,18 @@ export default function LassoToolbar({ left, top, onDuplicate, onScale, onRecolo
       onPointerDown={(e) => e.stopPropagation()}
       style={{ position: 'absolute', left, top: Math.max(8, top), transform: 'translateX(-50%)', zIndex: 60, display: 'flex', alignItems: 'center', gap: 2, padding: '4px 6px', background: HW.surface, backdropFilter: HW.blur, WebkitBackdropFilter: HW.blur, borderRadius: 14, boxShadow: HW.shadow, border: `1px solid ${HW.hairline}` }}
     >
+      {hasInk && onToText && (
+        <>
+          <button
+            title="แปลงลายมือที่เลือกให้เป็นตัวอักษร"
+            onClick={onToText}
+            style={{ ...btn, width: 'auto', padding: '0 12px', gap: 6, color: HW.accent, fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
+            <ScanText size={17} strokeWidth={1.7} /> เป็นข้อความ
+          </button>
+          <div style={{ width: 1, height: 20, background: HW.hairline, margin: '0 4px' }} />
+        </>
+      )}
       <button title="ทำซ้ำ" onClick={onDuplicate} style={btn}><FileStack size={18} strokeWidth={1.6} /></button>
       <button title="ย่อ" onClick={() => onScale(0.85)} style={btn}><Minus size={18} strokeWidth={1.8} /></button>
       <button title="ขยาย" onClick={() => onScale(1.18)} style={btn}><Plus size={18} strokeWidth={1.8} /></button>

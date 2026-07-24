@@ -1,194 +1,374 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { AlignLeft, AlignCenter, AlignRight, List, ListOrdered } from 'lucide-react';
-import { FONT_OPTIONS } from './theme.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Minus, Plus } from 'lucide-react';
+import { FONT_OPTIONS, LINE_HEIGHT } from './theme.js';
 import { migrateText, makeLine, listPrefixes } from './geometry.js';
 
-// In-place editor for a text object with PER-LINE formatting (item 9, phase 2).
+// WYSIWYG in-place editor for a text object with PER-LINE formatting.
 //
-// We keep a plain <textarea> for text entry — it handles Thai/IME input far more
-// reliably than a contentEditable would — and track a parallel per-line format
-// array. Bold/italic/underline/strikethrough/list/align apply to the line(s) the
-// caret or selection spans, so a single box can mix (e.g.) a bulleted heading
-// with plain body lines. On every change we emit the rebuilt `lines[]` upward;
-// the canvas already renders those per line.
+// Every line is a real block element inside one contentEditable box, carrying its
+// own format in `data-fmt` plus the matching inline styles — so bold, italic,
+// underline, strike-through, alignment and bullets are visible WHILE typing,
+// exactly as the canvas will draw them. (The old textarea could only show the
+// result after committing, which is the thing that felt broken.)
+//
+// Two rules keep Thai/IME input safe:
+//   1. The DOM is the source of truth. React never re-renders the text content —
+//      it is built once on mount and the browser owns it from then on.
+//   2. Nothing touches the DOM while a composition (IME) is in flight; the
+//      restyle/renumber pass waits for compositionend.
+// Because the format lives on the line element itself, pressing Enter mid-list
+// carries the format with the line the browser clones — no index bookkeeping to
+// drift out of sync.
 
+const DEF = { bold: false, italic: false, underline: false, strikethrough: false, list: 'none', align: 'left' };
 const FLAGS = ['bold', 'italic', 'underline', 'strikethrough'];
-const fmtOf = (l) => ({ bold: !!l.bold, italic: !!l.italic, underline: !!l.underline, strikethrough: !!l.strikethrough, list: l.list || 'none', align: l.align || 'left' });
 
-// Which line indices does the char range [start,end] touch?
-const lineRange = (text, start, end) => {
-  const from = (text.slice(0, start).match(/\n/g) || []).length;
-  const to = (text.slice(0, end).match(/\n/g) || []).length;
-  return [from, to];
+const readFmt = (el) => {
+  try { return { ...DEF, ...JSON.parse(el.dataset.fmt || '{}') }; } catch { return { ...DEF }; }
 };
 
-export default function TextEditor({ x, y, scale, t, textareaRef, onChange, onLinesChange, onFont, onCommit }) {
-  const seed = migrateText(t).lines;
-  const [value, setValue] = useState(() => seed.map((l) => l.text).join('\n'));
-  const [fmts, setFmts] = useState(() => seed.map(fmtOf));
-  const [caret, setCaret] = useState([0, 0]); // [fromLine, toLine] of the current selection
+const styleLine = (el, f) => {
+  el.style.fontWeight = f.bold ? '700' : '400';
+  el.style.fontStyle = f.italic ? 'italic' : 'normal';
+  el.style.textDecoration = [f.underline ? 'underline' : '', f.strikethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+  el.style.textAlign = f.align || 'left';
+  el.style.paddingLeft = f.list && f.list !== 'none' ? '1.6em' : '0';
+};
+
+const writeFmt = (el, f) => {
+  // Store only the format keys — a line object also carries its text, which has
+  // no business being duplicated into an attribute.
+  const clean = { ...DEF };
+  Object.keys(DEF).forEach((k) => { clean[k] = f[k] ?? DEF[k]; });
+  el.dataset.fmt = JSON.stringify(clean);
+  styleLine(el, clean);
+};
+
+const lineEls = (root) => (root ? Array.from(root.children).filter((n) => n.nodeType === 1) : []);
+const textOfEl = (el) => el.textContent.replace(/\n/g, '');
+
+const makeLineEl = (text, fmt) => {
+  const d = document.createElement('div');
+  d.className = 'pn-ln';
+  writeFmt(d, { ...DEF, ...fmt });
+  if (text) d.textContent = text;
+  else d.appendChild(document.createElement('br'));
+  return d;
+};
+
+const caretToEnd = (el) => {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+};
+
+export default function TextEditor({ x, y, scale, t, textareaRef, onChange, onLinesChange, onFont, onSize, onColor, onCommit }) {
   const localRef = useRef(null);
-  const areaRef = textareaRef || localRef;
+  const edRef = textareaRef || localRef;
+  const composing = useRef(false);
+  const savedRange = useRef(null);
+  const [active, setActive] = useState(DEF);
 
-  const buildLines = useCallback((val, fs) => val.split('\n').map((text, i) => makeLine(text, fs[i] || {})), []);
+  const size = t.size || 24;
+  const fontFamily = t.fontFamily || 'Kanit';
 
-  const emit = useCallback((val, fs) => {
-    onChange?.(val);
-    onLinesChange?.(buildLines(val, fs));
-  }, [onChange, onLinesChange, buildLines]);
-
-  // Keep the format array the same length as the text lines. New lines inherit
-  // the format of the previous last line (so pressing Enter continues a bullet);
-  // removed lines drop off the end.
-  const reconcile = (prevFs, val) => {
-    const n = val.split('\n').length;
-    const out = [];
-    const fallback = prevFs[prevFs.length - 1] || fmtOf({});
-    for (let i = 0; i < n; i++) out.push(prevFs[i] ? { ...prevFs[i] } : { ...fallback });
-    return out;
-  };
-
-  const handleChange = (val) => {
-    const nextFmts = reconcile(fmts, val);
-    setValue(val);
-    setFmts(nextFmts);
-    emit(val, nextFmts);
-  };
-
-  const syncCaret = () => {
-    const el = areaRef.current;
+  // --- reading / emitting -------------------------------------------------
+  const emit = useCallback(() => {
+    const el = edRef.current;
     if (!el) return;
-    setCaret(lineRange(value, el.selectionStart, el.selectionEnd));
+    const lines = lineEls(el).map((d) => makeLine(textOfEl(d), readFmt(d)));
+    onChange?.(lines.map((l) => l.text).join('\n'));
+    onLinesChange?.(lines);
+  }, [edRef, onChange, onLinesChange]);
+
+  // Re-apply styles to any line the browser created for us (Enter, paste) and
+  // refresh the bullet/number gutter, which is drawn with a CSS ::before so it
+  // never becomes part of the text.
+  const reflow = useCallback(() => {
+    const el = edRef.current;
+    if (!el) return;
+
+    // Stray top-level text nodes appear if the whole box gets emptied; wrap them
+    // so every line stays a styled block.
+    Array.from(el.childNodes).forEach((n) => {
+      if (n.nodeType === 3 && n.textContent) {
+        const wrap = makeLineEl(n.textContent, readFmt(n.previousElementSibling || el));
+        el.replaceChild(wrap, n);
+        caretToEnd(wrap);
+      } else if (n.nodeType === 3) {
+        el.removeChild(n);
+      }
+    });
+    if (!el.firstElementChild) {
+      const first = makeLineEl('', active);
+      el.appendChild(first);
+      caretToEnd(first);
+    }
+
+    const els = lineEls(el);
+    els.forEach((d, i) => {
+      d.classList.add('pn-ln');
+      // A line the browser cloned keeps data-fmt; one it built from scratch
+      // inherits the line above (so Enter continues a bullet).
+      if (!d.dataset.fmt) writeFmt(d, i > 0 ? readFmt(els[i - 1]) : { ...DEF });
+      else styleLine(d, readFmt(d));
+    });
+
+    const prefixes = listPrefixes(els.map((d) => makeLine(textOfEl(d), readFmt(d))));
+    els.forEach((d, i) => {
+      const p = (prefixes[i] || '').trim();
+      if (p) d.dataset.prefix = p;
+      else delete d.dataset.prefix;
+    });
+
+    // A line holding only a <br> isn't :empty, so the placeholder is driven by a
+    // flag instead of a CSS pseudo-class.
+    if (els.length === 1 && !textOfEl(els[0])) el.dataset.empty = '1';
+    else delete el.dataset.empty;
+  }, [edRef, active]);
+
+  // --- selection ----------------------------------------------------------
+  const rememberSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && edRef.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  }, [edRef]);
+
+  const selectedLines = useCallback(() => {
+    const el = edRef.current;
+    const all = lineEls(el);
+    const r = savedRange.current;
+    if (!r) return all.slice(0, 1);
+    const hit = all.filter((d) => {
+      try { return r.intersectsNode(d); } catch { return false; }
+    });
+    return hit.length ? hit : all.slice(0, 1);
+  }, [edRef]);
+
+  const syncActive = useCallback(() => {
+    const sel = selectedLines().map(readFmt);
+    if (!sel.length) return;
+    const common = { ...DEF };
+    FLAGS.forEach((f) => { common[f] = sel.every((s) => s[f]); });
+    common.list = sel.every((s) => s.list === sel[0].list) ? sel[0].list : 'none';
+    common.align = sel.every((s) => s.align === sel[0].align) ? sel[0].align : 'left';
+    setActive(common);
+  }, [selectedLines]);
+
+  // --- mount --------------------------------------------------------------
+  useEffect(() => {
+    const el = edRef.current;
+    if (!el) return;
+    try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch { /* older browsers */ }
+    const seed = migrateText(t).lines;
+    el.innerHTML = '';
+    (seed.length ? seed : [makeLine('')]).forEach((l) => el.appendChild(makeLineEl(l.text, l)));
+    reflow();
+    el.focus();
+    caretToEnd(el.lastElementChild || el);
+    rememberSelection();
+    syncActive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onSelChange = () => {
+      if (!edRef.current) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.anchorNode || !edRef.current.contains(sel.anchorNode)) return;
+      rememberSelection();
+      syncActive();
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => document.removeEventListener('selectionchange', onSelChange);
+  }, [edRef, rememberSelection, syncActive]);
+
+  // --- editing events -----------------------------------------------------
+  const handleInput = () => {
+    if (!composing.current) reflow();
+    emit();
   };
 
-  // Apply a change to every line the caret/selection currently spans.
-  const applyToSelectedLines = (mutate) => {
-    const el = areaRef.current;
-    const [from, to] = el ? lineRange(value, el.selectionStart, el.selectionEnd) : caret;
-    const next = fmts.map((f, i) => (i >= from && i <= to ? mutate(f, i) : f));
-    setFmts(next);
-    emit(value, next);
-    // keep the textarea focused so the user can keep formatting/typing
-    setTimeout(() => areaRef.current?.focus(), 0);
+  const applyToLines = (mutate) => {
+    const els = selectedLines();
+    if (!els.length) return;
+    const cur = els.map(readFmt);
+    els.forEach((d, i) => writeFmt(d, mutate(cur[i], cur)));
+    reflow();
+    emit();
+    syncActive();
+    // The buttons never take focus (mousedown is prevented), so the caret and
+    // any selection are still exactly where the user left them.
+    edRef.current?.focus();
   };
 
-  const toggleFlag = (flag) => applyToSelectedLines((f) => {
-    // If any selected line lacks the flag, turn it on for all; else turn all off.
-    const el = areaRef.current;
-    const [from, to] = el ? lineRange(value, el.selectionStart, el.selectionEnd) : caret;
-    const allOn = fmts.slice(from, to + 1).every((x) => x[flag]);
-    return { ...f, [flag]: !allOn };
-  });
+  const toggleFlag = (flag) => applyToLines((f, all) => ({ ...f, [flag]: !all.every((s) => s[flag]) }));
+  const setAlign = (val) => applyToLines((f) => ({ ...f, align: val }));
+  const toggleList = (val) => applyToLines((f, all) => ({ ...f, list: all.every((s) => s.list === val) ? 'none' : val }));
 
-  const setAlign = (val) => applyToSelectedLines((f) => ({ ...f, align: val }));
+  // Paste as plain text, one block per line, inheriting the current line's format.
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
+    if (!text) return;
+    const parts = text.replace(/\r\n?/g, '\n').split('\n');
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    sel.deleteFromDocument();
+    document.execCommand('insertText', false, parts[0]);
+    if (parts.length > 1) {
+      let anchor = lineEls(edRef.current).find((d) => d.contains(sel.anchorNode)) || edRef.current.lastElementChild;
+      const fmt = anchor ? readFmt(anchor) : DEF;
+      parts.slice(1).forEach((p) => {
+        const d = makeLineEl(p, fmt);
+        anchor.after(d);
+        anchor = d;
+      });
+      caretToEnd(anchor);
+    }
+    reflow();
+    emit();
+  };
 
-  const toggleList = (val) => applyToSelectedLines((f) => {
-    const el = areaRef.current;
-    const [from, to] = el ? lineRange(value, el.selectionStart, el.selectionEnd) : caret;
-    const allSame = fmts.slice(from, to + 1).every((x) => (x.list || 'none') === val);
-    return { ...f, list: allSame ? 'none' : val };
-  });
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); edRef.current?.blur(); return; }
+    // Shift+Enter would insert a <br> inside the line; make it a real new line
+    // so the canvas and the editor always agree on where lines break.
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      document.execCommand('insertParagraph');
+    }
+  };
 
-  // Active state of a toolbar button = every line in the current selection has it.
-  const [cf, ct] = caret;
-  const sel = fmts.slice(cf, ct + 1);
-  const flagActive = (flag) => sel.length > 0 && sel.every((f) => f[flag]);
-  const alignActive = (val) => sel.length > 0 && sel.every((f) => (f.align || 'left') === val);
-  const listActive = (val) => sel.length > 0 && sel.every((f) => (f.list || 'none') === val);
-
-  const toolBtn = (active) => ({ width: 28, height: 28, borderRadius: 6, border: 'none', background: active ? 'var(--teal-light)' : 'transparent', color: active ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' });
-  const sep = <div style={{ width: 1, height: 16, background: 'var(--br2)', margin: '0 4px' }} />;
-
-  // The list gutter mirrors what the canvas will draw, per line.
-  const prefixes = listPrefixes(buildLines(value, fmts));
-  const hasList = fmts.some((f) => f.list && f.list !== 'none');
+  // --- toolbar ------------------------------------------------------------
+  const toolBtn = (on) => ({ width: 30, height: 30, borderRadius: 8, border: 'none', background: on ? 'var(--teal-light)' : 'transparent', color: on ? 'var(--teal)' : '#4B5563', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 });
+  const sep = <div style={{ width: 1, height: 18, background: 'var(--br2)', margin: '0 3px', flexShrink: 0 }} />;
+  const noFocusSteal = { onMouseDown: (e) => e.preventDefault() };
 
   return (
-    <div data-text-editor style={{ position: 'absolute', top: y - 50, left: x, zIndex: 101, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'white', padding: '6px', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)', border: '1px solid var(--br2)', maxWidth: '92vw', overflowX: 'auto' }}>
-        {/* Font selector — box-level (restyles the whole text's font) */}
+    <div data-text-editor style={{ position: 'absolute', top: y - 52, left: x, zIndex: 101, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <style>{`
+        .pn-ed .pn-ln { min-height: 1.2em; }
+        .pn-ed .pn-ln[data-prefix]::before {
+          content: attr(data-prefix);
+          display: inline-block;
+          width: 1.6em;
+          margin-left: -1.6em;
+          opacity: 0.85;
+          font-weight: 400;
+          font-style: normal;
+          text-decoration: none;
+        }
+        .pn-ed[data-empty="1"] .pn-ln::after {
+          content: "พิมพ์ข้อความที่นี่...";
+          color: #9CA3AF;
+          pointer-events: none;
+        }
+      `}</style>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'white', padding: 6, borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', border: '1px solid var(--br2)', maxWidth: '92vw', overflowX: 'auto' }}>
         <select
-          value={t.fontFamily || 'Kanit'}
-          onMouseDown={e => e.stopPropagation()}
-          onChange={(e) => { onFont(e.target.value); setTimeout(() => areaRef.current?.focus(), 0); }}
+          value={fontFamily}
+          {...noFocusSteal}
+          onChange={(e) => { onFont(e.target.value); setTimeout(() => edRef.current?.focus(), 0); }}
           title="เปลี่ยนฟอนต์"
-          style={{ height: 28, borderRadius: 6, border: '1px solid var(--br2)', background: '#F9FAFB', color: '#111827', fontSize: 12.5, padding: '0 6px', cursor: 'pointer', fontFamily: t.fontFamily || 'Kanit', maxWidth: 118 }}
+          style={{ height: 30, borderRadius: 8, border: '1px solid var(--br2)', background: '#F9FAFB', color: '#111827', fontSize: 12.5, padding: '0 6px', cursor: 'pointer', fontFamily, maxWidth: 112, flexShrink: 0 }}
         >
-          {FONT_OPTIONS.map(f => (
-            <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
-          ))}
+          {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
         </select>
-        {sep}
-        {[
-          { id: 'bold', icon: <span style={{ fontWeight: 700, fontFamily: 'serif', fontSize: 16 }}>B</span> },
-          { id: 'italic', icon: <span style={{ fontStyle: 'italic', fontFamily: 'serif', fontSize: 16 }}>I</span> },
-          { id: 'underline', icon: <span style={{ textDecoration: 'underline', fontFamily: 'serif', fontSize: 16 }}>U</span> },
-        ].map(btn => (
-          <button key={btn.id} onMouseDown={e => e.preventDefault()} onClick={(e) => { e.stopPropagation(); toggleFlag(btn.id); }} style={toolBtn(flagActive(btn.id))}>{btn.icon}</button>
-        ))}
-        {sep}
-        {[
-          { id: 'left', icon: <AlignLeft size={16} /> },
-          { id: 'center', icon: <AlignCenter size={16} /> },
-          { id: 'right', icon: <AlignRight size={16} /> },
-        ].map(btn => (
-          <button key={btn.id} onMouseDown={e => e.preventDefault()} onClick={(e) => { e.stopPropagation(); setAlign(btn.id); }} style={toolBtn(alignActive(btn.id))}>{btn.icon}</button>
-        ))}
-        {sep}
-        {[
-          { id: 'bullet', icon: <List size={16} /> },
-          { id: 'number', icon: <ListOrdered size={16} /> },
-        ].map(btn => (
-          <button key={btn.id} onMouseDown={e => e.preventDefault()} onClick={(e) => { e.stopPropagation(); toggleList(btn.id); }} style={toolBtn(listActive(btn.id))}>{btn.icon}</button>
-        ))}
-      </div>
-      <div style={{ position: 'relative' }}>
-        {hasList && (
-          <div style={{ position: 'absolute', top: 8, left: 8, pointerEvents: 'none', color: t.color || 'black', fontSize: (t.size || 24) * scale, fontFamily: t.fontFamily || 'Kanit', lineHeight: 1.2, zIndex: 101 }}>
-            {value.split('\n').map((_, i) => <div key={i} style={{ minHeight: '1.2em', lineHeight: 1.2 }}>{(prefixes[i] || '').trim()}</div>)}
-          </div>
+
+        {onSize && (
+          <>
+            {sep}
+            <button {...noFocusSteal} onClick={() => onSize(Math.max(10, size - 2))} style={toolBtn(false)} title="เล็กลง"><Minus size={15} /></button>
+            <span style={{ fontSize: 12.5, color: '#4B5563', minWidth: 22, textAlign: 'center', flexShrink: 0 }}>{size}</span>
+            <button {...noFocusSteal} onClick={() => onSize(Math.min(96, size + 2))} style={toolBtn(false)} title="ใหญ่ขึ้น"><Plus size={15} /></button>
+          </>
         )}
-        <textarea
-          ref={areaRef}
-          placeholder="พิมพ์ข้อความที่นี่..."
-          value={value}
-          onChange={(e) => handleChange(e.target.value)}
-          onSelect={syncCaret}
-          onKeyUp={syncCaret}
-          onClick={syncCaret}
-          onBlur={(e) => {
-            // Keep the editor open when focus moves to one of its own controls
-            // (the font <select>, format buttons) so they can restyle the text.
-            const editor = e.currentTarget.closest('[data-text-editor]');
-            if (editor && e.relatedTarget && editor.contains(e.relatedTarget)) return;
-            onCommit();
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            margin: 0,
-            padding: 8,
-            paddingLeft: hasList ? ((t.size || 24) * scale) + 12 : 8,
-            border: '2px solid var(--teal)',
-            background: 'rgba(255,255,255,0.95)',
-            color: t.color,
-            fontSize: `${t.size * scale}px`,
-            fontFamily: t.fontFamily || 'Kanit',
-            lineHeight: 1.2,
-            outline: 'none',
-            resize: 'none',
-            minWidth: 240,
-            minHeight: 100,
-            overflow: 'hidden',
-            zIndex: 100,
-            borderRadius: 8,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') areaRef.current?.blur();
-          }}
-        />
+
+        {sep}
+        {[
+          { id: 'bold', label: <span style={{ fontWeight: 800, fontFamily: 'serif', fontSize: 15 }}>B</span> },
+          { id: 'italic', label: <span style={{ fontStyle: 'italic', fontFamily: 'serif', fontSize: 15 }}>I</span> },
+          { id: 'underline', label: <span style={{ textDecoration: 'underline', fontFamily: 'serif', fontSize: 15 }}>U</span> },
+          { id: 'strikethrough', label: <span style={{ textDecoration: 'line-through', fontFamily: 'serif', fontSize: 15 }}>S</span> },
+        ].map((b) => (
+          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); toggleFlag(b.id); }} style={toolBtn(active[b.id])}>{b.label}</button>
+        ))}
+
+        {onColor && (
+          <>
+            {sep}
+            <label title="สีข้อความ" {...noFocusSteal} style={{ width: 22, height: 22, borderRadius: '50%', background: t.color || '#111827', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.15)', cursor: 'pointer', flexShrink: 0, display: 'block', overflow: 'hidden' }}>
+              <input type="color" value={t.color || '#111827'} onChange={(e) => onColor(e.target.value)} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+            </label>
+          </>
+        )}
+
+        {sep}
+        {[
+          { id: 'left', icon: <AlignLeft size={15} /> },
+          { id: 'center', icon: <AlignCenter size={15} /> },
+          { id: 'right', icon: <AlignRight size={15} /> },
+        ].map((b) => (
+          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); setAlign(b.id); }} style={toolBtn(active.align === b.id)}>{b.icon}</button>
+        ))}
+
+        {sep}
+        {[
+          { id: 'bullet', icon: <List size={15} /> },
+          { id: 'number', icon: <ListOrdered size={15} /> },
+        ].map((b) => (
+          <button key={b.id} {...noFocusSteal} onClick={(e) => { e.stopPropagation(); toggleList(b.id); }} style={toolBtn(active.list === b.id)}>{b.icon}</button>
+        ))}
       </div>
+
+      <div
+        ref={edRef}
+        className="pn-ed"
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
+        data-placeholder="พิมพ์ข้อความที่นี่..."
+        spellCheck={false}
+        onInput={handleInput}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        onCompositionStart={() => { composing.current = true; }}
+        onCompositionEnd={() => { composing.current = false; reflow(); emit(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onBlur={(e) => {
+          // Stay open when focus moves to one of our own controls.
+          const editor = e.currentTarget.closest('[data-text-editor]');
+          if (editor && e.relatedTarget && editor.contains(e.relatedTarget)) return;
+          onCommit();
+        }}
+        style={{
+          margin: 0,
+          padding: 8,
+          border: '2px solid var(--teal)',
+          background: 'rgba(255,255,255,0.96)',
+          color: t.color,
+          fontSize: `${size * scale}px`,
+          fontFamily,
+          lineHeight: LINE_HEIGHT,
+          outline: 'none',
+          minWidth: 240,
+          minHeight: 44,
+          maxWidth: '90vw',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+          borderRadius: 10,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+          cursor: 'text',
+        }}
+      />
     </div>
   );
 }

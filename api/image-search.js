@@ -35,14 +35,32 @@ export default async function handler(req) {
     }
     
     const html = await ddgHtmlRes.text();
-    const vqdMatch = html.match(/vqd="([^"]+)"/);
+    // DDG has shipped both `vqd="..."` and `vqd=...&` over time; accept either so
+    // one markup tweak upstream doesn't take image search down.
+    const vqdMatch = html.match(/vqd="([^"]+)"/) || html.match(/vqd=([\d-]+)&/);
     if (!vqdMatch) {
         throw new Error('DuckDuckGo VQD token not found in HTML response');
     }
     const vqd = vqdMatch[1];
 
+    // Image filters, in DDG's own `f=time,size,color,type,layout,license` order.
+    // These are what make the search actually useful in a notebook: transparent
+    // PNGs for stickers, clip-art for decoration, large for backgrounds.
+    const pick = (name, allowed) => {
+      const v = url.searchParams.get(name);
+      return v && allowed.includes(v) ? `${name}:${v}` : '';
+    };
+    const f = [
+      '',
+      pick('size', ['Small', 'Medium', 'Large', 'Wallpaper']),
+      pick('color', ['color', 'Monochrome', 'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Pink', 'Brown', 'Black', 'Gray', 'Teal', 'White']),
+      pick('type', ['photo', 'clipart', 'gif', 'transparent', 'line']),
+      pick('layout', ['Square', 'Tall', 'Wide']),
+      '',
+    ].join(',');
+
     // 2) Fetch images using the VQD token
-    const ddgImgRes = await fetch(`https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=,,,&p=1`, {
+    const ddgImgRes = await fetch(`https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(q)}&vqd=${vqd}&f=${encodeURIComponent(f)}&p=1`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
     });
 

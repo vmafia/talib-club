@@ -12,18 +12,28 @@ const ALLOWED = new Set(['chat', 'generate-image', 'attachments']);
 export default async function handler(req) {
   const cors = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors });
   }
+
+  const key = process.env.UNCLEDEV_AI_KEY;
+
+  // Health probe: lets the UI say "the key isn't set on the server" up front
+  // instead of after a failed question. Never reveals the key itself.
+  if (req.method === 'GET' && new URL(req.url).searchParams.get('path') === 'health') {
+    return new Response(JSON.stringify({ configured: !!key, upstream: BASE }), {
+      status: 200, headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'method_not_allowed' }), { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
 
-  const key = process.env.UNCLEDEV_AI_KEY;
   if (!key) {
     return new Response(JSON.stringify({ error: 'not_configured' }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
@@ -61,6 +71,17 @@ export default async function handler(req) {
 
     const respHeaders = new Headers(cors);
     respHeaders.set('content-type', upstream.headers.get('content-type') || 'application/json');
+
+    // On failure the upstream often answers with an HTML error page, which the
+    // client can only report as an unhelpful status number. Buffer it and pass
+    // back a short, readable reason instead.
+    if (!upstream.ok) {
+      const raw = (await upstream.text().catch(() => '')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return new Response(JSON.stringify({ error: 'ai_upstream_error', status: upstream.status, detail: raw.slice(0, 300) }), {
+        status: upstream.status, headers: { ...cors, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(upstream.body, { status: upstream.status, headers: respHeaders });
   } catch (error) {
     return new Response(JSON.stringify({ error: String(error?.message || error) }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } });

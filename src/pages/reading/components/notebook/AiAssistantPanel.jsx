@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Draggable from 'react-draggable';
 import { Sparkles, X, Send, Paperclip, FileText, Copy, StickyNote } from 'lucide-react';
 import { HW } from './theme.js';
@@ -21,20 +21,46 @@ export default function AiAssistantPanel({ onClose, onInsertText }) {
   const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
+  // null = still checking, false = the server has no key configured.
+  const [configured, setConfigured] = useState(null);
   const fileRef = useRef(null);
+
+  // Ask the proxy up front whether it even has a key, so a missing/expired
+  // UNCLEDEV_AI_KEY reads as "ตั้งค่าไม่ครบ" instead of a failed question.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/ai?path=health')
+      .then((r) => r.json())
+      .then((d) => { if (alive) setConfigured(!!d.configured); })
+      .catch(() => { if (alive) setConfigured(false); });
+    return () => { alive = false; };
+  }, []);
 
   const ask = async () => {
     if (!question.trim() && !file) { setError('พิมพ์คำถาม หรือแนบไฟล์ก่อน'); return; }
     setLoading(true); setAnswer(''); setError('');
     try {
-      const form = new FormData();
-      form.append('messages', JSON.stringify([{ role: 'user', content: question.trim() || 'สรุปไฟล์นี้ให้หน่อย' }]));
-      if (file) form.append('file', file);
-      const res = await fetch('/api/ai?path=chat', { method: 'POST', body: form });
+      const messages = [{ role: 'user', content: question.trim() || 'สรุปไฟล์นี้ให้หน่อย' }];
+      let body;
+      if (file) {
+        body = new FormData();
+        body.append('messages', JSON.stringify(messages));
+        body.append('file', file);
+      } else {
+        // No attachment → send the plain JSON body a chat endpoint expects.
+        // Wrapping a text-only question in multipart was a good way to get a 4xx.
+        body = JSON.stringify({ messages });
+      }
+      const res = await fetch('/api/ai?path=chat', {
+        method: 'POST',
+        headers: file ? undefined : { 'Content-Type': 'application/json' },
+        body,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.error === 'not_configured') setError('ยังไม่ได้ตั้งค่า AI — ต้องใส่ UNCLEDEV_AI_KEY ใน Vercel แล้ว redeploy');
         else if (data.error === 'ai_auth_failed') setError('AI ปฏิเสธการเข้าถึง — UNCLEDEV_AI_KEY อาจหมดอายุ/ไม่ถูกต้อง ตรวจสอบใน Vercel');
+        else if (data.error === 'ai_upstream_error') setError(`AI ตอบกลับผิดพลาด (${data.status})${data.detail ? `: ${data.detail}` : ''}`);
         else setError(`เรียก AI ไม่สำเร็จ (${data.error || res.status})`);
         return;
       }
@@ -55,6 +81,12 @@ export default function AiAssistantPanel({ onClose, onInsertText }) {
           <h3 style={{ fontSize: 15.5, fontWeight: 700, margin: 0, color: 'var(--text)', flex: 1 }}>ผู้ช่วย AI · ถาม PDF</h3>
           <button onClick={onClose} title="ปิด" style={{ border: 'none', background: 'var(--gray-light)', width: 30, height: 30, borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)' }}><X size={17} /></button>
         </div>
+
+        {configured === false && (
+          <div style={{ flexShrink: 0, marginBottom: 10, padding: '9px 12px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', fontSize: 12.5, lineHeight: 1.5 }}>
+            เซิร์ฟเวอร์ยังไม่มีคีย์ AI — ต้องตั้งค่า <b>UNCLEDEV_AI_KEY</b> ใน Vercel (Settings → Environment Variables) แล้ว redeploy ถึงจะใช้ได้
+          </div>
+        )}
 
         {/* File picker */}
         <input ref={fileRef} type="file" accept=".pdf,.txt,.doc,.docx,image/*" style={{ display: 'none' }} onChange={(e) => { setFile(e.target.files?.[0] || null); setError(''); }} />

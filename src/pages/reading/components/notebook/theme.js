@@ -19,6 +19,12 @@ export const ZERO_OFFSET = { x: 0, y: 0 };
 // Default width of a text box, so alignment and lists have a column to work in.
 export const TEXT_BOX_WIDTH = 340;
 
+// Line spacing for text objects. The WYSIWYG editor and the Konva renderer must
+// use the same value or the text visibly shifts the moment you stop editing.
+// 1.2 (rather than Konva's default 1.0) also stops Thai tone marks and upper
+// vowels from colliding with the line above.
+export const LINE_HEIGHT = 1.2;
+
 // Sticky-note palette and styles, shared by the tool options and the context menu.
 export const STICKY_COLORS = ['#FEF08A', '#FBCFE8', '#BAE6FD', '#BBF7D0', '#FED7AA', '#DDD6FE', '#FECACA', '#A7F3D0'];
 
