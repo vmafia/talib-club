@@ -29,6 +29,7 @@ import TextEditor from './notebook/TextEditor.jsx';
 import PaperTemplateModal from './notebook/PaperTemplateModal.jsx';
 import ExportModal from './notebook/ExportModal.jsx';
 import AiAssistantPanel from './notebook/AiAssistantPanel.jsx';
+import { fetchWebImages, imageUrlFromDataTransfer, fetchAsDataUrlOrRemote } from './notebook/imageSearch.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -244,75 +245,16 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
   const [imgResults, setImgResults] = useState([]);
   const [imgLoading, setImgLoading] = useState(false);
 
-  // Search several open, CORS-friendly image sources at once so a query like
-  // "ซัยยิด กุฏุบ" returns real photos without leaving the app. Thai + English
-  // Wikipedia surface the lead photo of matching articles (people, places, books),
-  // Wikimedia Commons adds broader media, and Openverse covers stickers/clip-art.
+  // Multi-source image search (logic in ./notebook/imageSearch.js); this wrapper
+  // just drives the React state and toasts around it.
   const searchWebImages = async (q) => {
      if (!q.trim()) return;
      setImgLoading(true);
      setImgResults([]);
-     const merged = [];
-     const seen = new Set();
-     const add = (r) => { if (r?.thumbnail && !seen.has(r.thumbnail)) { seen.add(r.thumbnail); merged.push(r); } };
-
-     // Real Google image results via our server-side proxy. Only returns data when
-     // GOOGLE_CSE_KEY / GOOGLE_CSE_CX are set in the deployment; otherwise it 503s
-     // and we fall through to the keyless sources below — no error shown.
-     const google = (async () => {
-        try {
-           const res = await fetch(`/api/image-search?q=${encodeURIComponent(q)}`);
-           if (!res.ok) return;
-           const data = await res.json();
-           (data.results || []).forEach(add);
-        } catch (_) { /* proxy offline / not configured */ }
-     })();
-
-     const wikiArticles = (lang) => (async () => {
-        try {
-           const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=12&piprop=thumbnail&pithumbsize=400&origin=*`);
-           const data = await res.json();
-           Object.values(data.query?.pages || {}).forEach(p => p.thumbnail && add({
-              id: `wp-${lang}-${p.pageid}`, title: p.title, thumbnail: p.thumbnail.source, url: p.thumbnail.source,
-              width: p.thumbnail.width, height: p.thumbnail.height, source: 'Wikipedia', license: 'สาธารณะ/CC'
-           }));
-        } catch (_) { /* one source failing shouldn't sink the search */ }
-     })();
-
-     const commons = (async () => {
-        try {
-           const res = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrnamespace=6&gsrlimit=24&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=320&origin=*`);
-           const data = await res.json();
-           Object.values(data.query?.pages || {}).forEach(p => {
-              const ii = p.imageinfo?.[0];
-              if (ii?.thumburl) add({
-                 id: `cm-${p.pageid}`, title: p.title.replace('File:', ''), thumbnail: ii.thumburl, url: ii.thumburl,
-                 width: ii.thumbwidth, height: ii.thumbheight, source: 'Commons',
-                 license: ii.extmetadata?.LicenseShortName?.value || 'CC', creator: ii.extmetadata?.Artist?.value?.replace(/<[^>]+>/g, '')
-              });
-           });
-        } catch (_) { /* ignore */ }
-     })();
-
-     const openverse = (async () => {
-        try {
-           const res = await fetch(`https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&page_size=24&mature=false`);
-           const data = await res.json();
-           (data.results || []).forEach(im => add({
-              id: `ov-${im.id}`, title: im.title, thumbnail: im.thumbnail || im.url, url: im.url,
-              width: im.width, height: im.height, source: 'Openverse', license: im.license, creator: im.creator
-           }));
-        } catch (_) { /* ignore */ }
-     })();
-
      try {
-        // Google first (if configured) so its results head the grid; show them
-        // immediately, then fill in the keyless sources.
-        await google;
-        if (merged.length) setImgResults([...merged]);
-        await Promise.all([wikiArticles('th'), wikiArticles('en'), commons, openverse]);
-        setImgResults([...merged]);
-        if (!merged.length) toast('ไม่พบรูปภาพที่ค้นหา — ลองคำอื่น');
+        const results = await fetchWebImages(q, { onPartial: (partial) => setImgResults(partial) });
+        setImgResults(results);
+        if (!results.length) toast('ไม่พบรูปภาพที่ค้นหา — ลองคำอื่น');
      } catch (e) {
         console.error('Image search failed', e);
         toast.error('ค้นหารูปไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต)');
@@ -326,17 +268,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      if (!url) return;
      toast.loading('กำลังแทรกรูป...', { id: 'web-img' });
      try {
-        let src = url;
-        try {
-           const r = await fetch(url);
-           const blob = await r.blob();
-           src = await new Promise((resolve, reject) => {
-              const fr = new FileReader();
-              fr.onload = () => resolve(fr.result);
-              fr.onerror = reject;
-              fr.readAsDataURL(blob);
-           });
-        } catch (_) { /* CORS-blocked: fall back to referencing the remote URL */ }
+        const src = await fetchAsDataUrlOrRemote(url);
         const ratio = item.width && item.height ? item.height / item.width : 1;
         const w = 260;
         const h = Math.round(w * (ratio || 1));
@@ -2474,29 +2406,6 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
      };
      im.onerror = () => place(300, 300); // couldn't measure (CORS): use a default box
      im.src = src;
-  };
-
-  // Pull the best image reference out of a drag payload. The actual dragged image
-  // usually rides in text/html (<img src>); page/URL drags fall back to uri-list.
-  const imageUrlFromDataTransfer = (dt) => {
-     const html = dt.getData('text/html');
-     if (html) { const m = html.match(/<img[^>]+src=["']([^"']+)["']/i); if (m) return m[1]; }
-     const uri = dt.getData('text/uri-list');
-     if (uri) return uri.split('\n').find(l => l && !l.startsWith('#')) || '';
-     const plain = dt.getData('text/plain');
-     if (plain && /^https?:\/\//i.test(plain.trim())) return plain.trim();
-     return '';
-  };
-
-  const fetchAsDataUrlOrRemote = async (url) => {
-     try {
-        const r = await fetch(url);
-        const blob = await r.blob();
-        if (blob.type.startsWith('image/')) {
-           return await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
-        }
-     } catch (_) { /* CORS or network: reference the remote URL instead */ }
-     return url;
   };
 
   const handleCanvasDrop = async (e) => {
