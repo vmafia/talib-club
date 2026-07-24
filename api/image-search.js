@@ -79,6 +79,34 @@ async function searchDuckDuckGo(q, type) {
   })).filter((r) => r.thumbnail);
 }
 
+// Google Custom Search — best fallback, needs API key and CX.
+async function searchGoogle(q, type, key, cx) {
+  // Google's imgType maps: clipart -> clipart, photo -> photo, transparent -> no direct equivalent but can use fileType=png
+  const api = new URL('https://www.googleapis.com/customsearch/v1');
+  api.searchParams.set('key', key);
+  api.searchParams.set('cx', cx);
+  api.searchParams.set('q', q);
+  api.searchParams.set('searchType', 'image');
+  api.searchParams.set('safe', 'active');
+  if (type === 'photo') api.searchParams.set('imgType', 'photo');
+  else if (type === 'clipart') api.searchParams.set('imgType', 'clipart');
+  
+  const res = await fetch(api.toString());
+  if (!res.ok) throw new Error(`Google ${res.status}`);
+  const data = await res.json();
+  return (data.items || []).map((h, i) => ({
+    id: `gg-${i}`,
+    title: h.title || 'Google Image',
+    thumbnail: h.image?.thumbnailLink || h.link,
+    url: h.link,
+    width: h.image?.width || 800,
+    height: h.image?.height || 800,
+    source: h.displayLink || 'Google',
+    license: 'Google Search',
+    context: h.image?.contextLink || h.link,
+  })).filter((r) => r.thumbnail);
+}
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
@@ -88,6 +116,8 @@ export default async function handler(req) {
   if (!q) return json({ error: 'missing_query', results: [] }, 400);
 
   const key = process.env.PIXABAY_KEY || process.env.PIXABAY_API_KEY;
+  const ggKey = process.env.GOOGLE_API_KEY;
+  const ggCx = process.env.GOOGLE_CX;
   const notes = [];
 
   // 1) Pixabay first when configured — the dependable source.
@@ -105,7 +135,20 @@ export default async function handler(req) {
     notes.push('pixabay:no_key');
   }
 
-  // 2) DuckDuckGo fallback — works locally, usually blocked on Vercel.
+  // 2) Google Custom Search if configured
+  if (ggKey && ggCx) {
+    try {
+      const results = await searchGoogle(q, type, ggKey, ggCx);
+      if (results.length) {
+        return json({ results, provider: 'google', notes }, 200, { 'Cache-Control': 's-maxage=3600' });
+      }
+      notes.push('google:empty');
+    } catch (e) {
+      notes.push('google:' + String(e?.message || e));
+    }
+  }
+
+  // 3) DuckDuckGo fallback — works locally, usually blocked on Vercel.
   try {
     const results = await searchDuckDuckGo(q, type);
     return json({ results, provider: 'duckduckgo', notes }, 200, { 'Cache-Control': 's-maxage=1800' });
