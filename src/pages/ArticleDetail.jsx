@@ -489,8 +489,19 @@ export default function ArticleDetail({ item, go, authState }) {
       // 3. เช็คว่าเป็นลิงก์อัลกุรอาน (Quran Reference)
       else if (a.classList.contains('quran-ref-link') || (href && href.includes('/quran?sura='))) {
         e.preventDefault();
-        const sura = a.getAttribute('data-sura');
-        const ayah = a.getAttribute('data-ayah');
+        let sura = a.getAttribute('data-sura');
+        let ayah = a.getAttribute('data-ayah');
+
+        if (!sura || !ayah) {
+          try {
+            const url = new URL(href, window.location.origin);
+            sura = url.searchParams.get('sura');
+            ayah = url.searchParams.get('ayah');
+          } catch (err) {
+            // ignore
+          }
+        }
+
         if (sura && ayah) {
           go("quran", { sura: Number(sura), ayah: Number(ayah) });
         }
