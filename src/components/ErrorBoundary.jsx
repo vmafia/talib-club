@@ -1,14 +1,16 @@
 import React from 'react';
+import { attemptStaleBundleRecovery } from '../utils/recovery.js';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, recovering: false };
   }
 
   static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI.
-    return { hasError: true, error };
+    // Old-bundle mismatch? Self-heal (clear caches + hard reload once).
+    const recovering = attemptStaleBundleRecovery(error);
+    return { hasError: true, error, recovering };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -19,6 +21,14 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.state.recovering) {
+        return (
+          <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+            <i className="ti ti-loader-2 spin" style={{ fontSize: '40px', color: 'var(--teal)', marginBottom: '16px' }}></i>
+            <p style={{ color: 'var(--t2)', maxWidth: '400px' }}>กำลังอัปเดตเป็นเวอร์ชันล่าสุด กรุณารอสักครู่...</p>
+          </div>
+        );
+      }
       // You can render any custom fallback UI
       return (
         <div style={{

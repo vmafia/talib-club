@@ -58,6 +58,7 @@ import { useContentCollection } from "./lib/contentStore.js"
 import { syncServerTime, safeDateNow } from "./utils/time.js"
 
 import { getMs, getLocalDayKey } from "./utils/streak.js"
+import { attemptStaleBundleRecovery } from "./utils/recovery.js"
 
 const urlToPage = {
   "": "home",
@@ -440,16 +441,19 @@ export default function App() {
 class PageErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, recovering: false }
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true, error }
+    // If this looks like an old-bundle mismatch, self-heal (clear caches +
+    // hard reload once) instead of stranding the user on an error card.
+    const recovering = attemptStaleBundleRecovery(error)
+    return { hasError: true, error, recovering }
   }
 
   componentDidUpdate(prevProps) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
-      this.setState({ hasError: false, error: null })
+      this.setState({ hasError: false, error: null, recovering: false })
     }
   }
 
@@ -459,6 +463,15 @@ class PageErrorBoundary extends Component {
 
   render() {
     if (!this.state.hasError) return this.props.children
+
+    if (this.state.recovering) {
+      return (
+        <div className="card" style={{ maxWidth: 420, margin: "44px auto", padding: 24, textAlign: "center" }}>
+          <i className="ti ti-loader-2 spin" style={{ fontSize: 28, color: "var(--teal)" }}></i>
+          <p style={{ marginTop: 10 }}>กำลังอัปเดตเป็นเวอร์ชันล่าสุด กรุณารอสักครู่...</p>
+        </div>
+      )
+    }
 
     return (
       <div className="card" style={{ maxWidth: 520, margin: "44px auto", padding: 24, textAlign: "center" }}>
