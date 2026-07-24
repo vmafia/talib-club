@@ -1415,6 +1415,7 @@ export default function ProNotebook({ bookId, uid, activeBook, readonly = false,
        }
        if (editingTextId) {
            if (textareaRef.current) textareaRef.current.blur();
+           return; // Prevent spawning a new text box when just clicking outside to finish typing
        }
        if (hitExistingObject) {
            toast.error("โดนออบเจ็กต์เดิม! (hitExistingObject=true)");
